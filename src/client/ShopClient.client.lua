@@ -166,12 +166,12 @@ local upgradesWindow, upgradesList = UIKit.window("⬆️ Upgrades", Color3.from
 local rangeRow = UIKit.row(upgradesList, 0, 60)
 local rangeLabel = label({ Parent = rangeRow, Position = UDim2.fromOffset(14, 10), Size = UDim2.new(1, -28, 1, -20), Text = "", TextColor3 = Color3.fromRGB(255, 170, 30), ZIndex = 12 })
 local upgradeRows = {}
-local ICONS = { Fuel = "⛽", Speed = "🔥", Money = "💰" }
+local ICONS = { Fuel = "⛽", Speed = "🔥", Money = "💰", Cannon = "💥" }
 local WHAT = { Fuel = "fuel", Speed = "speed", Money = "money" }
-for i, key in ipairs({ "Fuel", "Speed", "Money" }) do
+for i, key in ipairs({ "Cannon", "Fuel", "Speed", "Money" }) do
 	local u = Config.Upgrades[key]
 	local r = UIKit.row(upgradesList, i, 104)
-	local iconBox = make("Frame", { Parent = r, Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(80, 80), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(20), UIKit.stroke(3), UIKit.gloss(({ Fuel = Color3.fromRGB(255, 170, 40), Speed = Color3.fromRGB(255, 90, 70), Money = GREEN })[key]) })
+	local iconBox = make("Frame", { Parent = r, Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(80, 80), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(20), UIKit.stroke(3), UIKit.gloss(({ Fuel = Color3.fromRGB(255, 170, 40), Speed = Color3.fromRGB(255, 90, 70), Money = GREEN, Cannon = Color3.fromRGB(90, 150, 255) })[key]) })
 	label({ Parent = iconBox, Size = UDim2.fromScale(1, 1), Text = ICONS[key], ZIndex = 13 })
 	label({ Parent = r, Position = UDim2.fromOffset(104, 12), Size = UDim2.new(1, -270, 0, 34), TextXAlignment = Enum.TextXAlignment.Left, Text = u.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 	local info = label({ Parent = r, Position = UDim2.fromOffset(104, 50), Size = UDim2.new(1, -270, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
@@ -191,7 +191,12 @@ local function refreshUpgrades()
 	for key, r in pairs(upgradeRows) do
 		local u = Config.Upgrades[key]
 		local level = player:GetAttribute(key .. "Level") or 0
-		r.info.Text = string.format("Level %d / %d   +%d%% %s", level, u.maxLevel, math.floor(level * u.perLevel * 100 + 0.5), WHAT[key])
+		if key == "Cannon" then
+			local power, time = Config.cannonBlast(level)
+			r.info.Text = string.format("Lv %d/%d  %s  •  blast x%.1f for %.1fs", level, u.maxLevel, Config.cannonTier(level), power, time)
+		else
+			r.info.Text = string.format("Level %d / %d   +%d%% %s", level, u.maxLevel, math.floor(level * u.perLevel * 100 + 0.5), WHAT[key])
+		end
 		r.fill.Size = UDim2.fromScale(level / u.maxLevel, 1)
 		if level >= u.maxLevel then
 			r.button.setText("MAX")
@@ -204,7 +209,7 @@ local function refreshUpgrades()
 	end
 end
 
-for _, attr in ipairs({ "Money", "Rocket", "OwnedRockets", "Trail", "OwnedTrails", "FuelLevel", "SpeedLevel", "MoneyLevel" }) do
+for _, attr in ipairs({ "Money", "Rocket", "OwnedRockets", "Trail", "OwnedTrails", "FuelLevel", "SpeedLevel", "MoneyLevel", "CannonLevel" }) do
 	player:GetAttributeChangedSignal(attr):Connect(function()
 		refreshRockets()
 		refreshUpgrades()

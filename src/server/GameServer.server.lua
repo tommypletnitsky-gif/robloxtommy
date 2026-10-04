@@ -185,17 +185,18 @@ local function startFlight(player)
 	local def, speed, fuel = rocketStats(player)
 	hum:UnequipTools()
 
-	-- the rocket rests in the launcher's cradle (Lobby sets RestY on the launcher)
-	local startX = Config.LAUNCH_X - 8
+	-- the rocket is loaded inside the launch cannon's barrel (Lobby sets LoadX / LoadY / Tilt on it)
 	local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
-	local launcher = hub and hub:FindFirstChild("Launcher")
-	local restY = launcher and launcher:GetAttribute("RestY")
-	local origin = CFrame.new(startX, restY and (restY + RocketModel.belly(def)) or (Config.pathY(startX) + 4), 0)
+	local cannon = hub and hub:FindFirstChild("Cannon")
+	local startX = cannon and cannon:GetAttribute("LoadX") or (Config.LAUNCH_X - 8)
+	local loadY = cannon and cannon:GetAttribute("LoadY") or (Config.pathY(startX) + 4)
+	local origin = CFrame.new(startX, loadY, 0) * CFrame.Angles(0, 0, cannon and cannon:GetAttribute("Tilt") or 0)
 	local model = RocketModel.build(def, 1, true, origin)
 	model.Name = player.Name
 	RocketModel.addTrail(model, Config.getTrail(player:GetAttribute("Trail")))
 	local body = model.PrimaryPart
 	body.Anchored = true
+	model:SetAttribute("InCannon", true) -- clients hide the rocket + rider until the cannon fires
 	model.Parent = flightsFolder
 
 	local f = {
@@ -246,10 +247,13 @@ local function startFlight(player)
 		end
 		body.Anchored = false
 		body:SetNetworkOwner(player)
+		model:SetAttribute("InCannon", false)
 		RocketModel.setThrust(model, true)
 		f.launchedAt = os.clock()
-		f.maxX = f.startX + 15
-		FlightEvent:FireClient(player, "start", { speed = speed, fuel = fuel, startX = f.startX, rocket = model })
+		f.maxX = math.max(f.startX, body.Position.X) + 15
+		-- BOOM: the cannon blast (stronger + longer with Cannon Power upgrades)
+		f.blastPower, f.blastTime = Config.cannonBlast(player:GetAttribute("CannonLevel") or 0)
+		FlightEvent:FireClient(player, "start", { speed = speed, fuel = fuel, startX = f.startX, rocket = model, blastPower = f.blastPower, blastTime = f.blastTime })
 	end)
 end
 
@@ -309,7 +313,11 @@ RunService.Heartbeat:Connect(function(dt)
 		local elapsed = now - f.launchedAt
 		-- Can't go farther than the rocket could possibly have flown (boost rings allow a bit more).
 		local boosting = now < (f.boostUntil or 0)
-		f.maxX += f.speed * (boosting and Config.Pickups.Ring.boost * 1.1 or 1.15) * dt
+		local cap = boosting and Config.Pickups.Ring.boost * 1.1 or 1.15
+		if f.blastTime and elapsed < f.blastTime + 0.5 then
+			cap = math.max(cap, f.blastPower * 1.1) -- the cannon blast
+		end
+		f.maxX += f.speed * cap * dt
 		local x = math.min(body.Position.X, f.maxX)
 		f.distance = math.max(f.distance, x - f.startX)
 

@@ -22,6 +22,7 @@ PlayerData.DEFAULTS = {
 	FuelLevel = 0,
 	SpeedLevel = 0,
 	MoneyLevel = 0,
+	CannonLevel = 0,
 	Rebirths = 0,
 	Donated = 0,
 	DailyStreak = 0,

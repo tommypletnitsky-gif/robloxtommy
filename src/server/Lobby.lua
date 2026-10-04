@@ -1,9 +1,9 @@
 -- The starting area: a cheerful launch park.
---   spawn plaza -> lantern-lined stone path (the two shops on either side) -> launch pad + launcher.
+--   spawn plaza -> lantern-lined stone path (the two shops on either side) -> launch pad + cannon.
 --   Groves, blue rocks and grass-topped simulator hills frame the edges; the middle stays open so the
---   shops and the launcher are what you see first.
+--   shops and the cannon are what you see first.
 --   Props: Creator Store packs (scripts/lights stripped) in ServerStorage.LobbyProps, see their
---   Source attribute. Shops: ServerStorage.ShopModels. Launcher: ServerStorage.LauncherModel.
+--   Source attribute. Shops: ServerStorage.ShopModels. Launch cannon: ServerStorage.CannonModel.
 --   Paths / pad use generated MaterialVariants when the place has them (LobbyPathTiles,
 --   LaunchPadPanels) and plain materials otherwise.
 -- Nothing in the lobby glows or emits light.
@@ -183,24 +183,36 @@ local function placeShop(hub, info)
 	prompt(m, face * CFrame.new(0, 5, -depth / 2 - 1.5), info.title:sub(info.title:find(" ") + 1), info.window)
 end
 
--- Launcher: generated pad + tower + clamps (ServerStorage.LauncherModel.Launcher, pivot = ground
--- under the cradle). RestY = height the rocket's belly rests at; GameServer reads it.
+-- Launch cannon: generated cartoon cannon (ServerStorage.CannonModel.Cannon, pivot = ground under
+-- its middle, muzzle +X; attributes MuzzleLocal / LoadLocal / Tilt). Placed so the muzzle sits just
+-- before the start line. The world attributes set here are read by GameServer (LoadX / LoadY /
+-- Tilt = where the rocket is loaded) and RocketClient (Muzzle / Aim = smoke + recoil).
 local function launchArea(hub)
-	local folder = ServerStorage:FindFirstChild("LauncherModel")
-	local template = folder and folder:FindFirstChild("Launcher")
-	local at = Vector3.new(PAD_X, 0, 0)
+	local folder = ServerStorage:FindFirstChild("CannonModel")
+	local template = folder and folder:FindFirstChild("Cannon")
+	local m
+	local muzzle, load, tilt
 	if template then
-		local m = template:Clone()
-		m:PivotTo(CFrame.new(at))
-		m:SetAttribute("RestY", at.Y + template:GetAttribute("RestTop"))
-		m.Parent = hub
+		m = template:Clone()
+		local pivot = CFrame.new(Config.LAUNCH_X + 2 - template:GetAttribute("MuzzleLocal").X, 0, 0)
+		m:PivotTo(pivot)
+		muzzle = pivot * template:GetAttribute("MuzzleLocal")
+		load = pivot * template:GetAttribute("LoadLocal")
+		tilt = template:GetAttribute("Tilt")
 	else
-		local m = Instance.new("Model")
-		m.Name = "Launcher"
-		cyl(m, 3, 26, CFrame.new(at + Vector3.new(0, 1.5, 0)) * UP, C(230, 235, 245), { Name = "PadBase" })
-		m:SetAttribute("RestY", at.Y + 3)
-		m.Parent = hub
+		m = Instance.new("Model")
+		tilt = math.rad(8)
+		cyl(m, 24, 9, CFrame.new(PAD_X, 10, 0) * CFrame.Angles(0, 0, tilt), C(220, 60, 60), { Name = "Barrel", CanCollide = false })
+		muzzle = Vector3.new(PAD_X + 12, 11.7, 0)
+		load = Vector3.new(PAD_X + 3, 10.4, 0)
 	end
+	m.Name = "Cannon"
+	m:SetAttribute("LoadX", load.X)
+	m:SetAttribute("LoadY", load.Y)
+	m:SetAttribute("Tilt", tilt)
+	m:SetAttribute("Muzzle", muzzle)
+	m:SetAttribute("Aim", Vector3.new(math.cos(tilt), math.sin(tilt), 0))
+	m.Parent = hub
 end
 
 -- Egg Garden ---------------------------------------------------------------------------------------

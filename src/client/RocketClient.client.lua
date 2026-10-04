@@ -497,79 +497,141 @@ local function setLetterbox(on)
 	end
 end
 
--- The launcher animates on this player's screen only (Hub.Launcher, parts named by Lobby):
---   "arm"    countdown starts: the tower's walkway arm swings back
---   "clamps" ignition: both clamps fold open, away from the rocket
---   "kick"   liftoff: the roller shoots forward with the rocket and springs back
---   "reset"  flight over: everything glides home
-local launcher = { parts = nil, home = {} }
-local function launcherParts()
-	if launcher.parts then
-		return launcher.parts
+-- The launch cannon (Hub.Cannon, parts named by Lobby) animates on this player's screen only:
+--   "load"   you climb in: the fuse starts sparking
+--   "fire"   BOOM: the barrel kicks back, a puff of smoke from the muzzle, then it rolls home
+--   "reset"  flight over: everything back in place, fuse out
+local cannon = { model = nil, home = {}, fuse = nil }
+local function cannonModel()
+	if cannon.model and cannon.model.Parent then
+		return cannon.model
 	end
 	local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
-	local m = hub and hub:FindFirstChild("Launcher")
-	if not m then
-		return nil
-	end
-	launcher.parts = {}
-	for _, name in ipairs({ "Arm", "ClampL", "ClampR", "Pistons" }) do
-		local p = m:FindFirstChild(name)
-		if p then
-			launcher.parts[name] = p
-			launcher.home[name] = p.CFrame
-		end
-	end
-	launcher.tower = m:FindFirstChild("Tower")
-	launcher.center = m:GetPivot().Position
-	return launcher.parts
-end
-
-local function rotateAbout(home, pivot, rot)
-	return CFrame.new(pivot) * rot * CFrame.new(-pivot) * home
-end
-
-local function animateLauncher(phase)
-	local parts = launcherParts()
-	if not parts then
-		return
-	end
-	local function tween(p, cf, t, style, dir)
-		TweenService:Create(p, TweenInfo.new(t, style or Enum.EasingStyle.Sine, dir or Enum.EasingDirection.InOut), { CFrame = cf }):Play()
-	end
-	local home = launcher.home
-	if phase == "arm" and parts.Arm then
-		-- hinge on the arm's end at the tower, swing it forward (out of the cutscene camera's view)
-		local arm = parts.Arm
-		local a, b = home.Arm * Vector3.new(0, 0, arm.Size.Z / 2), home.Arm * Vector3.new(0, 0, -arm.Size.Z / 2)
-		local t = launcher.tower and launcher.tower.Position or a
-		local flatDist = function(v)
-			return Vector2.new(v.X - t.X, v.Z - t.Z).Magnitude
-		end
-		local hinge = flatDist(a) < flatDist(b) and a or b
-		tween(arm, rotateAbout(home.Arm, hinge, CFrame.Angles(0, math.rad(95), 0)), 1.6)
-	elseif phase == "clamps" then
-		for _, name in ipairs({ "ClampL", "ClampR" }) do
-			local p = parts[name]
-			if p then
-				-- fold outward (front clamp forward, back clamp backward) around its bottom outer edge
-				local s = home[name].Position.X > launcher.center.X and 1 or -1
-				local hinge = home[name].Position + Vector3.new(s * p.Size.X / 2, -p.Size.Y / 2, 0)
-				tween(p, rotateAbout(home[name], hinge, CFrame.Angles(0, 0, -s * math.rad(90))), 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	local m = hub and hub:FindFirstChild("Cannon")
+	cannon.model = m
+	cannon.home = {}
+	if m then
+		for _, p in ipairs(m:GetDescendants()) do
+			if p:IsA("BasePart") then
+				cannon.home[p] = p.CFrame
 			end
 		end
-	elseif phase == "kick" and parts.Pistons then
-		local p = parts.Pistons
-		tween(p, home.Pistons + Vector3.new(4, 0, 0), 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		task.delay(0.25, function()
-			tween(p, home.Pistons, 0.9, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-		end)
+	end
+	return m
+end
+
+local function cannonPart(name)
+	local m = cannonModel()
+	return m and m:FindFirstChild(name, true)
+end
+
+local function muzzleSmoke(at, dir)
+	local p = Instance.new("Part")
+	p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch, p.Transparency = true, false, false, false, 1
+	p.Size = Vector3.one
+	p.CFrame = CFrame.lookAt(at, at + dir)
+	p.Parent = workspace
+	local e = Instance.new("ParticleEmitter")
+	e.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	e.Color = ColorSequence.new(Color3.fromRGB(255, 240, 220), Color3.fromRGB(200, 200, 210))
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 5), NumberSequenceKeypoint.new(1, 16) })
+	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	e.Lifetime = NumberRange.new(0.8, 1.6)
+	e.Speed = NumberRange.new(10, 30)
+	e.SpreadAngle = Vector2.new(35, 35)
+	e.EmissionDirection = Enum.NormalId.Front
+	e.Rate = 0
+	e.Parent = p
+	e:Emit(70)
+	game:GetService("Debris"):AddItem(p, 3)
+end
+
+local function animateCannon(phase)
+	local m = cannonModel()
+	if not m then
+		return
+	end
+	local barrel = cannonPart("Barrel")
+	if phase == "load" then
+		local fusePart = cannonPart("Fuse") or barrel
+		if fusePart and not cannon.fuse then
+			local e = Instance.new("ParticleEmitter")
+			e.Name = "FuseSparks"
+			e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+			e.Color = ColorSequence.new(Color3.fromRGB(255, 220, 120), Color3.fromRGB(255, 120, 40))
+			e.Size = NumberSequence.new(0.6, 0.1)
+			e.Lifetime = NumberRange.new(0.3, 0.6)
+			e.Speed = NumberRange.new(4, 9)
+			e.SpreadAngle = Vector2.new(180, 180)
+			e.Rate = 60
+			e.Parent = fusePart
+			cannon.fuse = e
+		end
+	elseif phase == "fire" then
+		if cannon.fuse then
+			cannon.fuse:Destroy()
+			cannon.fuse = nil
+		end
+		local dir = m:GetAttribute("Aim") or Vector3.xAxis
+		local muzzle = m:GetAttribute("Muzzle")
+		if muzzle then
+			muzzleSmoke(muzzle, dir)
+		end
+		if barrel then
+			local home = cannon.home[barrel] or barrel.CFrame
+			TweenService:Create(barrel, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = home - dir * 3 }):Play()
+			task.delay(0.15, function()
+				TweenService:Create(barrel, TweenInfo.new(1.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { CFrame = home }):Play()
+			end)
+		end
 	elseif phase == "reset" then
-		for name, p in pairs(parts) do
-			tween(p, home[name], 1.2)
+		if cannon.fuse then
+			cannon.fuse:Destroy()
+			cannon.fuse = nil
+		end
+		for p, cf in pairs(cannon.home) do
+			if p.Parent then
+				p.CFrame = cf
+			end
 		end
 	end
 end
+
+-- Rockets loaded in the cannon (attribute InCannon) are hidden with their riders on every screen.
+local hiddenModels = {} -- [rocket model] = true while hidden
+local function setHidden(model, hidden)
+	local plr = Players:FindFirstChild(model.Name)
+	local list = { model }
+	if plr and plr.Character then
+		table.insert(list, plr.Character)
+	end
+	for _, root in ipairs(list) do
+		for _, d in ipairs(root:GetDescendants()) do
+			if d:IsA("BasePart") or d:IsA("Decal") then
+				d.LocalTransparencyModifier = hidden and 1 or 0
+			end
+		end
+	end
+end
+RunService.RenderStepped:Connect(function()
+	local flightsFolder = workspace:FindFirstChild("Flights")
+	if not flightsFolder then
+		return
+	end
+	for _, m in ipairs(flightsFolder:GetChildren()) do
+		local inside = m:GetAttribute("InCannon") == true
+		if inside ~= (hiddenModels[m] or false) then
+			hiddenModels[m] = inside or nil
+			setHidden(m, inside)
+		end
+	end
+	for m in pairs(hiddenModels) do
+		if not m.Parent then
+			hiddenModels[m] = nil
+		end
+	end
+end)
+
 local countdown = nil -- { body, base, t0, dur } while sitting on the pad
 
 local function makeLaunchSmoke(at)
@@ -639,7 +701,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			camera.CameraType = Enum.CameraType.Scriptable
 			camera.FieldOfView = 56
 			setLetterbox(true)
-			animateLauncher("arm")
+			animateCannon("load")
 		end
 		if myRider then
 			myRider:destroy()
@@ -653,9 +715,6 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			UIKit.bounce(bigLabel)
 			UIKit.sound("Beep", 0.5, 1 + (3 - i) * 0.1)
 			addShake(0.15 * (4 - i))
-			if i == 1 then
-				animateLauncher("clamps") -- engines light now too
-			end
 			task.wait(1)
 		end
 		bigLabel.Text = "LIFTOFF!"
@@ -676,9 +735,10 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		local camFrom = camera.CFrame
 		camera.CameraType = Enum.CameraType.Scriptable
 		setLetterbox(false)
-		animateLauncher("kick")
-		UIKit.sound("Launch", 0.7)
-		addShake(1.2)
+		animateCannon("fire")
+		UIKit.sound("Launch", 0.8)
+		UIKit.sound("Hit", 0.9, 0.55) -- the cannon's BOOM
+		addShake(2)
 		if launchFx then
 			local e = launchFx:FindFirstChildOfClass("ParticleEmitter")
 			e:Emit(60)
@@ -701,11 +761,12 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			startX = info.startX,
 			launchedAt = os.clock(),
 			-- steering: the aim point you move, and the rocket's smoothed position / speed in lane space
-			aim = { z = 0, y = 16, dive = 0 },
+			-- shot out of the cannon: aim a bit above the muzzle so the rocket arcs up out of the barrel
+			aim = { z = 0, y = math.max(16, body.Position.Y - Config.pathY(body.Position.X) + 5), dive = 0 },
 			simZ = body.Position.Z,
-			simY = body.Position.Y - Config.pathY(body.Position.X), -- climbs from the cradle
+			simY = body.Position.Y - Config.pathY(body.Position.X), -- starts at the cannon's muzzle
 			vz = 0,
-			vy = 0,
+			vy = 10, -- the cannon throws you upward a little
 			lastVz = 0,
 			diving = false,
 			cancelDive = 0,
@@ -721,7 +782,9 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			boostUntil = 0,
 			slowUntil = 0,
 			bonus = 0,
-			pull = 10, -- launch: a small zoom-out kick that eases back in
+			blastPower = info.blastPower or 1, -- cannon blast: extra speed fading over blastTime
+			blastTime = info.blastTime or 0,
+			pull = 6 + (info.blastPower or 1) * 2.5, -- launch: a zoom-out kick that eases back in
 			pullHold = os.clock() + 0.35,
 			bank = 0,
 			spin = 0,
@@ -828,7 +891,7 @@ player:GetAttributeChangedSignal("Flying"):Connect(function()
 		flight = nil
 		countdown = nil
 		setLetterbox(false)
-		animateLauncher("reset")
+		animateCannon("reset")
 		if myRider then
 			myRider:destroy()
 			myRider = nil
@@ -923,17 +986,16 @@ RunService.RenderStepped:Connect(function(dt)
 		-- the rocket rumbles harder each second and its nose lifts, ready to launch
 		local p = math.clamp((now - countdown.t0) / countdown.dur, 0, 1)
 		local j = 0.05 + p * 0.25
-		countdown.body.CFrame = countdown.base
-			* CFrame.Angles(0, 0, math.rad(14) * p)
-			* CFrame.new((math.random() - 0.5) * j, (math.random() - 0.5) * j, (math.random() - 0.5) * j)
+		countdown.body.CFrame = countdown.base * CFrame.new((math.random() - 0.5) * j, (math.random() - 0.5) * j, (math.random() - 0.5) * j)
 		if myRider then
 			myRider:update(dt, { lean = -0.1, pitch = 0.1, shake = 0.5 + p })
 		end
 		-- camera: straight behind, easing in from a wide shot to just behind the rider
 		local e = 1 - (1 - p) ^ 3
 		local base = countdown.base.Position
-		local camPos = (base + Vector3.new(-50, 22, 0)):Lerp(base + Vector3.new(-CAM_DIST * camZoom, CAM_DIST * camZoom * 0.2 + 4, 0), e)
-		camera.CFrame = CFrame.lookAt(camPos, base + Vector3.new(14, 3 + (1 - e) * 3, 0)) * shakeOffset
+		-- wide shot behind the cannon pushing in over it, looking down the barrel at the path ahead
+		local camPos = (base + Vector3.new(-60, 28, 0)):Lerp(base + Vector3.new(-30, 16, 0), e)
+		camera.CFrame = CFrame.lookAt(camPos, base + Vector3.new(30, 2, 0)) * shakeOffset
 		camera.FieldOfView = 56 + 14 * e
 		-- engines light up for the last second
 		if p > 0.67 and not countdown.ignited then
@@ -1067,6 +1129,8 @@ RunService.RenderStepped:Connect(function(dt)
 		f.simY += f.vy * h
 	end
 
+	local bt = now - f.launchedAt
+	local blast = bt < f.blastTime and 1 + (f.blastPower - 1) * (1 - bt / f.blastTime) ^ 1.4 or 1
 	local speedMul = 1
 	if now < f.boostUntil then
 		speedMul = Config.Pickups.Ring.boost
@@ -1083,8 +1147,7 @@ RunService.RenderStepped:Connect(function(dt)
 		f.vz *= math.exp(-dt * 1.5) -- keep drifting the way you were going, slowing down
 		vel = Vector3.new(f.speed * math.max(0.08, 0.3 - t * 0.1 + 0.7 * math.exp(-t * 3)), fall, f.vz)
 	else
-		local ramp = math.clamp(0.25 + (now - f.launchedAt) / 1.1 * 0.75, 0.25, 1)
-		local speed = f.speed * speedMul * ramp
+		local speed = f.speed * speedMul * blast
 		-- follow the smoothed path exactly (the correction terms pull back any physics drift)
 		vel = Vector3.new(speed, slope * speed + f.vy + (pathY + f.simY - pos.Y) * 8, f.vz + (f.simZ - pos.Z) * 8)
 	end
@@ -1111,12 +1174,12 @@ RunService.RenderStepped:Connect(function(dt)
 
 	-- Flame grows while boosting
 	if f.flameFx then
-		f.flameFx.Size = speedMul > 1 and 11 or 6
+		f.flameFx.Size = (speedMul > 1 or blast > 1.3) and 11 or 6
 	end
 
 	-- Rider: holds the handlebar, leans into turns, tucks low on boosts, fist pump through rings,
 	-- flails when the engine dies, looks where you steer.
-	local boosting = speedMul > 1
+	local boosting = speedMul > 1 or blast > 1.3
 	f.boostCam += ((boosting and 1 or 0) - f.boostCam) * (1 - math.exp(-dt * 3))
 	if myRider then
 		myRider:update(dt, {
@@ -1202,10 +1265,11 @@ RunService.RenderStepped:Connect(function(dt)
 	-- Speed lines
 	if not f.outOfFuel then
 		lineTimer += dt
-		local interval = speedMul > 1 and 0.015 or 0.04
+		local fast = speedMul > 1 or blast > 1.3
+		local interval = fast and 0.015 or 0.04
 		while lineTimer > interval do
 			lineTimer -= interval
-			spawnSpeedLine(speedMul > 1 and 1 or 0.6)
+			spawnSpeedLine(fast and 1 or 0.6)
 		end
 	end
 	if f.engine then

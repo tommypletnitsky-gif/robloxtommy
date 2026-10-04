@@ -74,7 +74,32 @@ Config.Upgrades = {
 	Fuel = { name = "Fuel Tank", perLevel = 0.08, baseCost = 100, costGrowth = 1.45, maxLevel = 30 },
 	Speed = { name = "Engine", perLevel = 0.05, baseCost = 150, costGrowth = 1.45, maxLevel = 30 },
 	Money = { name = "Money Boost", perLevel = 0.10, baseCost = 200, costGrowth = 1.5, maxLevel = 30 },
+	Cannon = { name = "Cannon Power", perLevel = 0.15, baseCost = 250, costGrowth = 1.5, maxLevel = 30 },
 }
+
+-- The launch cannon shoots you out with a blast of extra speed that fades back to your rocket's
+-- normal speed. Upgrading Cannon Power makes the blast stronger and longer = you fly farther.
+function Config.cannonBlast(level)
+	level = level or 0
+	return 2 + level * Config.Upgrades.Cannon.perLevel, 1.6 + level * 0.06 -- speed x, seconds
+end
+-- The cannon's name by level (shown in the Upgrades window and on the cannon's sign).
+Config.CannonTiers = {
+	{ from = 0, name = "Wooden Cannon" },
+	{ from = 6, name = "Iron Cannon" },
+	{ from = 12, name = "Golden Cannon" },
+	{ from = 18, name = "Diamond Cannon" },
+	{ from = 24, name = "Galaxy Cannon" },
+}
+function Config.cannonTier(level)
+	local tier = Config.CannonTiers[1]
+	for _, t in ipairs(Config.CannonTiers) do
+		if (level or 0) >= t.from then
+			tier = t
+		end
+	end
+	return tier.name
+end
 
 -- Trails behind your rocket (bought with money in the Rockets window).
 Config.Trails = {
