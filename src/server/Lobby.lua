@@ -50,7 +50,15 @@ end
 
 -- Trees + bushes come from Yasu's Stylized Tree Pack (scripts-free, stored in
 -- ServerStorage.TreeModels, pivot at the base, attribute Height). Leaves get a bright tint.
-local LEAF_TINTS = { C(140, 215, 80), C(120, 205, 70), C(150, 220, 90), C(110, 195, 85), C(130, 210, 95) }
+local LEAF_TINTS = {
+	C(255, 165, 200), -- pink blossom
+	C(255, 190, 215), -- light pink
+	C(255, 170, 80), -- autumn orange
+	C(250, 205, 90), -- golden yellow
+	C(235, 120, 90), -- red-orange
+	C(140, 185, 110), -- soft green
+	C(120, 175, 120), -- sage green
+}
 local BLOSSOM = C(255, 160, 200)
 
 local function plant(parent, kind, pos, rng, height, leafTint)
@@ -116,7 +124,7 @@ end
 
 -- Ground: lawn, spawn plaza, avenues, statue plaza, launch apron, hedges ------------------------
 local function ground(hub, rng)
-	part(hub, { Name = "Lawn", Size = Vector3.new(184, 0.3, 172), CFrame = CFrame.new(-95, 0.15, 0), Color = C(105, 200, 85), Material = M.Grass })
+	part(hub, { Name = "Lawn", Size = Vector3.new(184, 0.3, 172), CFrame = CFrame.new(-95, 0.15, 0), Color = C(122, 172, 96), Material = M.Grass })
 
 	-- spawn plaza: concentric rings
 	disc(hub, 44, SPAWN, 0.45, STONE)
@@ -166,16 +174,28 @@ local function ground(hub, rng)
 		end
 	end
 
-	-- hedges around the park (gaps at the launch side)
-	for _, side in ipairs({ -1, 1 }) do
-		part(hub, { Size = Vector3.new(170, 3.5, 3), CFrame = CFrame.new(-100, 1.75, side * 84), Color = C(70, 160, 70), Material = M.Grass })
+	-- white picket fence around the park (open at the launch side)
+	local function fence(a, b)
+		local len = (b - a).Magnitude
+		local dir = (b - a).Unit
+		for d = 0, len, 4 do
+			local q = a + dir * d
+			part(hub, { Size = Vector3.new(0.8, 3.4, 0.8), CFrame = CFrame.lookAt(q + Vector3.new(0, 1.7, 0), q + Vector3.new(0, 1.7, 0) + dir), Color = WHITE })
+			part(hub, { Size = Vector3.new(0.6, 0.6, 0.6), CFrame = CFrame.lookAt(q + Vector3.new(0, 3.55, 0), q + Vector3.new(0, 3.55, 0) + dir) * CFrame.Angles(0, 0, math.rad(45)), Color = WHITE })
+		end
+		for _, y in ipairs({ 1.2, 2.6 }) do
+			beam(hub, a + Vector3.new(0, y, 0), b + Vector3.new(0, y, 0), 0.4, WHITE)
+		end
 	end
-	part(hub, { Size = Vector3.new(3, 3.5, 168), CFrame = CFrame.new(-186, 1.75, 0), Color = C(70, 160, 70), Material = M.Grass })
+	for _, side in ipairs({ -1, 1 }) do
+		fence(Vector3.new(-185, 0.3, side * 84), Vector3.new(-15, 0.3, side * 84))
+	end
+	fence(Vector3.new(-185, 0.3, -84), Vector3.new(-185, 0.3, 84))
 	for i = 0, 7 do
 		for _, side in ipairs({ -1, 1 }) do
-			local base = Vector3.new(-175 + i * 22, 3.5, side * 84)
-			column(hub, 12, 0.5, base, WHITE)
-			part(hub, { Size = Vector3.new(4.5, 2.6, 0.2), CFrame = CFrame.new(base + Vector3.new(2.4, 10.5, 0)), Color = FLOWERS[(i % #FLOWERS) + 1], CastShadow = false })
+			local base = Vector3.new(-175 + i * 22, 0.3, side * 84)
+			column(hub, 14, 0.5, base, WHITE)
+			part(hub, { Size = Vector3.new(4.5, 2.6, 0.2), CFrame = CFrame.new(base + Vector3.new(2.4, 12.2, 0)), Color = FLOWERS[(i % #FLOWERS) + 1], CastShadow = false })
 		end
 	end
 end
@@ -223,7 +243,7 @@ end
 local function statuePlaza(hub, rng)
 	-- stone curb + grass island
 	cyl(hub, 1.2, 26, CFrame.new(PLAZA + Vector3.new(0, 0.9, 0)) * UP, STONE)
-	cyl(hub, 1.3, 23, CFrame.new(PLAZA + Vector3.new(0, 0.95, 0)) * UP, C(110, 205, 85), { Material = M.Grass })
+	cyl(hub, 1.3, 23, CFrame.new(PLAZA + Vector3.new(0, 0.95, 0)) * UP, C(122, 172, 96), { Material = M.Grass })
 	-- rings of flowers (low, so nothing blocks the view)
 	for ring, info in ipairs({ { r = 10, n = 22, c = { C(255, 120, 180), C(255, 255, 255) } }, { r = 7, n = 16, c = { YELLOW, C(255, 160, 60) } }, { r = 4, n = 10, c = { C(190, 120, 255), C(120, 200, 255) } } }) do
 		for i = 0, info.n - 1 do
@@ -615,9 +635,7 @@ local function parkProps(hub, rng)
 	for _, z in ipairs({ -24, 24 }) do
 		Lobby.tree(hub, Vector3.new(-132, 0.3, z), rng, 22, BLOSSOM)
 	end
-	for z = -72, 72, 12 do
-		Lobby.bush(hub, Vector3.new(-181, 0.3, z), rng)
-	end
+
 	for _, p in ipairs({ { -138, -56 }, { -110, -58 }, { -168, 56 }, { -140, 54 }, { -60, 76 }, { -56, -48 } }) do
 		D.flowers(hub, Vector3.new(p[1], 0.3, p[2]), rng)
 	end

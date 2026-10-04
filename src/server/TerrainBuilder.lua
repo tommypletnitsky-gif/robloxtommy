@@ -200,8 +200,8 @@ end
 function TerrainBuilder.applyColors()
 	local t = workspace.Terrain
 	local colors = {
-		[M.Grass] = Color3.fromRGB(96, 196, 72),
-		[M.LeafyGrass] = Color3.fromRGB(150, 205, 70),
+		[M.Grass] = Color3.fromRGB(122, 172, 96), -- soft green, easy on the eyes
+		[M.LeafyGrass] = Color3.fromRGB(162, 180, 98),
 		[M.Sand] = Color3.fromRGB(255, 205, 120),
 		[M.Sandstone] = Color3.fromRGB(222, 128, 80),
 		[M.Mud] = Color3.fromRGB(105, 120, 70),
@@ -210,7 +210,7 @@ function TerrainBuilder.applyColors()
 		[M.Basalt] = Color3.fromRGB(85, 62, 60),
 		[M.CrackedLava] = Color3.fromRGB(255, 110, 40),
 		[M.Rock] = Color3.fromRGB(150, 148, 160),
-		[M.Ground] = Color3.fromRGB(110, 170, 80),
+		[M.Ground] = Color3.fromRGB(128, 160, 100),
 	}
 	for mat, c in pairs(colors) do
 		t:SetMaterialColor(mat, c)

@@ -966,7 +966,7 @@ end)
 local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere", Lighting)
 local grade = Lighting:FindFirstChild("CartoonGrade") or Instance.new("ColorCorrectionEffect")
 grade.Name = "CartoonGrade"
-grade.Saturation = 0.25
+grade.Saturation = 0.08
 grade.Contrast = 0.08
 grade.Brightness = 0.02
 grade.Parent = Lighting
