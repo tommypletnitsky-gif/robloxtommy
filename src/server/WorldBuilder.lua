@@ -3,6 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Scenery = require(game:GetService("ServerScriptService").Scenery)
+local Lobby = require(game:GetService("ServerScriptService").Lobby)
 
 local WorldBuilder = {}
 
@@ -57,228 +58,24 @@ end
 
 local UP = CFrame.Angles(0, 0, math.pi / 2) -- turns a cylinder's X axis to point up
 
--- A cartoon building with an open door, awning, sign and a prompt that opens a shop window.
-local function building(parent, name, center, doorDir, color, title, windowName)
-	local m = Instance.new("Model")
-	m.Name = name
-	m.Parent = parent
-	local face = CFrame.lookAt(center, center + Vector3.new(0, 0, doorDir)) -- -Z of this frame = door side
-	local function at(x, y, z)
-		return face * CFrame.new(x, y, z)
-	end
-	local W, H, D = 34, 16, 24
-	local wall = color:Lerp(Color3.new(1, 1, 1), 0.15)
-	newPart(m, { Name = "Floor", Size = Vector3.new(W, 0.6, D), CFrame = at(0, 0.3, 0), Color = Color3.fromRGB(240, 240, 245) })
-	newPart(m, { Size = Vector3.new(W, H, 1.2), CFrame = at(0, H / 2, D / 2), Color = wall })
-	newPart(m, { Size = Vector3.new(1.2, H, D), CFrame = at(-W / 2, H / 2, 0), Color = wall })
-	newPart(m, { Size = Vector3.new(1.2, H, D), CFrame = at(W / 2, H / 2, 0), Color = wall })
-	newPart(m, { Size = Vector3.new(12, H, 1.2), CFrame = at(-11, H / 2, -D / 2), Color = wall })
-	newPart(m, { Size = Vector3.new(12, H, 1.2), CFrame = at(11, H / 2, -D / 2), Color = wall })
-	newPart(m, { Size = Vector3.new(10, 5, 1.2), CFrame = at(0, H - 2.5, -D / 2), Color = wall })
-	newPart(m, { Name = "Roof", Size = Vector3.new(W + 3, 1.6, D + 3), CFrame = at(0, H + 0.8, 0), Color = color })
-	cyl(m, W + 3, 2.4, at(0, H + 0.8, -D / 2 - 1.5), Color3.new(1, 1, 1))
-	-- striped awning over the door
-	for i = 0, 5 do
-		local stripe = newPart(m, { Size = Vector3.new(2, 0.4, 5), CFrame = at(-5 + i * 2, 10.5, -D / 2 - 2.3) * CFrame.Angles(math.rad(-25), 0, 0), Color = i % 2 == 0 and color or Color3.new(1, 1, 1) })
-		stripe.CastShadow = false
-	end
-	local signPart = newPart(m, { Name = "Sign", Size = Vector3.new(24, 6, 0.8), CFrame = at(0, H + 5, -D / 2 - 0.5), Color = Color3.fromRGB(255, 255, 255) })
-	local label = sign(signPart, Enum.NormalId.Front, title, color, Color3.fromRGB(255, 255, 255))
-	label.TextColor3 = color
-	-- pedestals inside for display rockets
-	for i = -1, 1 do
-		cyl(m, 2, 6, at(i * 9, 1, 4) * UP, Color3.fromRGB(255, 255, 255), { Name = "Pedestal" })
-	end
-	local door = newPart(m, { Name = "Door", Size = Vector3.new(10, 10, 1), CFrame = at(0, 5, -D / 2 - 1), Transparency = 1, CanCollide = false })
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = "Open"
-	prompt.ObjectText = title
-	prompt.KeyboardKeyCode = Enum.KeyCode.E
-	prompt.MaxActivationDistance = 14
-	prompt.RequiresLineOfSight = false
-	prompt:SetAttribute("OpenWindow", windowName)
-	prompt.Parent = door
-	return m
-end
-
--- Leaderboard frame; ExtrasServer fills in the rows.
-local function leaderboard(parent, name, cf, title, color)
-	local m = Instance.new("Model")
-	m.Name = name
-	m.Parent = parent
-	for _, side in ipairs({ -1, 1 }) do
-		cyl(m, 22, 1.6, cf * CFrame.new(0, -14, side * 11) * UP, Color3.fromRGB(80, 80, 100))
-	end
-	local board = newPart(m, { Name = "Board", Size = Vector3.new(1.2, 30, 24), CFrame = cf * CFrame.new(0, 3, 0), Color = color })
-	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Right
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 25
-	gui.LightInfluence = 0
-	gui.Parent = board
-	local bg = Instance.new("Frame")
-	bg.Size = UDim2.fromScale(1, 1)
-	bg.BackgroundColor3 = color
-	bg.Parent = gui
-	local grad = Instance.new("UIGradient")
-	grad.Color = ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.3), color:Lerp(Color3.new(0, 0, 0), 0.15))
-	grad.Rotation = 90
-	grad.Parent = bg
-	local t = Instance.new("TextLabel")
-	t.Name = "Title"
-	t.BackgroundTransparency = 1
-	t.Position = UDim2.fromScale(0.05, 0.02)
-	t.Size = UDim2.fromScale(0.9, 0.11)
-	t.Font = Enum.Font.FredokaOne
-	t.TextScaled = true
-	t.TextColor3 = Color3.new(1, 1, 1)
-	t.Text = title
-	t.Parent = bg
-	local st = Instance.new("UIStroke")
-	st.Thickness = 4
-	st.Parent = t
-	local sub = t:Clone()
-	sub.Name = "Subtitle"
-	sub.Position = UDim2.fromScale(0.1, 0.13)
-	sub.Size = UDim2.fromScale(0.8, 0.05)
-	sub.Text = "Loading..."
-	sub.Parent = bg
-	local rows = Instance.new("Frame")
-	rows.Name = "Rows"
-	rows.BackgroundTransparency = 1
-	rows.Position = UDim2.fromScale(0.05, 0.2)
-	rows.Size = UDim2.fromScale(0.9, 0.77)
-	rows.Parent = bg
-	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0.006, 0)
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Parent = rows
-	return m
-end
-
 local function buildHub(world)
 	local hub = Instance.new("Folder")
 	hub.Name = "Hub"
 	hub.Parent = world
-	local c = Config.HUB_CENTER
-	local padX = Config.LAUNCH_X - 8
+	Lobby.build(hub)
 
-	-- Ground: grass field with a big concrete launch plaza on top
-	newPart(hub, { Name = "PlazaTrim", Size = Vector3.new(182, 0.3, 172), CFrame = CFrame.new(c.X, 0.15, 0), Color = Color3.fromRGB(120, 180, 255) })
-	newPart(hub, { Name = "Plaza", Size = Vector3.new(180, 0.4, 170), CFrame = CFrame.new(c.X, 0.2, 0), Color = Color3.fromRGB(232, 234, 240) })
-	newPart(hub, { Name = "Walkway", Size = Vector3.new(140, 0.1, 10), CFrame = CFrame.new(-80, 0.45, 0), Color = Color3.fromRGB(90, 160, 255) })
-	for i = 0, 13 do
-		newPart(hub, { Size = Vector3.new(4, 0.12, 1.2), CFrame = CFrame.new(-145 + i * 10, 0.5, 0), Color = Color3.new(1, 1, 1) })
-	end
-
-	-- Spawn under a big title arch
-	local spawnPos = c + Vector3.new(-55, 0.5, 0)
-	local spawn = Instance.new("SpawnLocation")
-	spawn.Name = "Spawn"
-	spawn.Anchored = true
-	spawn.Size = Vector3.new(12, 0.6, 12)
-	spawn.CFrame = CFrame.lookAt(spawnPos, spawnPos + Vector3.xAxis)
-	spawn.Color = Color3.fromRGB(255, 200, 60)
-	spawn.Duration = 0
-	spawn.TopSurface = Enum.SurfaceType.Smooth
-	spawn.Parent = hub
-	for _, side in ipairs({ -1, 1 }) do
-		cyl(hub, 24, 3.4, CFrame.new(spawnPos + Vector3.new(22, 12, side * 17)) * UP, Color3.fromRGB(255, 90, 90))
-		newPart(hub, { Shape = Enum.PartType.Ball, Size = Vector3.one * 5, CFrame = CFrame.new(spawnPos + Vector3.new(22, 25, side * 17)), Color = Color3.fromRGB(255, 220, 60) })
-	end
-	local banner = newPart(hub, { Name = "TitleBanner", Size = Vector3.new(2, 8, 38), CFrame = CFrame.new(spawnPos + Vector3.new(22, 21, 0)), Color = Color3.fromRGB(70, 130, 255) })
-	for _, faceId in ipairs({ Enum.NormalId.Right, Enum.NormalId.Left }) do
-		local l = sign(banner, faceId, "ROCKET SIMULATOR", Color3.fromRGB(255, 230, 80), Color3.fromRGB(70, 130, 255))
-		l.Parent.PixelsPerStud = 20
-	end
-
-	-- Launch pad: round platform with a hazard-stripe ring
-	cyl(hub, 1.2, 24, CFrame.new(padX, 0.6, 0) * UP, Color3.fromRGB(150, 155, 170), { Name = "LaunchPad" })
-	cyl(hub, 1.3, 14, CFrame.new(padX, 0.65, 0) * UP, Color3.fromRGB(255, 140, 30), { Name = "PadCenter", Material = Enum.Material.Neon })
-	for i = 0, 17 do
-		local a = i / 18 * math.pi * 2
-		newPart(hub, { Size = Vector3.new(4, 1.4, 1.4), CFrame = CFrame.new(padX, 0.7, 0) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 11.4), Color = i % 2 == 0 and Color3.fromRGB(255, 210, 40) or Color3.fromRGB(40, 40, 45) })
-	end
-	newPart(hub, { Name = "StartLine", Size = Vector3.new(2, 0.3, HALF * 2 + 10), CFrame = CFrame.new(Config.LAUNCH_X + 4, 0.15, 0), Color = Color3.new(1, 1, 1), Material = Enum.Material.Neon })
-
-	-- Launch tower (red/white truss) beside the pad with a gantry arm
-	local towerC = Vector3.new(padX, 0, -17)
-	local TH = 48
-	for _, dx in ipairs({ -3, 3 }) do
-		for _, dz in ipairs({ -3, 3 }) do
-			newPart(hub, { Size = Vector3.new(1.2, TH, 1.2), CFrame = CFrame.new(towerC + Vector3.new(dx, TH / 2, dz)), Color = Color3.fromRGB(230, 60, 60), Material = Enum.Material.Metal })
-		end
-	end
-	for y = 4, TH, 6 do
-		local col = (y / 6) % 2 < 1 and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(230, 60, 60)
-		newPart(hub, { Size = Vector3.new(7.2, 0.8, 0.8), CFrame = CFrame.new(towerC + Vector3.new(0, y, -3)), Color = col })
-		newPart(hub, { Size = Vector3.new(7.2, 0.8, 0.8), CFrame = CFrame.new(towerC + Vector3.new(0, y, 3)), Color = col })
-		newPart(hub, { Size = Vector3.new(0.8, 0.8, 7.2), CFrame = CFrame.new(towerC + Vector3.new(-3, y, 0)), Color = col })
-		newPart(hub, { Size = Vector3.new(0.8, 0.8, 7.2), CFrame = CFrame.new(towerC + Vector3.new(3, y, 0)), Color = col })
-	end
-	newPart(hub, { Size = Vector3.new(9, 1, 9), CFrame = CFrame.new(towerC + Vector3.new(0, TH + 0.5, 0)), Color = Color3.fromRGB(255, 255, 255) })
-	newPart(hub, { Shape = Enum.PartType.Ball, Size = Vector3.one * 3, CFrame = CFrame.new(towerC + Vector3.new(0, TH + 2.5, 0)), Color = Color3.fromRGB(255, 60, 60), Material = Enum.Material.Neon })
-	newPart(hub, { Name = "Gantry", Size = Vector3.new(2, 1.4, 12), CFrame = CFrame.new(towerC + Vector3.new(0, 10, 8.5)), Color = Color3.fromRGB(255, 255, 255) })
-
-	-- Fuel tanks with pipes to the pad
-	for i, spot in ipairs({ Vector3.new(-30, 0, 44), Vector3.new(-46, 0, 52), Vector3.new(-16, 0, 54) }) do
-		local h = 22 + i * 3
-		cyl(hub, h, 12, CFrame.new(spot + Vector3.new(0, h / 2, 0)) * UP, Color3.fromRGB(250, 250, 255))
-		cyl(hub, 3, 12.4, CFrame.new(spot + Vector3.new(0, h * 0.6, 0)) * UP, Color3.fromRGB(255, 80, 80))
-		newPart(hub, { Shape = Enum.PartType.Ball, Size = Vector3.one * 12, CFrame = CFrame.new(spot + Vector3.new(0, h, 0)), Color = Color3.fromRGB(80, 150, 255) })
-		local from, to = spot + Vector3.new(0, 1.2, 0), Vector3.new(padX, 1.2, 9)
-		newPart(hub, { Size = Vector3.new(1.2, 1.2, (to - from).Magnitude), CFrame = CFrame.lookAt((from + to) / 2, to), Color = Color3.fromRGB(170, 175, 190), Material = Enum.Material.Metal })
-	end
-
-	-- Big mission screen facing the plaza
-	local screenCF = CFrame.new(-34, 20, -48) * CFrame.Angles(0, math.rad(-35), 0)
-	newPart(hub, { Size = Vector3.new(2, 20, 2), CFrame = screenCF * CFrame.new(0, -12, 0), Color = Color3.fromRGB(80, 80, 100) })
-	local screen = newPart(hub, { Name = "MissionScreen", Size = Vector3.new(1.4, 14, 26), CFrame = screenCF, Color = Color3.fromRGB(30, 30, 50) })
-	local scr = sign(screen, Enum.NormalId.Left, "READY FOR LAUNCH!\nCollect coins, fly through rings,\ndodge obstacles!", Color3.fromRGB(120, 255, 160), Color3.fromRGB(20, 30, 60))
-	scr.Name = "ScreenText"
-
-	-- Shops
-	building(hub, "RocketShop", c + Vector3.new(-15, 0, -62), 1, Color3.fromRGB(70, 140, 255), "ROCKET SHOP", "Rockets")
-	building(hub, "UpgradeLab", c + Vector3.new(-15, 0, 62), -1, Color3.fromRGB(170, 80, 240), "UPGRADE LAB", "Upgrades")
-
-	-- Leaderboards behind spawn, angled toward the plaza
-	leaderboard(hub, "RichestBoard", CFrame.new(c + Vector3.new(-78, 17, -30)) * CFrame.Angles(0, math.rad(-20), 0), "RICHEST", Color3.fromRGB(60, 190, 90))
-	leaderboard(hub, "DonorBoard", CFrame.new(c + Vector3.new(-78, 17, 30)) * CFrame.Angles(0, math.rad(20), 0), "TOP DONATORS", Color3.fromRGB(255, 110, 170))
-
-	-- Decor: round trees, flags, lamps, cones
+	-- trees on the hills around the park
+	local TerrainBuilder = require(game:GetService("ServerScriptService").TerrainBuilder)
 	local rng = Random.new(42)
-	for _ = 1, 26 do
+	for _ = 1, 30 do
 		local x, z
 		repeat
-			x = rng:NextNumber(-255, -5)
-			z = rng:NextNumber(-155, 155)
-		until math.abs(z) > 90 or x < -188
-		local TerrainBuilder = require(game:GetService("ServerScriptService").TerrainBuilder)
+			x = rng:NextNumber(-300, -5)
+			z = rng:NextNumber(-170, 170)
+		until math.abs(z) > 92 or x < -192
 		local h, wet = TerrainBuilder.height(x, z)
 		if not wet then
 			Scenery.Decor.roundTree(hub, Vector3.new(x, h, z), rng, Color3.fromRGB(110, 210, 90))
-		end
-	end
-	local flagColors = { Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 200, 50), Color3.fromRGB(80, 200, 120), Color3.fromRGB(80, 150, 255), Color3.fromRGB(200, 100, 255) }
-	for i = 0, 7 do
-		for _, side in ipairs({ -1, 1 }) do
-			local base = Vector3.new(-175 + i * 22, 0, side * 82)
-			cyl(hub, 14, 0.6, CFrame.new(base + Vector3.new(0, 7, 0)) * UP, Color3.fromRGB(230, 230, 235))
-			newPart(hub, { Size = Vector3.new(5, 3, 0.2), CFrame = CFrame.new(base + Vector3.new(2.6, 12.5, 0)), Color = flagColors[(i % #flagColors) + 1] })
-		end
-	end
-	for i = 0, 5 do
-		for _, side in ipairs({ -1, 1 }) do
-			local p = Vector3.new(-140 + i * 24, 0, side * 9)
-			cyl(hub, 9, 0.7, CFrame.new(p + Vector3.new(0, 4.5, 0)) * UP, Color3.fromRGB(60, 60, 80))
-			newPart(hub, { Shape = Enum.PartType.Ball, Size = Vector3.one * 2.2, CFrame = CFrame.new(p + Vector3.new(0, 9.4, 0)), Color = Color3.fromRGB(255, 240, 180), Material = Enum.Material.Neon })
-		end
-	end
-	for _, z in ipairs({ -14, 14 }) do
-		for i = 0, 2 do
-			local p = Vector3.new(padX - 16 + i * 5, 0, z)
-			cyl(hub, 2.2, 1.6, CFrame.new(p + Vector3.new(0, 1.1, 0)) * UP, Color3.fromRGB(255, 120, 30))
-			cyl(hub, 0.5, 1.7, CFrame.new(p + Vector3.new(0, 1.4, 0)) * UP, Color3.new(1, 1, 1))
 		end
 	end
 end

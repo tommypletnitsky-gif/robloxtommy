@@ -7,6 +7,7 @@
   {"file": "src/server/BuildKit.lua", "path": "ServerScriptService.BuildKit", "class": "ModuleScript"},
   {"file": "src/server/TerrainBuilder.lua", "path": "ServerScriptService.TerrainBuilder", "class": "ModuleScript"},
   {"file": "src/server/Scenery.lua", "path": "ServerScriptService.Scenery", "class": "ModuleScript"},
+  {"file": "src/server/Lobby.lua", "path": "ServerScriptService.Lobby", "class": "ModuleScript"},
   {"file": "src/server/WorldBuilder.lua", "path": "ServerScriptService.WorldBuilder", "class": "ModuleScript"},
   {"file": "src/server/GameServer.server.lua", "path": "ServerScriptService.GameServer", "class": "Script"},
   {"file": "src/server/ExtrasServer.server.lua", "path": "ServerScriptService.ExtrasServer", "class": "Script"},
@@ -14,5 +15,6 @@
   {"file": "src/client/RiderAnimator.lua", "path": "StarterPlayer.StarterPlayerScripts.ClientModules.RiderAnimator", "class": "ModuleScript"},
   {"file": "src/client/RocketClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.RocketClient", "class": "LocalScript"},
   {"file": "src/client/ShopClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.ShopClient", "class": "LocalScript"},
-  {"file": "src/client/ExtrasClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.ExtrasClient", "class": "LocalScript"}
+  {"file": "src/client/ExtrasClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.ExtrasClient", "class": "LocalScript"},
+  {"file": "src/client/LobbyClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.LobbyClient", "class": "LocalScript"}
 ]
