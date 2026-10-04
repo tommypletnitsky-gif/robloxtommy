@@ -5,16 +5,13 @@ local LobbyLayout = {}
 LobbyLayout.SPAWN = Vector3.new(-150, 0, 0)
 LobbyLayout.PLAZA = Vector3.new(-80, 0, 0)
 
--- Park area (fenced). Inside it the ground is flat grass with real blades.
+-- Park area (fenced). Inside it the ground is flat grass.
 LobbyLayout.PARK = { -186, -86, 6, 86 }
 
 LobbyLayout.PAVED_CIRCLES = {
 	{ -150, 0, 23 }, -- spawn plaza
 	{ -80, 0, 29 }, -- central plaza
 	{ -80, 56, 17.5 }, -- Upgrade Lab dome
-	{ -124, 64, 13 }, -- pond
-	{ -30, -44, 4.5 }, -- toy rocket pads
-	{ -52, 36, 4.5 },
 }
 
 LobbyLayout.PAVED_BOXES = {

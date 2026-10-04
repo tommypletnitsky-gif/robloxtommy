@@ -12,6 +12,7 @@ local Lighting = game:GetService("Lighting")
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
 local Rider = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("RiderAnimator"))
+local RocketModel = require(ReplicatedStorage.Shared:WaitForChild("RocketModel"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LaunchRemote = remotes:WaitForChild("Launch")
 local FlightEvent = remotes:WaitForChild("Flight")
@@ -375,6 +376,9 @@ local function touchPoint(input)
 	return Vector2.new(input.Position.X, input.Position.Y) + inset
 end
 UserInputService.InputChanged:Connect(function(input)
+	if flight and os.clock() - flight.launchedAt > 0.3 then
+		flight.pointerMoved = true
+	end
 	if input.UserInputType == Enum.UserInputType.MouseMovement then
 		pointer = UserInputService:GetMouseLocation()
 		pointerIsMouse = true
@@ -399,9 +403,9 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 -- Flight camera zoom: mouse wheel (or two-finger pinch) changes it while flying; kept between flights.
-local CAM_DIST = 26 -- default distance behind the rocket
+local CAM_DIST = 17 -- default distance behind the rocket
 local camZoom = 1
-local ZOOM_MIN, ZOOM_MAX = 0.45, 2.6
+local ZOOM_MIN, ZOOM_MAX = 0.6, 2.4
 UserInputService.InputChanged:Connect(function(input, processed)
 	if input.UserInputType == Enum.UserInputType.MouseWheel and not processed and player:GetAttribute("Flying") then
 		camZoom = math.clamp(camZoom * (1 - input.Position.Z * 0.12), ZOOM_MIN, ZOOM_MAX)
@@ -436,6 +440,34 @@ local function keySteer()
 end
 
 local launchFx -- smoke at the pad during countdown
+
+-- Cinematic letterbox bars for the launch cutscene.
+local bars = {}
+for i, anchor in ipairs({ 0, 1 }) do
+	bars[i] = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0, anchor), Position = UDim2.fromScale(0, anchor), Size = UDim2.fromScale(1, 0), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 40 })
+end
+local function setLetterbox(on)
+	for _, b in ipairs(bars) do
+		TweenService:Create(b, TweenInfo.new(on and 0.5 or 0.4, Enum.EasingStyle.Quad), { Size = UDim2.fromScale(1, on and 0.11 or 0) }):Play()
+	end
+end
+
+-- The launch tower's gantry arm swings back before liftoff (only on this player's screen).
+local gantry = { part = nil, home = nil }
+local function swingGantry(away)
+	if not gantry.part then
+		local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
+		gantry.part = hub and hub:FindFirstChild("Gantry")
+		gantry.home = gantry.part and gantry.part.CFrame
+	end
+	local g = gantry.part
+	if not g then
+		return
+	end
+	local hinge = g.CFrame * CFrame.new(0, 0, -g.Size.Z / 2) -- tower end of the arm
+	local target = away and (CFrame.new(hinge.Position) * CFrame.Angles(0, math.rad(-80), 0) * CFrame.new(hinge.Position):Inverse() * gantry.home) or gantry.home
+	TweenService:Create(g, TweenInfo.new(away and 1.4 or 0.1, Enum.EasingStyle.Sine), { CFrame = target }):Play()
+end
 local countdown = nil -- { body, base, t0, dur } while sitting on the pad
 
 -- Hold the right mouse button while flying to swing the camera around; it springs back after.
@@ -512,10 +544,14 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		resetPickups()
 		combo = 0
 		local body = info.rocket and info.rocket.PrimaryPart
-		camera.CameraType = Enum.CameraType.Custom -- you can still look around during the countdown
 		if body then
 			launchFx = makeLaunchSmoke(body.Position - Vector3.new(0, 3, 0))
-			countdown = { body = body, base = body.CFrame, t0 = os.clock(), dur = info.seconds }
+			countdown = { body = body, rocket = info.rocket, base = body.CFrame, t0 = os.clock(), dur = info.seconds }
+			-- cutscene: wide shot from straight behind, slowly pushing in to the rider
+			camera.CameraType = Enum.CameraType.Scriptable
+			camera.FieldOfView = 56
+			setLetterbox(true)
+			swingGantry(true)
 		end
 		Rider.start(player.Character)
 		playMusic("FlightMusic")
@@ -545,6 +581,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		countdown = nil
 		local camFrom = camera.CFrame
 		camera.CameraType = Enum.CameraType.Scriptable
+		setLetterbox(false)
 		UIKit.sound("Launch", 0.7)
 		addShake(1.2)
 		if launchFx then
@@ -568,16 +605,17 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			fuel = info.fuel,
 			startX = info.startX,
 			launchedAt = os.clock(),
-			offY = 12,
+			offY = 4,
 			offZ = 0,
+			armed = false, -- steering starts once you move the mouse after liftoff
 			stage = 0,
 			engine = engine,
 			boostUntil = 0,
 			slowUntil = 0,
 			bonus = 0,
 			scan = 1,
-			pull = 40, -- launch: camera starts pulled way back, then eases in
-			pullHold = os.clock() + 0.5,
+			pull = 10, -- launch: a small zoom-out kick that eases back in
+			pullHold = os.clock() + 0.35,
 			bank = 0,
 			spin = 0,
 			camFrom = camFrom, -- blend from wherever you were looking into the chase camera
@@ -591,9 +629,9 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		flightHud.Visible = true
 		linesFrame.Visible = true
 		if UserInputService.TouchEnabled then
-			hintLabel.Text = "Drag your finger to steer!"
+			hintLabel.Text = "Drag your finger to steer!  Drag to the bottom to land."
 		else
-			hintLabel.Text = "Move your mouse to steer!  (or WASD)"
+			hintLabel.Text = "Move your mouse to steer!  Aim at the bottom to land."
 			UserInputService.MouseIconEnabled = false
 		end
 		hintLabel.Visible = true
@@ -635,6 +673,13 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		stopFlightFx()
 		if flight then
 			flight.landed = true
+			if info.reason == "landed" or info.reason == "fuel" then
+				local dust, e = makeLaunchSmoke(flight.body.Position - Vector3.new(0, 1.5, 0))
+				e.Rate = 0
+				e:Emit(35)
+				game:GetService("Debris"):AddItem(dust, 3)
+				addShake(info.reason == "landed" and 1.2 or 0.5)
+			end
 		end
 		bigLabel.Visible = false
 		ribbonText.Text = info.newBest and "NEW BEST!" or "FLIGHT OVER"
@@ -646,6 +691,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			fuel = "Out of fuel! Upgrade your Fuel Tank to fly farther.",
 			gate = "Stage locked! Unlock the next stage to keep going.",
 			jumped = "You fell off your rocket!",
+			landed = "You landed! Upgrade to fly even farther.",
 			finish = "You reached the end of the galaxy!",
 		})[info.reason] or ""
 		resultCard.Visible = true
@@ -674,6 +720,8 @@ player:GetAttributeChangedSignal("Flying"):Connect(function()
 	if not player:GetAttribute("Flying") then
 		flight = nil
 		countdown = nil
+		setLetterbox(false)
+		swingGantry(false)
 		Rider.stop()
 		lookHeld, lookYaw, lookPitch = false, 0, 0
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
@@ -703,8 +751,8 @@ local function collect(p)
 		UIKit.sound("Coin", 0.45, math.min(1.6, 1 + combo * 0.04))
 	elseif p.kind == "Ring" then
 		f.boostUntil = os.clock() + Config.Pickups.Ring.boostTime
-		f.pull = math.max(f.pull, 20)
-		f.pullHold = os.clock() + 0.25
+		f.pull = math.max(f.pull, 7)
+		f.pullHold = os.clock() + 0.2
 		f.spin = math.max(f.spin, math.pi * 2)
 		UIKit.sound("Boost", 0.6)
 		popText("BOOST! +FUEL", Color3.fromRGB(255, 180, 40))
@@ -759,6 +807,23 @@ RunService.RenderStepped:Connect(function(dt)
 			* CFrame.Angles(0, 0, math.rad(14) * p)
 			* CFrame.new((math.random() - 0.5) * j, (math.random() - 0.5) * j, (math.random() - 0.5) * j)
 		Rider.update(dt, { lean = -0.12, side = 0, grip = 1, cheer = 0, flail = 0, yaw = 0, pitch = 0.15, shake = 0.5 + p })
+		-- camera: straight behind, easing in from a wide shot to just behind the rider
+		local e = 1 - (1 - p) ^ 3
+		local base = countdown.base.Position
+		local camPos = (base + Vector3.new(-50, 22, 0)):Lerp(base + Vector3.new(-CAM_DIST * camZoom, CAM_DIST * camZoom * 0.2 + 4, 0), e)
+		camera.CFrame = CFrame.lookAt(camPos, base + Vector3.new(14, 3 + (1 - e) * 3, 0)) * shakeOffset
+		camera.FieldOfView = 56 + 14 * e
+		-- engines light up for the last second
+		if p > 0.67 and not countdown.ignited then
+			countdown.ignited = true
+			RocketModel.setThrust(countdown.rocket, true)
+			if launchFx then
+				local em = launchFx:FindFirstChildOfClass("ParticleEmitter")
+				em.Rate = 90
+				em:Emit(40)
+			end
+			addShake(0.8)
+		end
 	end
 
 	local f = flight
@@ -776,39 +841,55 @@ RunService.RenderStepped:Connect(function(dt)
 	-- Landed (server anchored the rocket): slow orbit around it until we're sent home.
 	if f.landed then
 		-- stay straight behind the rocket, drifting a little closer
-		local dist = CAM_DIST * camZoom * 0.85
+		local dist = CAM_DIST * camZoom * 0.9
 		local focus = f.focus or pos
-		camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(focus + Vector3.new(-dist, dist * 0.32, 0), focus + Vector3.new(14, 0, 0)), math.min(1, dt * 2))
+		camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(focus + Vector3.new(-dist, dist * 0.25 + 1, 0), focus + Vector3.new(dist * 0.8, 0, 0)), math.min(1, dt * 2))
 		Rider.update(dt, { lean = 0.05, side = 0, grip = 0.4, cheer = 0, flail = 0, yaw = 0, pitch = 0, shake = 0 })
 		return
 	end
 
-	-- Steering target from the pointer (or keys)
-	if useKeys or not pointer then
+	-- Steering. Liftoff goes straight up the middle. After that, where your pointer is on the
+	-- screen picks your spot: left/right = side of the lane, up/down = height. The bottom strip of
+	-- the screen (or S / Down) dives into the ground to land early.
+	local launchPhase = now - f.launchedAt < 1
+	if not f.armed and not launchPhase and (useKeys or f.pointerMoved) then
+		f.armed = true
+	end
+	local diving = false
+	if launchPhase or not f.armed then
+		f.offY += (16 - f.offY) * math.min(1, dt * 3)
+		f.offZ += (0 - f.offZ) * math.min(1, dt * 3)
+		reticle.Visible = false
+	elseif useKeys or not pointer then
 		local side, up = keySteer()
-		f.offY = math.clamp(f.offY + up * Config.STEER_SPEED * dt, Config.FLY_MIN_HEIGHT, Config.FLY_MAX_HEIGHT)
+		f.offY = math.clamp(f.offY + up * Config.STEER_SPEED * dt, 0, Config.FLY_MAX_HEIGHT)
 		f.offZ = math.clamp(f.offZ + side * Config.STEER_SPEED * dt, -Config.PATH_HALF_WIDTH, Config.PATH_HALF_WIDTH)
+		diving = f.offY < Config.FLY_MIN_HEIGHT
 		reticle.Visible = false
 	else
 		if pointerIsMouse then
 			pointer = UserInputService:GetMouseLocation()
 		end
-		-- where the pointer's ray crosses the rocket's flight plane
-		local ray = camera:ViewportPointToRay(pointer.X, pointer.Y)
-		local targetY, targetZ = f.offY, f.offZ
-		if ray.Direction.X > 0.05 then
-			local hit = ray.Origin + ray.Direction * ((pos.X - ray.Origin.X) / ray.Direction.X)
-			targetY = math.clamp(hit.Y - Config.pathY(pos.X), Config.FLY_MIN_HEIGHT, Config.FLY_MAX_HEIGHT)
-			targetZ = math.clamp(hit.Z, -Config.PATH_HALF_WIDTH, Config.PATH_HALF_WIDTH)
+		local view = camera.ViewportSize
+		local nx = math.clamp(pointer.X / view.X * 2 - 1, -1, 1)
+		local ny = math.clamp(pointer.Y / view.Y * 2 - 1, -1, 1)
+		local targetZ = math.clamp(nx * 1.2, -1, 1) * Config.PATH_HALF_WIDTH
+		local targetY
+		if ny > 0.8 then
+			targetY = 0 -- bottom of the screen: dive to land
+			diving = true
+		else
+			targetY = Config.FLY_MIN_HEIGHT + (0.8 - ny) / 1.8 * (Config.FLY_MAX_HEIGHT - Config.FLY_MIN_HEIGHT)
 		end
-		if now - f.launchedAt < 0.8 then
-			targetY = math.max(targetY, 22) -- lift off the pad first
-		end
-		local k = math.min(1, dt * 5)
+		local k = math.min(1, dt * 4)
 		f.offY += (targetY - f.offY) * k
 		f.offZ += (targetZ - f.offZ) * k
 		reticle.Position = UDim2.fromOffset(pointer.X, pointer.Y)
 		reticle.Visible = not f.outOfFuel
+	end
+	local ring = reticle:FindFirstChildOfClass("UIStroke")
+	if ring then
+		ring.Color = diving and Color3.fromRGB(255, 80, 80) or Color3.new(1, 1, 1)
 	end
 
 	local speedMul = 1
@@ -883,16 +964,19 @@ RunService.RenderStepped:Connect(function(dt)
 		lookPitch *= back
 	end
 
-	-- Chase camera, always straight behind: follows the rocket partly up/down and sideways so you
-	-- still see it fly toward your cursor. Distance = your zoom + the speed kick.
-	local dist = CAM_DIST * camZoom * (f.outOfFuel and 0.85 or 1) + f.pull
-	local wantFocus = Vector3.new(pos.X, Config.pathY(pos.X) + (pos.Y - Config.pathY(pos.X)) * 0.6 + 4, pos.Z * 0.55)
-	f.focus = f.focus and Vector3.new(wantFocus.X, f.focus.Y + (wantFocus.Y - f.focus.Y) * math.min(1, dt * 5), f.focus.Z + (wantFocus.Z - f.focus.Z) * math.min(1, dt * 5)) or wantFocus
-	local el = math.atan(0.36) + lookPitch
+	-- Chase camera: straight behind the rocket and a little above, following it smoothly up/down and
+	-- sideways (no lag along the flight direction, no tilting). Distance = your zoom + speed kick.
+	local dist = CAM_DIST * camZoom * (f.outOfFuel and 0.9 or 1) + f.pull
+	local want = pos + Vector3.new(0, 2, 0)
+	local follow = math.min(1, dt * 7)
+	f.focus = f.focus and Vector3.new(want.X, f.focus.Y + (want.Y - f.focus.Y) * follow, f.focus.Z + (want.Z - f.focus.Z) * follow) or want
+	local el = math.atan(0.27) + lookPitch
 	local offset = Vector3.new(-math.cos(el) * math.cos(lookYaw), math.sin(el), math.cos(el) * math.sin(lookYaw)) * dist
-	local ahead = 24 * math.max(0, 1 - math.abs(lookYaw))
-	local chase = CFrame.lookAt(f.focus + offset, f.focus + Vector3.new(ahead, 0, 0)) * CFrame.Angles(0, 0, -f.bank * 0.12)
-	local fov = (f.outOfFuel and 64 or 70 + math.min(10, f.speed * speedMul * 0.03)) + f.pull * 0.3
+	local camPos = f.focus + offset
+	camPos = Vector3.new(camPos.X, math.max(camPos.Y, Config.pathY(camPos.X) + 2), camPos.Z)
+	local ahead = dist * 0.9 * math.max(0, 1 - math.abs(lookYaw))
+	local chase = CFrame.lookAt(camPos, f.focus + Vector3.new(ahead, 0, 0))
+	local fov = (f.outOfFuel and 66 or 70 + math.min(8, f.speed * speedMul * 0.025)) + f.pull * 0.4
 	camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 4)
 	if f.camBlend < 1 then
 		f.camBlend = math.min(1, f.camBlend + dt / 0.6)

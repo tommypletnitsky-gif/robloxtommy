@@ -9,7 +9,6 @@ local CollectionService = game:GetService("CollectionService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local RocketModel = require(ReplicatedStorage.Shared.RocketModel)
 local Kit = require(ServerScriptService.BuildKit)
-local Scenery = require(ServerScriptService.Scenery)
 local Foliage = require(ServerScriptService.Foliage)
 local LobbyLayout = require(ServerScriptService.LobbyLayout)
 
@@ -61,26 +60,6 @@ function Lobby.bush(parent, pos, rng, size, palette)
 	Foliage.bush(parent, pos, rng, size, palette or "park")
 end
 
-local function flowerBed(parent, pos, rng)
-	part(parent, { Size = Vector3.new(4, 1.4, 4), CFrame = CFrame.new(pos + Vector3.new(0, 0.7, 0)), Color = C(160, 110, 70), Material = M.WoodPlanks })
-	part(parent, { Size = Vector3.new(3.4, 0.4, 3.4), CFrame = CFrame.new(pos + Vector3.new(0, 1.45, 0)), Color = C(110, 80, 50), Material = M.Ground })
-	for i = 1, 5 do
-		local a = i / 5 * math.pi * 2
-		ball(parent, rng:NextNumber(0.9, 1.3), pos + Vector3.new(math.cos(a) * 1.1, 2, math.sin(a) * 1.1), FLOWERS[rng:NextInteger(1, #FLOWERS)], { CastShadow = false })
-	end
-	ball(parent, 2, pos + Vector3.new(0, 2.2, 0), GREEN, { Material = M.Grass })
-end
-
-local function lamp(parent, pos, bannerColor)
-	column(parent, 11, 0.8, pos, C(60, 60, 80))
-	cyl(parent, 1, 1.6, CFrame.new(pos + Vector3.new(0, 0.5, 0)) * UP, C(60, 60, 80))
-	ball(parent, 2.4, pos + Vector3.new(0, 11.4, 0), C(240, 236, 225))
-	if bannerColor then
-		part(parent, { Size = Vector3.new(0.2, 4, 2.2), CFrame = CFrame.new(pos + Vector3.new(0, 7.5, 1.3)), Color = bannerColor, CastShadow = false })
-		beam(parent, pos + Vector3.new(0, 9.5, 0), pos + Vector3.new(0, 9.5, 2.4), 0.25, C(60, 60, 80))
-	end
-end
-
 -- Ground: lawn, spawn plaza, avenues, statue plaza, launch apron, hedges ------------------------
 local function ground(hub, rng)
 
@@ -88,10 +67,6 @@ local function ground(hub, rng)
 	disc(hub, 44, SPAWN, 0.45, STONE, { Material = M.Marble })
 	disc(hub, 38, SPAWN, 0.5, BLUE)
 	disc(hub, 32, SPAWN, 0.55, CREAM, { Material = M.CeramicTiles })
-	for i = 0, 11 do
-		local a = i / 12 * math.pi * 2
-		part(hub, { Size = Vector3.new(1.2, 0.12, 9), CFrame = CFrame.new(SPAWN + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 10.5), Color = i % 2 == 0 and ORANGE or BLUE, CastShadow = false })
-	end
 	disc(hub, 16, SPAWN, 0.7, C(150, 200, 235))
 	disc(hub, 13, SPAWN, 0.8, CREAM, { Material = M.CeramicTiles })
 
@@ -102,9 +77,6 @@ local function ground(hub, rng)
 		for _, side in ipairs({ -1, 1 }) do
 			part(hub, { Size = Vector3.new(len, 0.45, 1.4), CFrame = CFrame.new(mid, 0.42, side * 8.3), Color = ORANGE, CastShadow = false })
 		end
-		for x = x0 + 2, x1 - 4, 6 do
-			part(hub, { Size = Vector3.new(3, 0.42, 3), CFrame = CFrame.new(x + 1.5, 0.43, 0) * CFrame.Angles(0, math.rad(45), 0), Color = CREAM, CastShadow = false })
-		end
 	end
 	avenue(-131, -104)
 	avenue(-56, -38)
@@ -113,10 +85,6 @@ local function ground(hub, rng)
 	disc(hub, 56, PLAZA, 0.45, STONE, { Material = M.Marble })
 	disc(hub, 50, PLAZA, 0.5, ORANGE)
 	disc(hub, 46, PLAZA, 0.55, CREAM, { Material = M.CeramicTiles })
-	for i = 0, 7 do
-		local a = i / 8 * math.pi * 2
-		part(hub, { Size = Vector3.new(2, 0.12, 14), CFrame = CFrame.new(PLAZA + Vector3.new(0, 0.62, 0)) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 15), Color = BLUE, CastShadow = false })
-	end
 
 	-- side paths to the two buildings
 	for _, side in ipairs({ -1, 1 }) do
@@ -149,13 +117,6 @@ local function ground(hub, rng)
 		fence(Vector3.new(-185, 0.3, side * 84), Vector3.new(-15, 0.3, side * 84))
 	end
 	fence(Vector3.new(-185, 0.3, -84), Vector3.new(-185, 0.3, 84))
-	for i = 0, 7 do
-		for _, side in ipairs({ -1, 1 }) do
-			local base = Vector3.new(-175 + i * 22, 0.3, side * 84)
-			column(hub, 14, 0.5, base, WHITE)
-			part(hub, { Size = Vector3.new(4.5, 2.6, 0.2), CFrame = CFrame.new(base + Vector3.new(2.4, 12.2, 0)), Color = FLOWERS[(i % #FLOWERS) + 1], CastShadow = false })
-		end
-	end
 end
 
 -- Spawn: invisible SpawnLocation on the glowing pad, title arch ---------------------------------
@@ -185,55 +146,23 @@ local function spawnArea(hub, rng)
 		local l = sign(banner, face, "ROCKET SIMULATOR", YELLOW, BLUE, darker(BLUE, 0.5))
 		l.Parent.PixelsPerStud = 20
 	end
-	-- little rockets standing on top of the banner
-	for _, z in ipairs({ -10, 0, 10 }) do
-		local r = RocketModel.build(Config.getRocket(z == 0 and "Firework" or "Starter"), 0.45, false, CFrame.new(ax, 25.6, z) * CFrame.Angles(0, 0, math.pi / 2))
-		for _, d in ipairs(r:GetDescendants()) do
-			if d:IsA("BasePart") then
-				d.Anchored = true
-			elseif d:IsA("Fire") or d:IsA("ParticleEmitter") or d:IsA("Light") then
-				d:Destroy() -- display rockets: no flame / light
-			end
-		end
-		r.Parent = hub
-	end
+
 end
 
--- Central plaza: a low round flower garden (keeps the view to the launch pad open) + 4 lamps -----
+-- Central plaza: a low round flower garden (keeps the view to the launch pad open) ------------
 local function statuePlaza(hub, rng)
 	-- stone curb + grass island
 	cyl(hub, 1.2, 26, CFrame.new(PLAZA + Vector3.new(0, 0.9, 0)) * UP, STONE)
 	cyl(hub, 1.3, 23, CFrame.new(PLAZA + Vector3.new(0, 0.95, 0)) * UP, C(122, 172, 96), { Material = M.Grass })
 	-- rings of flowers (low, so nothing blocks the view)
-	for ring, info in ipairs({ { r = 10, n = 22, c = { C(255, 120, 180), C(255, 255, 255) } }, { r = 7, n = 16, c = { YELLOW, C(255, 160, 60) } }, { r = 4, n = 10, c = { C(190, 120, 255), C(120, 200, 255) } } }) do
+	for ring, info in ipairs({ { r = 9, n = 20, c = { C(255, 120, 180), C(255, 255, 255) } }, { r = 5, n = 12, c = { YELLOW, C(255, 160, 60) } } }) do
 		for i = 0, info.n - 1 do
 			local a = i / info.n * math.pi * 2 + ring
 			local q = PLAZA + Vector3.new(math.cos(a) * info.r, 1.9, math.sin(a) * info.r)
 			ball(hub, 1.3, q, info.c[(i % 2) + 1], { CastShadow = false })
 		end
 	end
-	-- a few round bushes inside the garden
-	for i = 0, 3 do
-		local a = i / 4 * math.pi * 2 + math.pi / 4
-		Lobby.bush(hub, PLAZA + Vector3.new(math.cos(a) * 8.5, 1.5, math.sin(a) * 8.5), rng, 3.5)
-	end
-	Lobby.bush(hub, PLAZA + Vector3.new(0, 1.5, 0), rng, 4.5)
-	-- 4 lamps on the diagonals (not in the walking lines)
-	for i = 0, 3 do
-		local a = i / 4 * math.pi * 2 + math.pi / 4
-		lamp(hub, PLAZA + Vector3.new(math.cos(a) * 26, 0.6, math.sin(a) * 26), FLOWERS[(i % #FLOWERS) + 1])
-	end
-	-- flower beds + lamps along the avenue
-	for _, x in ipairs({ -112, -106 }) do -- just a couple, past the arch
-		for _, side in ipairs({ -1, 1 }) do
-			flowerBed(hub, Vector3.new(x, 0.3, side * 11.5), rng)
-		end
-	end
-	for _, x in ipairs({ -52, -42 }) do
-		for _, side in ipairs({ -1, 1 }) do
-			lamp(hub, Vector3.new(x, 0.3, side * 10.5), side == 1 and ORANGE or BLUE)
-		end
-	end
+
 end
 
 -- Buildings -----------------------------------------------------------------------------------
@@ -456,150 +385,16 @@ local function launchArea(hub, rng)
 		beam(hub, spot + Vector3.new(0, 1.2, 0), Vector3.new(PAD_X, 1.2, 9), 1.2, C(170, 175, 190), { Material = M.Metal })
 	end
 
-	-- floodlight towers at the apron corners
-	for _, corner in ipairs({ Vector3.new(-38, 0, -30), Vector3.new(-38, 0, 30), Vector3.new(2, 0, -34), Vector3.new(2, 0, 34) }) do
-		column(hub, 20, 1, corner, C(70, 70, 90))
-		local head = corner + Vector3.new(0, 20, 0)
-		part(hub, { Size = Vector3.new(3, 2, 4), CFrame = CFrame.lookAt(head, Vector3.new(PAD_X, 0, 0)), Color = C(70, 70, 90) })
-		part(hub, { Size = Vector3.new(2.4, 1.4, 0.3), CFrame = CFrame.lookAt(head, Vector3.new(PAD_X, 0, 0)) * CFrame.new(0, 0, -2.1), Color = C(255, 250, 220) })
-	end
 
-	-- crates, barrels, cones around the apron
-	for i = 1, 8 do
-		local side = i % 2 == 0 and -1 or 1
-		local p = Vector3.new(rng:NextNumber(-38, -24), 0.6, side * rng:NextNumber(20, 28))
-		if i <= 4 then
-			part(hub, { Size = Vector3.new(3, 3, 3), CFrame = CFrame.new(p + Vector3.new(0, 1.5, 0)) * CFrame.Angles(0, rng:NextNumber(0, 1.5), 0), Color = C(190, 140, 80), Material = M.WoodPlanks })
-		else
-			column(hub, 3.2, 2.4, p, i % 3 == 0 and C(230, 60, 60) or BLUE)
-			column(hub, 0.3, 2.5, p + Vector3.new(0, 1.2, 0), WHITE)
-		end
-	end
-	for _, z in ipairs({ -14, 14 }) do
-		for i = 0, 2 do
-			local p = Vector3.new(PAD_X - 16 + i * 5, 0.6, z)
-			column(hub, 2.2, 1.6, p, C(255, 120, 30))
-			column(hub, 0.5, 1.7, p + Vector3.new(0, 1.1, 0), WHITE)
-		end
-	end
-
-	-- mission screen at the apron's back corner, angled toward the plaza
-	local scrPos = Vector3.new(-44, 18, -40)
-	local screenCF = CFrame.lookAt(scrPos, Vector3.new(-120, 14, 0)) * CFrame.Angles(0, -math.pi / 2, 0)
-	column(hub, 12, 2, scrPos - Vector3.new(0, 18, 0), C(80, 80, 100))
-	local screen = part(hub, { Name = "MissionScreen", Size = Vector3.new(1.4, 13, 24), CFrame = screenCF, Color = C(30, 30, 50) })
-	part(hub, { Size = Vector3.new(1.2, 14.4, 25.4), CFrame = screenCF * CFrame.new(0.2, 0, 0), Color = ORANGE })
-	local scr = sign(screen, Enum.NormalId.Left, "READY FOR LAUNCH!\nCollect coins, fly through rings,\nunlock new worlds!", C(120, 255, 160), C(20, 30, 60))
-	scr.Name = "ScreenText"
-
-	-- toy rocket pads: LobbyClient fires little rockets from these every few seconds
-	for _, p in ipairs({ Vector3.new(-30, 0, -44), Vector3.new(-52, 0, 36) }) do
-		disc(hub, 7, p, 0.5, C(60, 60, 75))
-		disc(hub, 4, p, 0.6, ORANGE)
-	end
 end
 
--- Park props that fill the lawns ------------------------------------------------------------------
-local function astronaut(parent, pos, facing)
-	local cf = CFrame.lookAt(pos, Vector3.new(facing.X, pos.Y, facing.Z))
-	local function at(x, y, z)
-		return cf * CFrame.new(x, y, z)
-	end
-	local suit = C(245, 245, 250)
-	column(parent, 3, 9, pos, STONE)
-	column(parent, 0.6, 9.4, pos + Vector3.new(0, 3, 0), ORANGE)
-	local y0 = 3.6
-	for _, x in ipairs({ -1.1, 1.1 }) do
-		part(parent, { Size = Vector3.new(1.8, 4, 2), CFrame = at(x, y0 + 2, 0), Color = suit })
-		part(parent, { Size = Vector3.new(2, 1, 2.6), CFrame = at(x, y0 + 0.5, -0.2), Color = C(90, 90, 110) })
-	end
-	part(parent, { Size = Vector3.new(4.6, 4.6, 2.8), CFrame = at(0, y0 + 6.2, 0), Color = suit })
-	part(parent, { Size = Vector3.new(3.6, 4, 1.6), CFrame = at(0, y0 + 6.4, 2), Color = C(200, 200, 215) })
-	part(parent, { Size = Vector3.new(1.6, 1, 0.3), CFrame = at(0, y0 + 6.8, -1.5), Color = C(230, 60, 60) })
-	ball(parent, 4.4, at(0, y0 + 10.2, 0).Position, suit)
-	ball(parent, 3.4, at(0, y0 + 10.3, -0.9).Position, C(255, 190, 60), { Material = M.Glass, Reflectance = 0.5 })
-	-- left arm down, right arm waving
-	part(parent, { Size = Vector3.new(1.4, 4, 1.4), CFrame = at(-3, y0 + 6, 0), Color = suit })
-	part(parent, { Size = Vector3.new(1.4, 4, 1.4), CFrame = at(3, y0 + 8.6, 0) * CFrame.Angles(0, 0, math.rad(-35)), Color = suit })
-	ball(parent, 1.6, at(4.2, y0 + 10.4, 0).Position, C(90, 90, 110))
-end
-
-local function planetSculpture(parent, pos)
-	column(parent, 9, 1.6, pos, C(200, 200, 215))
-	column(parent, 1, 7, pos, STONE)
-	local c = pos + Vector3.new(0, 15, 0)
-	ball(parent, 11, c, C(70, 150, 255))
-	for _, off in ipairs({ Vector3.new(2, 3, -3), Vector3.new(-3, -1, 3), Vector3.new(3, -3, 2) }) do
-		ball(parent, 4.5, c + off.Unit * 4.2, C(100, 200, 90), { Material = M.Grass })
-	end
-	cyl(parent, 0.5, 20, CFrame.new(c) * CFrame.Angles(0.35, 0, math.pi / 2 + 0.25), ORANGE, { Transparency = 0.1, CastShadow = false })
-	cyl(parent, 0.55, 16, CFrame.new(c) * CFrame.Angles(0.35, 0, math.pi / 2 + 0.25), YELLOW, { CastShadow = false })
-end
-
-local function pond(parent, pos, rng)
-	cyl(parent, 0.8, 24, CFrame.new(pos + Vector3.new(0, 0.6, 0)) * UP, C(190, 185, 175), { Material = M.Slate })
-	cyl(parent, 0.9, 21, CFrame.new(pos + Vector3.new(0, 0.65, 0)) * UP, C(70, 180, 240), { Material = M.Glass, Transparency = 0.2, Reflectance = 0.4 })
-	for _ = 1, 6 do
-		local a, r = rng:NextNumber(0, 6.28), rng:NextNumber(2, 8)
-		local q = pos + Vector3.new(math.cos(a) * r, 1.15, math.sin(a) * r)
-		cyl(parent, 0.15, rng:NextNumber(2, 3), CFrame.new(q) * UP, C(80, 175, 80), { CastShadow = false })
-		if rng:NextNumber() < 0.4 then
-			ball(parent, 0.8, q + Vector3.new(0, 0.3, 0), C(255, 150, 200))
-		end
-	end
-	-- a little duck
-	local d = pos + Vector3.new(3, 1.6, -2)
-	ball(parent, 1.6, d, YELLOW)
-	ball(parent, 1.1, d + Vector3.new(0.7, 0.8, 0), YELLOW)
-	part(parent, { Size = Vector3.new(0.6, 0.3, 0.4), CFrame = CFrame.new(d + Vector3.new(1.35, 0.75, 0)), Color = ORANGE })
-end
-
-local function picnicTable(parent, pos, yaw)
-	local cf = CFrame.new(pos) * CFrame.Angles(0, yaw, 0)
-	local wood = C(175, 120, 75)
-	part(parent, { Size = Vector3.new(6, 0.5, 3), CFrame = cf * CFrame.new(0, 2.6, 0), Color = wood, Material = M.WoodPlanks })
-	for _, z in ipairs({ -2.6, 2.6 }) do
-		part(parent, { Size = Vector3.new(6, 0.4, 1.2), CFrame = cf * CFrame.new(0, 1.5, z), Color = wood, Material = M.WoodPlanks })
-	end
-	for _, x in ipairs({ -2.4, 2.4 }) do
-		part(parent, { Size = Vector3.new(0.4, 2.6, 5.6), CFrame = cf * CFrame.new(x, 1.3, 0), Color = darker(wood, 0.2) })
-	end
-	part(parent, { Size = Vector3.new(6.2, 0.05, 3.2), CFrame = cf * CFrame.new(0, 2.88, 0), Color = C(230, 70, 70), CastShadow = false })
-end
-
-local function bigDish(parent, pos)
-	local m = Instance.new("Model")
-	m.Name = "BigDish"
-	m.Parent = parent
-	column(m, 10, 2.4, pos, C(200, 200, 210))
-	local head = pos + Vector3.new(0, 11, 0)
-	cyl(m, 1.2, 16, CFrame.new(head) * CFrame.Angles(0, 0, math.rad(50)), WHITE)
-	cyl(m, 1.3, 6, CFrame.new(head) * CFrame.Angles(0, 0, math.rad(50)), C(200, 205, 220))
-	beam(m, head, head + Vector3.new(5, 4.4, 0), 0.5, C(180, 180, 195))
-	ball(m, 1.4, head + Vector3.new(5.2, 4.6, 0), C(255, 70, 70), {})
-	m.PrimaryPart = m:FindFirstChildWhichIsA("BasePart")
-	m:SetAttribute("SpinSpeed", 0.35)
-	tag(m, "LobbySpin")
-end
-
-local function parkProps(hub, rng)
-	local D = Scenery.Decor
-	planetSculpture(hub, Vector3.new(-122, 0.3, -64))
-	pond(hub, Vector3.new(-124, 0, 64), rng)
-	astronaut(hub, Vector3.new(-160, 0.3, 70), Vector3.new(-150, 0, 0))
-	bigDish(hub, Vector3.new(-40, 0.3, -66))
-	picnicTable(hub, Vector3.new(-160, 0.3, -66), 0.4)
-	picnicTable(hub, Vector3.new(-104, 0.3, 76), -0.3)
-	for i, p in ipairs({ { -174, -72 }, { -176, -40 }, { -140, -78 }, { -102, -76 }, { -60, -78 }, { -174, 40 }, { -178, 72 }, { -142, 79 }, { -106, 62 }, { -18, -60 } }) do
-		Lobby.tree(hub, Vector3.new(p[1], 0.3, p[2]), rng, nil, (i % 4 == 0) and BLOSSOM or nil)
-	end
-	-- two blossom trees framing the spawn plaza
+-- A few trees: two blossoms framing spawn, four in the far corners ----------------------------
+local function parkTrees(hub, rng)
 	for _, z in ipairs({ -24, 24 }) do
 		Lobby.tree(hub, Vector3.new(-132, 0.3, z), rng, 22, BLOSSOM)
 	end
-
-	for _, p in ipairs({ { -138, -56 }, { -110, -58 }, { -168, 56 }, { -140, 54 }, { -60, 76 }, { -56, -48 } }) do
-		D.flowers(hub, Vector3.new(p[1], 0.3, p[2]), rng)
+	for _, p in ipairs({ { -172, -68 }, { -172, 68 }, { -104, -72 }, { -104, 72 } }) do
+		Lobby.tree(hub, Vector3.new(p[1], 0.3, p[2]), rng)
 	end
 end
 
@@ -611,7 +406,7 @@ function Lobby.build(hub)
 	rocketShop(hub)
 	upgradeLab(hub)
 	launchArea(hub, rng)
-	parkProps(hub, rng)
+	parkTrees(hub, rng)
 	-- leaderboards beside the spawn plaza, angled toward the player
 	local target = Vector3.new(-160, 17, 0)
 	for _, info in ipairs({ { "RichestBoard", -34, "RICHEST", C(60, 190, 90) }, { "DonorBoard", 34, "TOP DONATORS", PINK } }) do

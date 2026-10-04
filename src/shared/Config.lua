@@ -6,6 +6,7 @@ Config.NUM_STAGES = 30
 Config.PATH_HALF_WIDTH = 40 -- how far left/right you can steer
 Config.FLY_MIN_HEIGHT = 6 -- lowest you can fly above the path
 Config.FLY_MAX_HEIGHT = 70 -- highest you can fly above the path
+Config.LAND_HEIGHT = 3 -- dive below this (rocket center above the path) and the flight ends
 Config.STEER_SPEED = 30 -- studs/sec you move up/down/sideways
 
 Config.HUB_CENTER = Vector3.new(-95, 0, 0)

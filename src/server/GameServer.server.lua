@@ -280,6 +280,9 @@ RunService.Heartbeat:Connect(function(dt)
 		elseif unlocked >= Config.NUM_STAGES and x >= Config.stageEndX(Config.NUM_STAGES) then
 			f.distance = Config.stageEndX(Config.NUM_STAGES) - f.startX
 			endFlight(player, "finish")
+		elseif elapsed > 1.5 and body.Position.Y - Config.pathY(body.Position.X) < Config.LAND_HEIGHT then
+			-- touched down: dove into the ground on purpose, or the glide reached the ground
+			endFlight(player, f.outOfFuel and "fuel" or "landed")
 		elseif not f.outOfFuel and elapsed >= f.fuel then
 			f.outOfFuel = now
 			RocketModel.setThrust(f.model, false)

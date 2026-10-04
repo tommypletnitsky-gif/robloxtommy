@@ -67,7 +67,7 @@ local function buildHub(world)
 	-- trees on the hills around the park
 	local TerrainBuilder = require(game:GetService("ServerScriptService").TerrainBuilder)
 	local rng = Random.new(42)
-	for _ = 1, 30 do
+	for _ = 1, 16 do
 		local x, z
 		repeat
 			x = rng:NextNumber(-300, -5)

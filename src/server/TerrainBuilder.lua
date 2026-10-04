@@ -22,7 +22,7 @@ TerrainBuilder.WATER_LEVEL = -1.2
 
 -- Landscape per stage (index 0 = lobby). hills/mountains are heights in studs.
 local LAND = {
-	[0] = { mat = M.Grass, hills = 8, mountains = 70 },
+	[0] = { mat = M.Ground, hills = 8, mountains = 70 }, -- lobby: flat turf, no grass blades (FPS)
 	{ mat = M.Grass, hills = 10, mountains = 80, river = true }, -- Grassy Meadow
 	{ mat = M.LeafyGrass, hills = 6, mountains = 55, river = true }, -- Sunny Farm
 	{ mat = M.Sand, hills = 9, mountains = 45, dunes = true }, -- Dusty Desert
@@ -160,7 +160,7 @@ function TerrainBuilder.material(x, z, h)
 	local land = LAND[s]
 	local mat = land.mat
 	if LobbyLayout.inPark(x, z) then
-		return underPaving(x, z) and M.Ground or M.Grass -- swaying grass on the lawns
+		return M.Ground -- flat turf lawn: no grass blades (they cost FPS)
 	end
 	if x >= Config.LAUNCH_X - 4 and math.abs(z) < 21 and h < 0.1 and (mat == M.Grass or mat == M.LeafyGrass) then
 		return M.Ground -- under the runway: no grass blades poking through the road
@@ -211,7 +211,7 @@ function TerrainBuilder.applyColors()
 		[M.Basalt] = Color3.fromRGB(85, 62, 60),
 		[M.CrackedLava] = Color3.fromRGB(255, 110, 40),
 		[M.Rock] = Color3.fromRGB(150, 148, 160),
-		[M.Ground] = Color3.fromRGB(128, 160, 100),
+		[M.Ground] = Color3.fromRGB(122, 168, 96), -- lobby turf (same soft green as the grass)
 	}
 	for mat, c in pairs(colors) do
 		t:SetMaterialColor(mat, c)
@@ -221,9 +221,6 @@ function TerrainBuilder.applyColors()
 	t.WaterReflectance = 0.6
 	t.WaterWaveSize = 0.12
 	t.WaterWaveSpeed = 8
-	pcall(function()
-		t.Decoration = true -- swaying grass
-	end)
 end
 
 -- Writes terrain for x in [xFrom, xTo). Call in slices to keep each call short.
