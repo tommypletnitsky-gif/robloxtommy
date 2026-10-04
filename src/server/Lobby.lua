@@ -1,7 +1,7 @@
 -- The starting area: a cartoon space-center park.
 --   spawn plaza -> flower avenue + entrance arch -> round flower-garden plaza -> launch apron
 --   Rocket Shop hangar (north) and Upgrade Lab dome (south) open onto the central plaza.
--- Animated bits are tagged for LobbyClient: LobbySpin / LobbyBlink / MiniPad.
+-- Radar dishes are tagged LobbySpin for LobbyClient. Nothing in the lobby glows or emits light.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local CollectionService = game:GetService("CollectionService")
@@ -74,8 +74,7 @@ end
 local function lamp(parent, pos, bannerColor)
 	column(parent, 11, 0.8, pos, C(60, 60, 80))
 	cyl(parent, 1, 1.6, CFrame.new(pos + Vector3.new(0, 0.5, 0)) * UP, C(60, 60, 80))
-	ball(parent, 2.4, pos + Vector3.new(0, 11.4, 0), C(255, 245, 215), { Material = M.Glass, Transparency = 0.2 })
-	ball(parent, 0.9, pos + Vector3.new(0, 11.4, 0), C(255, 190, 110), { Material = M.Neon, CastShadow = false })
+	ball(parent, 2.4, pos + Vector3.new(0, 11.4, 0), C(240, 236, 225))
 	if bannerColor then
 		part(parent, { Size = Vector3.new(0.2, 4, 2.2), CFrame = CFrame.new(pos + Vector3.new(0, 7.5, 1.3)), Color = bannerColor, CastShadow = false })
 		beam(parent, pos + Vector3.new(0, 9.5, 0), pos + Vector3.new(0, 9.5, 2.4), 0.25, C(60, 60, 80))
@@ -93,8 +92,8 @@ local function ground(hub, rng)
 		local a = i / 12 * math.pi * 2
 		part(hub, { Size = Vector3.new(1.2, 0.12, 9), CFrame = CFrame.new(SPAWN + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 10.5), Color = i % 2 == 0 and ORANGE or BLUE, CastShadow = false })
 	end
-	disc(hub, 16, SPAWN, 0.7, C(120, 230, 255), { Material = M.Neon })
-	disc(hub, 13, SPAWN, 0.8, WHITE)
+	disc(hub, 16, SPAWN, 0.7, C(150, 200, 235))
+	disc(hub, 13, SPAWN, 0.8, CREAM, { Material = M.CeramicTiles })
 
 	-- avenue spawn -> statue plaza, and statue plaza -> launch apron
 	local function avenue(x0, x1)
@@ -192,6 +191,8 @@ local function spawnArea(hub, rng)
 		for _, d in ipairs(r:GetDescendants()) do
 			if d:IsA("BasePart") then
 				d.Anchored = true
+			elseif d:IsA("Fire") or d:IsA("ParticleEmitter") or d:IsA("Light") then
+				d:Destroy() -- display rockets: no flame / light
 			end
 		end
 		r.Parent = hub
@@ -256,7 +257,7 @@ local function radarDish(parent, pos)
 	local head = pos + Vector3.new(0, 5, 0)
 	cyl(m, 0.8, 7, CFrame.new(head) * CFrame.Angles(0, 0, math.rad(55)), WHITE)
 	beam(m, head, head + Vector3.new(2.5, 2, 0), 0.3, C(200, 200, 210))
-	ball(m, 0.9, head + Vector3.new(2.6, 2.1, 0), C(255, 80, 80), { Material = M.Neon })
+	ball(m, 0.9, head + Vector3.new(2.6, 2.1, 0), C(255, 80, 80), {})
 	m.PrimaryPart = m:FindFirstChildWhichIsA("BasePart")
 	m:SetAttribute("SpinSpeed", 1.2)
 	tag(m, "LobbySpin")
@@ -305,16 +306,18 @@ local function rocketShop(hub)
 	local l = sign(signPart, Enum.NormalId.Front, "🚀 ROCKET SHOP", BLUE, WHITE, darker(BLUE, 0.4))
 	l.Parent.PixelsPerStud = 24
 	-- neon trim around the doorway
-	part(m, { Size = Vector3.new(W - 15, 0.6, 0.6), CFrame = at(0, H - 2.2, -D / 2 - 0.7), Color = C(120, 220, 255), Material = M.Neon, CastShadow = false })
+	part(m, { Size = Vector3.new(W - 15, 0.6, 0.6), CFrame = at(0, H - 2.2, -D / 2 - 0.7), Color = C(120, 220, 255), CastShadow = false })
 	-- rockets on display inside, noses up
 	for i, id in ipairs({ "Turbo", "Galaxy", "Shuttle" }) do
 		local x = (i - 2) * 10
 		column(m, 1.6, 6, (at(x, 0.8, 4)).Position, WHITE)
-		column(m, 0.3, 6.4, (at(x, 2.3, 4)).Position, C(120, 220, 255), { Material = M.Neon })
+		column(m, 0.3, 6.4, (at(x, 2.3, 4)).Position, C(120, 220, 255), {})
 		local r = RocketModel.build(Config.getRocket(id), 0.9, false, at(x, 7.3, 4) * CFrame.Angles(0, 0, math.pi / 2))
 		for _, d in ipairs(r:GetDescendants()) do
 			if d:IsA("BasePart") then
 				d.Anchored = true
+			elseif d:IsA("Fire") or d:IsA("ParticleEmitter") or d:IsA("Light") then
+				d:Destroy() -- display rockets: no flame / light
 			end
 		end
 		r.Parent = m
@@ -333,15 +336,15 @@ local function upgradeLab(hub)
 	column(m, 2, 32.6, center + Vector3.new(0, 3, 0), PURPLE)
 	column(m, 1, 32.6, center + Vector3.new(0, 7, 0), PINK)
 	ball(m, 31, center + Vector3.new(0, 10, 0), C(200, 170, 255), { Material = M.Glass, Transparency = 0.25, Reflectance = 0.2 })
-	ball(m, 6, center + Vector3.new(0, 12, 0), C(150, 255, 200), { Material = M.Neon })
+	ball(m, 6, center + Vector3.new(0, 12, 0), C(150, 255, 200), {})
 	-- antenna
 	column(m, 12, 0.8, center + Vector3.new(0, 24, 0), C(200, 200, 210))
-	tag(ball(m, 1.6, center + Vector3.new(0, 36.5, 0), C(255, 60, 90), { Material = M.Neon }), "LobbyBlink")
+	ball(m, 1.6, center + Vector3.new(0, 36.5, 0), C(255, 60, 90), {})
 	-- entrance porch toward the plaza (-Z)
 	local porch = center + Vector3.new(0, 0, -17)
 	part(m, { Size = Vector3.new(14, 10, 8), CFrame = CFrame.new(porch + Vector3.new(0, 5, 0)), Color = lighter(PURPLE, 0.2) })
 	part(m, { Size = Vector3.new(8, 7, 0.4), CFrame = CFrame.new(porch + Vector3.new(0, 3.5, -4.1)), Color = C(40, 20, 70) })
-	part(m, { Size = Vector3.new(8.6, 0.5, 0.5), CFrame = CFrame.new(porch + Vector3.new(0, 7.2, -4.3)), Color = C(150, 255, 200), Material = M.Neon, CastShadow = false })
+	part(m, { Size = Vector3.new(8.6, 0.5, 0.5), CFrame = CFrame.new(porch + Vector3.new(0, 7.2, -4.3)), Color = C(150, 255, 200), CastShadow = false })
 	local signPart = part(m, { Name = "Sign", Size = Vector3.new(20, 4.5, 0.6), CFrame = CFrame.new(porch + Vector3.new(0, 12.6, -2)), Color = WHITE })
 	local l = sign(signPart, Enum.NormalId.Front, "⬆️ UPGRADE LAB", PURPLE, WHITE, darker(PURPLE, 0.4))
 	l.Parent.PixelsPerStud = 24
@@ -352,7 +355,7 @@ local function upgradeLab(hub)
 			p = center + Vector3.new(15, 0, -6)
 		end
 		column(m, 1, 4, p, C(60, 60, 80))
-		column(m, 8, 2.6, p + Vector3.new(0, 1, 0), col, { Material = M.Neon, Transparency = 0.25 })
+		column(m, 8, 2.6, p + Vector3.new(0, 1, 0), col, { Transparency = 0.25 })
 		ball(m, 3, p + Vector3.new(0, 9.5, 0), col, { Material = M.Glass, Transparency = 0.3 })
 	end
 	prompt(m, CFrame.new(porch + Vector3.new(0, 5, -4.5)), "UPGRADE LAB", "Upgrades")
@@ -419,12 +422,12 @@ end
 local function launchArea(hub, rng)
 	local HALF = Config.PATH_HALF_WIDTH
 	cyl(hub, 1.2, 24, CFrame.new(PAD_X, 0.9, 0) * UP, C(150, 155, 170), { Name = "LaunchPad" })
-	cyl(hub, 1.3, 14, CFrame.new(PAD_X, 0.95, 0) * UP, ORANGE, { Name = "PadCenter", Material = M.Neon })
+	cyl(hub, 1.3, 14, CFrame.new(PAD_X, 0.95, 0) * UP, ORANGE, { Name = "PadCenter" })
 	for i = 0, 17 do
 		local a = i / 18 * math.pi * 2
 		part(hub, { Size = Vector3.new(4, 1.4, 1.4), CFrame = CFrame.new(PAD_X, 1, 0) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 11.4), Color = i % 2 == 0 and YELLOW or C(40, 40, 45) })
 	end
-	part(hub, { Name = "StartLine", Size = Vector3.new(2, 0.3, HALF * 2 + 10), CFrame = CFrame.new(Config.LAUNCH_X + 4, 0.45, 0), Color = WHITE, Material = M.Neon })
+	part(hub, { Name = "StartLine", Size = Vector3.new(2, 0.3, HALF * 2 + 10), CFrame = CFrame.new(Config.LAUNCH_X + 4, 0.45, 0), Color = WHITE })
 
 	-- launch tower (red/white truss) with a gantry arm and a blinking beacon
 	local towerC = Vector3.new(PAD_X, 0, -17)
@@ -441,7 +444,7 @@ local function launchArea(hub, rng)
 		end
 	end
 	part(hub, { Size = Vector3.new(9, 1, 9), CFrame = CFrame.new(towerC + Vector3.new(0, TH + 0.5, 0)), Color = WHITE })
-	tag(ball(hub, 3, towerC + Vector3.new(0, TH + 2.5, 0), C(255, 60, 60), { Material = M.Neon }), "LobbyBlink")
+	ball(hub, 3, towerC + Vector3.new(0, TH + 2.5, 0), C(255, 60, 60), {})
 	part(hub, { Name = "Gantry", Size = Vector3.new(2, 1.4, 12), CFrame = CFrame.new(towerC + Vector3.new(0, 10, 8.5)), Color = WHITE })
 
 	-- fuel tanks with pipes to the pad
@@ -458,7 +461,7 @@ local function launchArea(hub, rng)
 		column(hub, 20, 1, corner, C(70, 70, 90))
 		local head = corner + Vector3.new(0, 20, 0)
 		part(hub, { Size = Vector3.new(3, 2, 4), CFrame = CFrame.lookAt(head, Vector3.new(PAD_X, 0, 0)), Color = C(70, 70, 90) })
-		part(hub, { Size = Vector3.new(2.4, 1.4, 0.3), CFrame = CFrame.lookAt(head, Vector3.new(PAD_X, 0, 0)) * CFrame.new(0, 0, -2.1), Color = C(255, 250, 220), Material = M.Neon })
+		part(hub, { Size = Vector3.new(2.4, 1.4, 0.3), CFrame = CFrame.lookAt(head, Vector3.new(PAD_X, 0, 0)) * CFrame.new(0, 0, -2.1), Color = C(255, 250, 220) })
 	end
 
 	-- crates, barrels, cones around the apron
@@ -492,7 +495,7 @@ local function launchArea(hub, rng)
 	-- toy rocket pads: LobbyClient fires little rockets from these every few seconds
 	for _, p in ipairs({ Vector3.new(-30, 0, -44), Vector3.new(-52, 0, 36) }) do
 		disc(hub, 7, p, 0.5, C(60, 60, 75))
-		tag(disc(hub, 4, p, 0.6, ORANGE, { Material = M.Neon }), "MiniPad")
+		disc(hub, 4, p, 0.6, ORANGE)
 	end
 end
 
@@ -573,7 +576,7 @@ local function bigDish(parent, pos)
 	cyl(m, 1.2, 16, CFrame.new(head) * CFrame.Angles(0, 0, math.rad(50)), WHITE)
 	cyl(m, 1.3, 6, CFrame.new(head) * CFrame.Angles(0, 0, math.rad(50)), C(200, 205, 220))
 	beam(m, head, head + Vector3.new(5, 4.4, 0), 0.5, C(180, 180, 195))
-	tag(ball(m, 1.4, head + Vector3.new(5.2, 4.6, 0), C(255, 70, 70), { Material = M.Neon }), "LobbyBlink")
+	ball(m, 1.4, head + Vector3.new(5.2, 4.6, 0), C(255, 70, 70), {})
 	m.PrimaryPart = m:FindFirstChildWhichIsA("BasePart")
 	m:SetAttribute("SpinSpeed", 0.35)
 	tag(m, "LobbySpin")

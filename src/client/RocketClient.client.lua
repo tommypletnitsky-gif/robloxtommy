@@ -970,6 +970,12 @@ grade.Saturation = 0.08
 grade.Contrast = 0.08
 grade.Brightness = 0.02
 grade.Parent = Lighting
+-- Softer glow: full-strength bloom made white paving and bright parts blinding.
+local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
+if bloom then
+	bloom.Intensity = 0.35
+	bloom.Threshold = 2.4
+end
 local ZONES = {
 	Earth = { lighting = { ClockTime = 14, Brightness = 2.2, Ambient = Color3.fromRGB(90, 90, 100), OutdoorAmbient = Color3.fromRGB(150, 150, 160) }, atmo = { Density = 0.25, Haze = 0, Glare = 0, Color = Color3.fromRGB(210, 225, 255) } },
 	Sky = { lighting = { ClockTime = 16.5, Brightness = 2.6, Ambient = Color3.fromRGB(120, 120, 140), OutdoorAmbient = Color3.fromRGB(170, 170, 200) }, atmo = { Density = 0.32, Haze = 1.2, Glare = 0, Color = Color3.fromRGB(210, 230, 255) } },
