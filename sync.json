@@ -1,0 +1,7 @@
+[
+  { "file": "src/shared/Config.lua", "path": "ReplicatedStorage.Shared.Config", "class": "ModuleScript" },
+  { "file": "src/shared/RocketModel.lua", "path": "ReplicatedStorage.Shared.RocketModel", "class": "ModuleScript" },
+  { "file": "src/server/WorldBuilder.lua", "path": "ServerScriptService.WorldBuilder", "class": "ModuleScript" },
+  { "file": "src/server/GameServer.server.lua", "path": "ServerScriptService.GameServer", "class": "Script" },
+  { "file": "src/client/RocketClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.RocketClient", "class": "LocalScript" }
+]
