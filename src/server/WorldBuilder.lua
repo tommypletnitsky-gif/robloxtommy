@@ -170,7 +170,7 @@ local function buildHub(world)
 	spawn.Size = Vector3.new(10, 1, 10)
 	spawn.CFrame = CFrame.lookAt(c + Vector3.new(-45, 0.5, 0), c + Vector3.new(100, 0.5, 0))
 	spawn.Color = Color3.fromRGB(80, 160, 255)
-	spawn.Material = Enum.Material.Neon
+	spawn.Material = Enum.Material.SmoothPlastic
 	spawn.Duration = 0
 	spawn.Parent = hub
 
@@ -201,6 +201,35 @@ local function buildStage(world, s)
 		local mat = ({ cactus = Enum.Material.Sand, pine = Enum.Material.Snow, crystal = Enum.Material.Ice, lava = Enum.Material.Basalt, rock = Enum.Material.Rock })[st.decor] or Enum.Material.Grass
 		newPart(f, { Name = "Ground", Size = Vector3.new(L, 4, 300), CFrame = CFrame.new(mid + Vector3.new(0, -2, 0)), Color = st.ground, Material = mat })
 		newPart(f, { Name = "Lane", Size = Vector3.new(L, 0.2, HALF * 2 + 6), CFrame = CFrame.new(mid + Vector3.new(0, 0.1, 0)), Color = st.ground:Lerp(Color3.new(1, 1, 1), 0.25), Material = mat })
+		-- Low-poly mountain ranges on both sides (tilted blocks half-buried = jagged peaks)
+		local mrng = Random.new(s * 104729)
+		local snowy = st.decor == "pine" or st.decor == "crystal" or st.decor == "rock"
+		for _, side in ipairs({ -1, 1 }) do
+			for i = 0, 5 do
+				local size = mrng:NextNumber(45, 95)
+				local x = x0 + (i + mrng:NextNumber(0.1, 0.9)) * (L / 6)
+				local z = side * mrng:NextNumber(150, 195)
+				local cf = CFrame.new(x, -size * 0.15, z) * CFrame.Angles(math.rad(45), mrng:NextNumber(0, 6.28), math.rad(mrng:NextNumber(30, 55)))
+				newPart(f, { Name = "Mountain", Size = Vector3.one * size, CFrame = cf, Color = darker(st.ground, mrng:NextNumber(0.45, 0.65)), Material = Enum.Material.Rock, CastShadow = false })
+				if snowy then
+					-- Same-shaped smaller block sharing the mountain's highest corner = snow cap
+					local top, topY = nil, -math.huge
+					for _, c in ipairs({ -1, 1 }) do
+						for _, d in ipairs({ -1, 1 }) do
+							for _, e in ipairs({ -1, 1 }) do
+								local corner = Vector3.new(c, d, e) * size / 2
+								local y = (cf * corner).Y
+								if y > topY then
+									top, topY = corner, y
+								end
+							end
+						end
+					end
+					local k = 0.35
+					newPart(f, { Name = "SnowCap", Size = Vector3.one * size * k + Vector3.one * 0.4, CFrame = cf * CFrame.new(top * (1 - k)), Color = Color3.fromRGB(245, 248, 255), Material = Enum.Material.Snow, CastShadow = false })
+				end
+			end
+		end
 	elseif st.zone == "Sky" then
 		newPart(f, { Name = "Lane", Size = Vector3.new(HALF * 2 + 20, 3, (b - a).Magnitude), CFrame = laneCF * CFrame.new(0, -1.5, 0), Color = st.ground, Material = Enum.Material.SmoothPlastic, Transparency = 0.15 })
 	else
@@ -217,7 +246,7 @@ local function buildStage(world, s)
 		local z = -(HALF + 9)
 		newPart(f, { Size = Vector3.new(1, 7, 1), CFrame = CFrame.new(x, y + 3.5, z), Color = Color3.fromRGB(60, 60, 70) })
 		local board = newPart(f, { Size = Vector3.new(0.5, 4, 9), CFrame = CFrame.new(x, y + 8, z), Color = Color3.fromRGB(30, 30, 45) })
-		sign(board, Enum.NormalId.Left, Config.abbreviate(x - Config.LAUNCH_X) .. "m", Color3.new(1, 1, 1))
+		sign(board, Enum.NormalId.Left, Config.meters(x - Config.LAUNCH_X), Color3.new(1, 1, 1))
 	end
 
 	-- Decor on both sides of the lane

@@ -150,12 +150,23 @@ function Config.abbreviate(n)
 		v /= 1000
 		i += 1
 	end
+	local num
 	if v < 10 then
-		return string.format("%.2f%s", v, SUFFIXES[i])
+		num = string.format("%.2f", math.floor(v * 100) / 100)
 	elseif v < 100 then
-		return string.format("%.1f%s", v, SUFFIXES[i])
+		num = string.format("%.1f", math.floor(v * 10) / 10)
+	else
+		num = tostring(math.floor(v))
 	end
-	return string.format("%d%s", math.floor(v), SUFFIXES[i])
+	num = num:find("%.") and num:gsub("0+$", ""):gsub("%.$", "") or num -- 1.50 -> 1.5, 1.00 -> 1
+	return num .. SUFFIXES[i]
+end
+
+-- Distances read best as full meters with commas: 12,500m
+function Config.meters(n)
+	local s = tostring(math.floor(n))
+	local formatted = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+	return (formatted:gsub("^,", "")) .. "m"
 end
 
 return Config

@@ -30,6 +30,8 @@ end
 local LaunchRemote = remote("RemoteEvent", "Launch") -- client -> server
 local FlightEvent = remote("RemoteEvent", "Flight") -- server -> client: ("start", info) / ("outOfFuel") / ("result", info)
 local UnlockStage = remote("RemoteFunction", "UnlockStage")
+local BuyRocket = remote("RemoteFunction", "BuyRocket") -- (rocketId) buys if needed, then equips
+local BuyUpgrade = remote("RemoteFunction", "BuyUpgrade") -- ("Fuel" | "Speed" | "Money")
 local Notify = remote("RemoteEvent", "Notify") -- server -> client: (text, color)
 
 -- Player data -------------------------------------------------------------------------
@@ -38,6 +40,7 @@ local DEFAULT_DATA = {
 	BestDistance = 0,
 	UnlockedStage = 1,
 	Rocket = "Starter",
+	OwnedRockets = "Starter", -- comma separated rocket ids
 	FuelLevel = 0,
 	SpeedLevel = 0,
 	MoneyLevel = 0,
@@ -241,6 +244,62 @@ UnlockStage.OnServerInvoke = function(player)
 	player:SetAttribute("Money", money - cost)
 	player:SetAttribute("UnlockedStage", nextStage)
 	return true, "Stage " .. nextStage .. " unlocked: " .. Config.Stages[nextStage].name .. "!"
+end
+
+-- Shop ----------------------------------------------------------------------------------
+local function owns(player, id)
+	return table.find(string.split(player:GetAttribute("OwnedRockets") or "", ","), id) ~= nil
+end
+
+local function spend(player, cost)
+	local money = player:GetAttribute("Money") or 0
+	if money < cost then
+		return false, "You need $" .. Config.abbreviate(cost - money) .. " more!"
+	end
+	player:SetAttribute("Money", money - cost)
+	return true
+end
+
+BuyRocket.OnServerInvoke = function(player, id)
+	if typeof(id) ~= "string" or flights[player] then
+		return false, "Can't do that while flying!"
+	end
+	local def
+	for _, r in ipairs(Config.Rockets) do
+		if r.id == id then
+			def = r
+		end
+	end
+	if not def then
+		return false, "Unknown rocket."
+	end
+	if not owns(player, id) then
+		local ok, msg = spend(player, def.price)
+		if not ok then
+			return false, msg
+		end
+		player:SetAttribute("OwnedRockets", player:GetAttribute("OwnedRockets") .. "," .. id)
+	end
+	player:SetAttribute("Rocket", id)
+	return true, def.name .. " equipped!"
+end
+
+BuyUpgrade.OnServerInvoke = function(player, key)
+	local u = typeof(key) == "string" and Config.Upgrades[key]
+	if not u then
+		return false, "Unknown upgrade."
+	end
+	local attr = key .. "Level"
+	local level = player:GetAttribute(attr) or 0
+	if level >= u.maxLevel then
+		return false, u.name .. " is maxed!"
+	end
+	local ok, msg = spend(player, Config.upgradeCost(key, level))
+	if not ok then
+		return false, msg
+	end
+	player:SetAttribute(attr, level + 1)
+	return true, u.name .. " level " .. (level + 1) .. "!"
 end
 
 -- Players -----------------------------------------------------------------------------

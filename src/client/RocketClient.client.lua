@@ -92,17 +92,38 @@ local unlockButton = make("TextButton", {
 }, { corner(12), stroke(2), make("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6) }) })
 
 -- Bottom: launch button -------------------------------------------------------------------
+-- Chunky icon buttons along the bottom, LAUNCH in the middle.
+local bottomBar = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -18), Size = UDim2.fromOffset(620, 104), BackgroundTransparency = 1 }, {
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Bottom, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }),
+})
+
+local function iconButton(order, icon, text, color)
+	local b = make("TextButton", { Parent = bottomBar, LayoutOrder = order, Size = UDim2.fromOffset(92, 96), BackgroundColor3 = color, Text = "", AutoButtonColor = true }, { corner(18), stroke(3) })
+	label({ Parent = b, Position = UDim2.fromOffset(6, 4), Size = UDim2.new(1, -12, 0, 58), Text = icon })
+	label({ Parent = b, Position = UDim2.new(0, 4, 1, -30), Size = UDim2.new(1, -8, 0, 24), Text = text })
+	local scale = make("UIScale", { Parent = b })
+	b.MouseEnter:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.12), { Scale = 1.08 }):Play()
+	end)
+	b.MouseLeave:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.12), { Scale = 1 }):Play()
+	end)
+	return b
+end
+
+local rocketsButton = iconButton(1, "🚀", "ROCKETS", Color3.fromRGB(70, 140, 255))
 local launchButton = make("TextButton", {
-	Parent = gui,
-	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 1, -24),
-	Size = UDim2.fromOffset(260, 74),
+	Parent = bottomBar,
+	LayoutOrder = 2,
+	Size = UDim2.fromOffset(220, 84),
 	BackgroundColor3 = Color3.fromRGB(255, 130, 30),
 	Font = FONT,
 	TextScaled = true,
 	TextColor3 = Color3.new(1, 1, 1),
 	Text = "LAUNCH!",
-}, { corner(18), stroke(3), make("UIPadding", { PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10) }) })
+}, { corner(20), stroke(3), make("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12) }) })
+local upgradesButton = iconButton(3, "⬆️", "UPGRADES", Color3.fromRGB(160, 80, 230))
+local eggsButton = iconButton(4, "🥚", "EGGS", Color3.fromRGB(80, 190, 110))
 
 -- Top: flight HUD ---------------------------------------------------------------------------
 local flightFrame = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 64), Size = UDim2.fromOffset(360, 130), BackgroundTransparency = 1, Visible = false })
@@ -227,7 +248,7 @@ local function refreshStats()
 	local best = player:GetAttribute("BestDistance") or 0
 	local unlocked = player:GetAttribute("UnlockedStage") or 1
 	moneyLabel.Text = "$" .. abbreviate(money)
-	bestLabel.Text = "Best: " .. abbreviate(best) .. "m"
+	bestLabel.Text = "Best: " .. Config.meters(best)
 
 	stageTitle.Text = "Stage " .. unlocked .. " / " .. Config.NUM_STAGES
 	stageName.Text = Config.Stages[unlocked].name
@@ -241,11 +262,11 @@ local function refreshStats()
 	local stageStart = goal - Config.STAGE_LENGTH
 	local progress = math.clamp((best - stageStart) / Config.STAGE_LENGTH, 0, 1)
 	barFill.Size = UDim2.fromScale(progress, 1)
-	barText.Text = abbreviate(math.min(best, goal)) .. " / " .. abbreviate(goal) .. "m"
+	barText.Text = Config.meters(math.min(best, goal)) .. " / " .. Config.meters(goal)
 	unlockButton.Visible = true
 	local cost = Config.stageCost(unlocked + 1)
 	if best < goal - 5 then
-		unlockButton.Text = "Reach " .. abbreviate(goal) .. "m to unlock Stage " .. (unlocked + 1)
+		unlockButton.Text = "Reach " .. Config.meters(goal) .. " to unlock Stage " .. (unlocked + 1)
 		unlockButton.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
 	elseif money < cost then
 		unlockButton.Text = "Unlock Stage " .. (unlocked + 1) .. ": $" .. abbreviate(cost)
@@ -273,12 +294,191 @@ unlockButton.Activated:Connect(function()
 	showToast(msg, ok and Color3.fromRGB(120, 255, 120) or Color3.fromRGB(255, 140, 140))
 end)
 
+-- Shop windows ------------------------------------------------------------------------------
+local RocketModel = require(ReplicatedStorage.Shared.RocketModel)
+local BuyRocket = remotes:WaitForChild("BuyRocket")
+local BuyUpgrade = remotes:WaitForChild("BuyUpgrade")
+
+local windows = {}
+local function makeWindow(title, accent)
+	local w = make("Frame", {
+		Parent = gui,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.47),
+		Size = UDim2.fromOffset(560, 430),
+		BackgroundColor3 = Color3.fromRGB(28, 28, 44),
+		Visible = false,
+	}, { corner(20), stroke(4, accent), make("UISizeConstraint", { MaxSize = Vector2.new(560, 430) }) })
+	local header = make("Frame", { Parent = w, Size = UDim2.new(1, 0, 0, 56), BackgroundColor3 = accent }, { corner(20) })
+	label({ Parent = header, Position = UDim2.fromOffset(20, 8), Size = UDim2.new(1, -90, 1, -16), TextXAlignment = Enum.TextXAlignment.Left, Text = title })
+	local close = make("TextButton", { Parent = header, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(42, 42), BackgroundColor3 = Color3.fromRGB(230, 70, 70), Font = FONT, TextScaled = true, TextColor3 = Color3.new(1, 1, 1), Text = "X" }, { corner(12), stroke(2) })
+	close.Activated:Connect(function()
+		w.Visible = false
+	end)
+	local list = make("ScrollingFrame", {
+		Parent = w,
+		Position = UDim2.fromOffset(14, 66),
+		Size = UDim2.new(1, -28, 1, -80),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 8,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+	}, { make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }) })
+	table.insert(windows, w)
+	return w, list
+end
+
+local function toggleWindow(w)
+	local open = not w.Visible
+	for _, other in ipairs(windows) do
+		other.Visible = false
+	end
+	w.Visible = open
+	if open then
+		local s = w:FindFirstChildOfClass("UIScale") or make("UIScale", { Parent = w })
+		s.Scale = 0.85
+		TweenService:Create(s, TweenInfo.new(0.2, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	end
+end
+
+local function row(list, order, height)
+	return make("Frame", { Parent = list, LayoutOrder = order, Size = UDim2.new(1, -10, 0, height), BackgroundColor3 = Color3.fromRGB(44, 44, 66) }, { corner(14) })
+end
+
+local function actionButton(parent)
+	return make("TextButton", {
+		Parent = parent,
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0.5, 0),
+		Size = UDim2.fromOffset(130, 52),
+		Font = FONT,
+		TextScaled = true,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "",
+	}, { corner(12), stroke(2), make("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }) })
+end
+
+local function result(ok, msg)
+	showToast(msg, ok and Color3.fromRGB(120, 255, 120) or Color3.fromRGB(255, 140, 140))
+end
+
+local function upgradeMult(key)
+	return 1 + (player:GetAttribute(key .. "Level") or 0) * Config.Upgrades[key].perLevel
+end
+
+local function rangeOf(def)
+	return def.speed * upgradeMult("Speed") * def.fuel * upgradeMult("Fuel")
+end
+
+-- Rockets window: a 3D preview of each rocket, its stats, and Buy / Equip.
+local rocketsWindow, rocketsList = makeWindow("🚀 Rockets", Color3.fromRGB(70, 140, 255))
+local rocketRows = {}
+for i, def in ipairs(Config.Rockets) do
+	local r = row(rocketsList, i, 96)
+	local vp = make("ViewportFrame", { Parent = r, Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(80, 80), BackgroundColor3 = Color3.fromRGB(30, 30, 48), Ambient = Color3.fromRGB(180, 180, 190), LightColor = Color3.new(1, 1, 1) }, { corner(12) })
+	local model = RocketModel.build(def, 1, false, CFrame.Angles(0, 0, math.rad(35)))
+	model.Parent = vp
+	local cam = Instance.new("Camera")
+	cam.CFrame = CFrame.lookAt(Vector3.new(4, 3, 13), Vector3.new(0.5, 0, 0))
+	cam.FieldOfView = 45
+	cam.Parent = vp
+	vp.CurrentCamera = cam
+	label({ Parent = r, Position = UDim2.fromOffset(100, 12), Size = UDim2.new(1, -250, 0, 32), TextXAlignment = Enum.TextXAlignment.Left, Text = def.name })
+	local stats = label({ Parent = r, Position = UDim2.fromOffset(100, 50), Size = UDim2.new(1, -250, 0, 24), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(190, 200, 230), Text = "" })
+	local button = actionButton(r)
+	button.Activated:Connect(function()
+		result(BuyRocket:InvokeServer(def.id))
+	end)
+	rocketRows[def.id] = { stats = stats, button = button, def = def }
+end
+
+local function refreshRockets()
+	local owned = string.split(player:GetAttribute("OwnedRockets") or "Starter", ",")
+	local equipped = player:GetAttribute("Rocket")
+	local money = player:GetAttribute("Money") or 0
+	for id, info in pairs(rocketRows) do
+		local def = info.def
+		info.stats.Text = string.format("Speed %d  |  Fuel %ss  |  ~%s", def.speed, tostring(def.fuel), Config.meters(rangeOf(def)))
+		if id == equipped then
+			info.button.Text = "EQUIPPED"
+			info.button.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
+		elseif table.find(owned, id) then
+			info.button.Text = "EQUIP"
+			info.button.BackgroundColor3 = Color3.fromRGB(70, 140, 255)
+		else
+			info.button.Text = "$" .. abbreviate(def.price)
+			info.button.BackgroundColor3 = money >= def.price and Color3.fromRGB(80, 200, 90) or Color3.fromRGB(150, 70, 70)
+		end
+	end
+end
+
+-- Upgrades window: Fuel Tank / Engine / Money Boost.
+local upgradesWindow, upgradesList = makeWindow("⬆️ Upgrades", Color3.fromRGB(160, 80, 230))
+local rangeRow = row(upgradesList, 0, 50)
+local rangeLabel = label({ Parent = rangeRow, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 1, -16), TextColor3 = Color3.fromRGB(255, 220, 90), Text = "" })
+local upgradeRows = {}
+for i, key in ipairs({ "Fuel", "Speed", "Money" }) do
+	local u = Config.Upgrades[key]
+	local r = row(upgradesList, i, 96)
+	label({ Parent = r, Position = UDim2.fromOffset(10, 18), Size = UDim2.fromOffset(60, 60), Text = ({ Fuel = "⛽", Speed = "🔥", Money = "💰" })[key] })
+	label({ Parent = r, Position = UDim2.fromOffset(80, 12), Size = UDim2.new(1, -230, 0, 32), TextXAlignment = Enum.TextXAlignment.Left, Text = u.name })
+	local info = label({ Parent = r, Position = UDim2.fromOffset(80, 50), Size = UDim2.new(1, -230, 0, 24), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(190, 200, 230), Text = "" })
+	local button = actionButton(r)
+	button.Activated:Connect(function()
+		result(BuyUpgrade:InvokeServer(key))
+	end)
+	upgradeRows[key] = { info = info, button = button }
+end
+
+local function refreshUpgrades()
+	local money = player:GetAttribute("Money") or 0
+	local def = Config.getRocket(player:GetAttribute("Rocket"))
+	rangeLabel.Text = def.name .. " range: ~" .. Config.meters(rangeOf(def))
+	for key, r in pairs(upgradeRows) do
+		local u = Config.Upgrades[key]
+		local level = player:GetAttribute(key .. "Level") or 0
+		local what = ({ Fuel = "fuel", Speed = "speed", Money = "money" })[key]
+		r.info.Text = string.format("Lv %d/%d  |  +%d%% %s", level, u.maxLevel, math.floor(level * u.perLevel * 100 + 0.5), what)
+		if level >= u.maxLevel then
+			r.button.Text = "MAX"
+			r.button.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
+		else
+			local cost = Config.upgradeCost(key, level)
+			r.button.Text = "$" .. abbreviate(cost)
+			r.button.BackgroundColor3 = money >= cost and Color3.fromRGB(80, 200, 90) or Color3.fromRGB(150, 70, 70)
+		end
+	end
+end
+
+for _, attr in ipairs({ "Money", "Rocket", "OwnedRockets", "FuelLevel", "SpeedLevel", "MoneyLevel" }) do
+	player:GetAttributeChangedSignal(attr):Connect(function()
+		refreshRockets()
+		refreshUpgrades()
+	end)
+end
+refreshRockets()
+refreshUpgrades()
+
+rocketsButton.Activated:Connect(function()
+	toggleWindow(rocketsWindow)
+end)
+upgradesButton.Activated:Connect(function()
+	toggleWindow(upgradesWindow)
+end)
+eggsButton.Activated:Connect(function()
+	showToast("🥚 Eggs are coming soon!", Color3.fromRGB(255, 230, 120))
+end)
+
 -- Launching ---------------------------------------------------------------------------------
 local function requestLaunch()
 	if player:GetAttribute("Flying") then
 		return
 	end
 	resultFrame.Visible = false
+	for _, w in ipairs(windows) do
+		w.Visible = false
+	end
 	LaunchRemote:FireServer()
 end
 launchButton.Activated:Connect(requestLaunch)
@@ -298,7 +498,7 @@ end
 
 player:GetAttributeChangedSignal("Flying"):Connect(function()
 	local flying = player:GetAttribute("Flying")
-	launchButton.Visible = not flying
+	bottomBar.Visible = not flying
 	statsFrame.Visible = not flying
 	stageFrame.Visible = not flying
 end)
@@ -374,7 +574,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		stopFlight()
 		resultTitle.Text = info.newBest and "NEW BEST!" or "Flight over!"
 		resultTitle.TextColor3 = info.newBest and Color3.fromRGB(255, 220, 60) or Color3.new(1, 1, 1)
-		resultDistance.Text = "You flew " .. abbreviate(info.distance) .. "m"
+		resultDistance.Text = "You flew " .. Config.meters(info.distance)
 		resultMoney.Text = "+$" .. abbreviate(info.money)
 		resultHint.Text = ({
 			fuel = "Out of fuel! Upgrade your rocket to go farther.",
@@ -425,7 +625,7 @@ RunService.RenderStepped:Connect(function(dt)
 
 	-- HUD
 	local dist = math.max(0, pos.X - f.startX)
-	distanceLabel.Text = abbreviate(dist) .. "m"
+	distanceLabel.Text = Config.meters(dist)
 	local fuelLeft = f.outOfFuel and 0 or math.clamp(1 - (os.clock() - f.launchedAt) / f.fuel, 0, 1)
 	fuelFill.Size = UDim2.fromScale(fuelLeft, 1)
 	local stage = Config.stageAt(pos.X)
