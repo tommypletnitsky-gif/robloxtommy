@@ -157,12 +157,13 @@ local function refreshGates()
 	for _, gate in ipairs(world:GetDescendants()) do
 		if gate:IsA("Model") and gate.Name == "Gate" then
 			local open = (gate:GetAttribute("Stage") or 99) <= unlocked
-			local barrier = gate:FindFirstChild("Barrier")
-			if barrier then
-				barrier.Transparency = open and 1 or 0.55
-				local surface = barrier:FindFirstChildOfClass("SurfaceGui")
-				if surface then
-					surface.Enabled = not open
+			for _, barrier in ipairs(gate:GetChildren()) do
+				if barrier.Name == "Barrier" and barrier:IsA("BasePart") then
+					barrier.Transparency = open and 1 or 0.55
+					local surface = barrier:FindFirstChildOfClass("SurfaceGui")
+					if surface then
+						surface.Enabled = not open
+					end
 				end
 			end
 		end
@@ -839,18 +840,46 @@ grade.Contrast = 0.08
 grade.Brightness = 0.02
 grade.Parent = Lighting
 local ZONES = {
-	Earth = { lighting = { ClockTime = 14, Brightness = 2.2, Ambient = Color3.fromRGB(90, 90, 100), OutdoorAmbient = Color3.fromRGB(150, 150, 160) }, atmo = { Density = 0.25, Haze = 0, Color = Color3.fromRGB(210, 225, 255) } },
-	Sky = { lighting = { ClockTime = 16.5, Brightness = 2.6, Ambient = Color3.fromRGB(120, 120, 140), OutdoorAmbient = Color3.fromRGB(170, 170, 200) }, atmo = { Density = 0.32, Haze = 1.2, Color = Color3.fromRGB(210, 230, 255) } },
-	Space = { lighting = { ClockTime = 0, Brightness = 1, Ambient = Color3.fromRGB(130, 120, 160), OutdoorAmbient = Color3.fromRGB(150, 140, 180) }, atmo = { Density = 0, Haze = 0, Color = Color3.fromRGB(0, 0, 0) } },
+	Earth = { lighting = { ClockTime = 14, Brightness = 2.2, Ambient = Color3.fromRGB(90, 90, 100), OutdoorAmbient = Color3.fromRGB(150, 150, 160) }, atmo = { Density = 0.25, Haze = 0, Glare = 0, Color = Color3.fromRGB(210, 225, 255) } },
+	Sky = { lighting = { ClockTime = 16.5, Brightness = 2.6, Ambient = Color3.fromRGB(120, 120, 140), OutdoorAmbient = Color3.fromRGB(170, 170, 200) }, atmo = { Density = 0.32, Haze = 1.2, Glare = 0, Color = Color3.fromRGB(210, 230, 255) } },
+	Space = { lighting = { ClockTime = 0, Brightness = 1, Ambient = Color3.fromRGB(130, 120, 160), OutdoorAmbient = Color3.fromRGB(150, 140, 180) }, atmo = { Density = 0, Haze = 0, Glare = 0, Color = Color3.fromRGB(0, 0, 0) } },
 }
-local currentZone = nil
+-- Some worlds get their own mood on top of the zone lighting.
+local STAGE_MOODS = {
+	["Dusty Desert"] = { lighting = { ClockTime = 13, Brightness = 2.6 }, atmo = { Color = Color3.fromRGB(255, 225, 180), Density = 0.3, Haze = 0.6 } },
+	["Red Canyon"] = { lighting = { ClockTime = 15.5 }, atmo = { Color = Color3.fromRGB(255, 200, 170), Density = 0.3, Haze = 0.8 } },
+	["Misty Swamp"] = { lighting = { Brightness = 1.7 }, atmo = { Color = Color3.fromRGB(190, 225, 190), Density = 0.42, Haze = 2.2 } },
+	["Volcano"] = { lighting = { ClockTime = 17.4, Brightness = 2, OutdoorAmbient = Color3.fromRGB(170, 120, 110) }, atmo = { Color = Color3.fromRGB(255, 150, 110), Density = 0.38, Haze = 2 } },
+	["Snowy Tundra"] = { lighting = { Brightness = 2.5 }, atmo = { Color = Color3.fromRGB(225, 240, 255), Density = 0.3, Haze = 0.8 } },
+	["Sunset Sky"] = { lighting = { ClockTime = 16.9, Brightness = 2.8 }, atmo = { Color = Color3.fromRGB(255, 175, 110), Density = 0.3, Haze = 2.2, Glare = 0.4 } },
+	["Thunder Storm"] = { lighting = { Brightness = 1.3, OutdoorAmbient = Color3.fromRGB(120, 120, 145) }, atmo = { Color = Color3.fromRGB(150, 155, 180), Density = 0.45, Haze = 2.5 } },
+	["Aurora Lights"] = { lighting = { ClockTime = 20.5, Brightness = 1.4 }, atmo = { Color = Color3.fromRGB(150, 220, 210), Density = 0.25, Haze = 1 } },
+	["Edge of Space"] = { lighting = { ClockTime = 19.6, Brightness = 1.5 }, atmo = { Color = Color3.fromRGB(120, 130, 200), Density = 0.18, Haze = 0.5 } },
+}
+
+local function moodFor(x)
+	local stage = x < Config.LAUNCH_X and nil or Config.Stages[Config.stageAt(x)]
+	local zone = stage and stage.zone or "Earth"
+	local lighting, atmo = table.clone(ZONES[zone].lighting), table.clone(ZONES[zone].atmo)
+	local mood = stage and STAGE_MOODS[stage.name]
+	if mood then
+		for k, v in pairs(mood.lighting) do
+			lighting[k] = v
+		end
+		for k, v in pairs(mood.atmo) do
+			atmo[k] = v
+		end
+	end
+	return (stage and stage.name or "Lobby"), lighting, atmo
+end
+
+local currentMood = nil
 RunService.Heartbeat:Connect(function()
-	local x = camera.CFrame.Position.X
-	local zone = x < Config.LAUNCH_X and "Earth" or Config.Stages[Config.stageAt(x)].zone
-	if zone ~= currentZone then
-		currentZone = zone
+	local name, lighting, atmo = moodFor(camera.CFrame.Position.X)
+	if name ~= currentMood then
+		currentMood = name
 		local info = TweenInfo.new(2)
-		TweenService:Create(Lighting, info, ZONES[zone].lighting):Play()
-		TweenService:Create(atmosphere, info, ZONES[zone].atmo):Play()
+		TweenService:Create(Lighting, info, lighting):Play()
+		TweenService:Create(atmosphere, info, atmo):Play()
 	end
 end)

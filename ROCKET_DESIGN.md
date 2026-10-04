@@ -51,3 +51,19 @@ All tuning (speeds, fuel, prices, stage costs) lives in `Config.lua`.
   daily reward + free timed gifts; trails (+ skins).
 - Owner will PUBLISH so donations/DataStores work (until then: "coming soon" / server-only boards).
 - Order: everything at once. Devices: PC + phone.
+
+## Path looks pass (2026-10-04, "only important thing is the looks")
+- Earth stages now use real smooth TERRAIN (src/server/TerrainBuilder.lua): flat runway corridor,
+  rolling hills, mountain ridges with snow caps, a river beside the runway, swamp pools, desert
+  dunes, canyon terraces, volcano cones + lava rivers, coastline into the ocean before the Sky zone.
+  Regenerate with tools/build_terrain.lua (≈2s). Terrain surface quirk: write 2 studs lower.
+- Runway: dark track, white edges, dashed yellow centre, red/white kerbs, arrows (Scenery.lua).
+- Biome scenery per Earth stage (barn/windmill/crops, pyramids/cacti, palms, mushrooms, pines,
+  snowmen/igloos, ice spikes, lava pools + smoking volcanoes, cabins).
+- Sky: pastel cloud road lined with cloud puffs (rainbow road in Rainbow Bridge), sea of clouds,
+  floating islands with waterfalls, hot-air balloons, lightning, aurora ribbons, wind streaks.
+- Space: glass track with neon edges/arrows, themed planets per stage (Earth below, the Moon,
+  Mars, striped Jupiter, Saturn rings, nebula, ice giant, black hole, golden Galaxy Core star).
+- New arch gates with striped pillars + stage banner; round distance signs every 100m.
+- Per-world lighting moods on the client (desert, canyon, swamp mist, volcano evening, tundra,
+  golden sunset, thunderstorm, aurora night, edge-of-space dusk).
