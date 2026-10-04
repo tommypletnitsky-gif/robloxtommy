@@ -385,7 +385,8 @@ local steerTouch = nil -- the finger that steers
 local touchCount = 0
 local padStick = Vector2.zero
 local lastMousePos = nil -- for input that only reports positions (no movement delta)
-local lookHeld, lookYaw, lookPitch = false, 0, 0 -- right mouse button: look around
+local lookHeld, lookYaw, lookPitch = false, 0, 0 -- right mouse button: look around (stays where you leave it)
+local steerHeld = false -- left mouse button held: drag to steer
 
 UserInputService.InputChanged:Connect(function(input)
 	local t = input.UserInputType
@@ -413,6 +414,10 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		end
 	elseif input.UserInputType == Enum.UserInputType.MouseButton2 and flight and not processed then
 		lookHeld = true
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 and flight and not processed then
+		steerHeld = true
+	elseif input.KeyCode == Enum.KeyCode.C and flight and not processed then
+		lookYaw, lookPitch = 0, 0 -- snap the camera back behind the rocket
 	end
 end)
 UserInputService.InputEnded:Connect(function(input)
@@ -423,6 +428,8 @@ UserInputService.InputEnded:Connect(function(input)
 		end
 	elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 		lookHeld = false
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+		steerHeld = false
 	end
 end)
 
@@ -732,7 +739,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
 			hintLabel.Text = "Drag anywhere to steer!  Keep dragging down to land."
 		else
-			hintLabel.Text = "Move your mouse to steer!  Scroll to zoom.  Keep pulling down to land."
+			hintLabel.Text = "WASD or hold left-click + drag to steer.  Right-click to look around (C = back).  Scroll to zoom."
 		end
 		hintLabel.Visible = true
 		task.delay(3, function()
@@ -966,9 +973,11 @@ RunService.RenderStepped:Connect(function(dt)
 		return
 	end
 
-	-- the mouse stays locked + hidden while you fly: its moves steer (right button looks around)
-	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-	UserInputService.MouseIconEnabled = false
+	-- Your cursor stays free and visible while you fly. Hold the right button and move the mouse to
+	-- look anywhere (even backwards; it stays there, C snaps it back). Hold the left button and drag
+	-- to steer, or use WASD / arrows.
+	UserInputService.MouseBehavior = lookHeld and Enum.MouseBehavior.LockCurrentPosition or Enum.MouseBehavior.Default
+	UserInputService.MouseIconEnabled = true
 
 	-- Steering: slide the aim point ---------------------------------------------------------------
 	local aim = f.aim
@@ -976,21 +985,19 @@ RunService.RenderStepped:Connect(function(dt)
 	local floor, ceiling = Config.FLY_MIN_HEIGHT, Config.FLY_MAX_HEIGHT
 	local launching = now - f.launchedAt < 0.6 -- liftoff always goes straight
 	local dz, dy = 0, 0
-	-- the locked mouse reports its movement through GetMouseDelta (the input events are the backup)
+	-- a locked mouse reports its movement through GetMouseDelta (the input events are the backup)
 	local md = UserInputService:GetMouseDelta()
 	if md.Magnitude == 0 then
 		md = mouseDelta
 	end
+	local backwards = math.cos(lookYaw) < 0 -- looking back: left / right swap so steering matches the screen
 	if lookHeld then
-		lookYaw = math.clamp(lookYaw - md.X * 0.006, -2.8, 2.8)
-		lookPitch = math.clamp(lookPitch - md.Y * 0.004, -0.25, 0.9)
-	else
+		lookYaw = (lookYaw - md.X * 0.006 + math.pi) % (2 * math.pi) - math.pi
+		lookPitch = math.clamp(lookPitch - md.Y * 0.004, -0.5, 1.2)
+	elseif steerHeld then
 		local sens = STEER.mouse * math.clamp(UserGameSettings.MouseSensitivity, 0.2, 4)
-		dz += md.X * sens
+		dz += md.X * sens * (backwards and -1 or 1)
 		dy -= md.Y * sens
-		local back = math.exp(-dt * 3)
-		lookYaw *= back
-		lookPitch *= back
 	end
 	local touchK = STEER.touch / math.max(300, camera.ViewportSize.Y)
 	dz += touchDelta.X * touchK
@@ -1002,6 +1009,9 @@ RunService.RenderStepped:Connect(function(dt)
 		up += padStick.Y
 	end
 	side, up = math.clamp(side, -1, 1), math.clamp(up, -1, 1)
+	if backwards then
+		side = -side
+	end
 	local keyDz, keyDy = side * STEER.keys * dt, up * STEER.keys * dt
 	if launching or f.outOfFuel then
 		dz, dy, keyDz, keyDy, up = 0, 0, 0, 0, 0
