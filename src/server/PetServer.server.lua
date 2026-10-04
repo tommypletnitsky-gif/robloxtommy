@@ -30,6 +30,10 @@ local busy = {} -- [player] = true while a hatch is being handled
 local RARITY_ORDER = { "Common", "Rare", "Epic", "Legendary" }
 
 -- Pet list helpers ----------------------------------------------------------------------------
+local function slots(player) -- 3 pet slots, +1 per rebirth (Config.petSlots)
+	return Config.petSlots(player:GetAttribute("Rebirths") or 0)
+end
+
 local function getPets(player)
 	return Config.parsePets(player:GetAttribute("Pets"))
 end
@@ -51,7 +55,7 @@ local function getEquipped(player, pets)
 	local list = {}
 	for uid in string.gmatch(player:GetAttribute("EquippedPets") or "", "%d+") do
 		uid = tonumber(uid)
-		if owned[uid] and #list < Config.MAX_EQUIPPED and not table.find(list, uid) then
+		if owned[uid] and #list < slots(player) and not table.find(list, uid) then
 			table.insert(list, uid)
 		end
 	end
@@ -158,7 +162,7 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 	local equipped = getEquipped(player, pets)
 	table.sort(results, bestFirst)
 	for _, r in ipairs(results) do
-		if #equipped < Config.MAX_EQUIPPED then
+		if #equipped < slots(player) then
 			table.insert(equipped, r.uid)
 		end
 	end
@@ -180,7 +184,7 @@ PetAction.OnServerInvoke = function(player, action, uid)
 	if action == "equipBest" then
 		table.sort(pets, bestFirst)
 		local best = {}
-		for i = 1, math.min(Config.MAX_EQUIPPED, #pets) do
+		for i = 1, math.min(slots(player), #pets) do
 			table.insert(best, pets[i].uid)
 		end
 		setEquipped(player, best)
@@ -197,8 +201,8 @@ PetAction.OnServerInvoke = function(player, action, uid)
 		if at then
 			return true, name .. " is already following you."
 		end
-		if #equipped >= Config.MAX_EQUIPPED then
-			return false, "You can equip " .. Config.MAX_EQUIPPED .. " pets. Unequip one first!"
+		if #equipped >= slots(player) then
+			return false, "You can equip " .. slots(player) .. " pets. Unequip one first! (Rebirth for more slots)"
 		end
 		table.insert(equipped, uid)
 		setEquipped(player, equipped)
@@ -231,7 +235,7 @@ end
 
 -- Players ---------------------------------------------------------------------------------------
 local function watch(player)
-	for _, attr in ipairs({ "Pets", "EquippedPets", "DataLoaded" }) do
+	for _, attr in ipairs({ "Pets", "EquippedPets", "DataLoaded", "Rebirths" }) do
 		player:GetAttributeChangedSignal(attr):Connect(function()
 			refresh(player)
 		end)

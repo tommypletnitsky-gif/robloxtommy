@@ -25,6 +25,24 @@ local function visualFor(def)
 	return folder and folder:FindFirstChild(def.id)
 end
 
+-- A handlebar in front of the seat so the rider has something to hold. RiderAnimator's base pose
+-- puts the hands on the grips: `ahead` studs in front of the seat, `up` above its top, `half` out.
+RocketModel.HANDLEBAR = { ahead = 1.55, up = 0.62, half = 1.5 }
+local function handlebar(seatTop, accent)
+	-- seatTop: CFrame on top of the seat in the rocket's axes (+X = nose)
+	local h = RocketModel.HANDLEBAR
+	local metal = Color3.fromRGB(70, 75, 92)
+	local c = seatTop * CFrame.new(h.ahead, h.up, 0)
+	local list = {
+		part({ Name = "HandlePost", Shape = Enum.PartType.Cylinder, Size = Vector3.new(2.4, 0.38, 0.38), CFrame = seatTop * CFrame.new(h.ahead, h.up - 1.2, 0) * CFrame.Angles(0, 0, math.pi / 2), Color = accent or metal, Material = Enum.Material.SmoothPlastic }),
+		part({ Name = "HandleBar", Shape = Enum.PartType.Cylinder, Size = Vector3.new(h.half * 2 + 0.3, 0.26, 0.26), CFrame = c * CFrame.Angles(0, math.pi / 2, 0), Color = metal, Material = Enum.Material.Metal }),
+	}
+	for _, side in ipairs({ -1, 1 }) do
+		table.insert(list, part({ Name = "Grip", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.85, 0.38, 0.38), CFrame = c * CFrame.new(0, 0, side * (h.half - 0.15)) * CFrame.Angles(0, math.pi / 2, 0), Color = Color3.fromRGB(35, 35, 42) }))
+	end
+	return list
+end
+
 -- How far below its pivot the rocket's belly is (where the launcher cradle holds it).
 function RocketModel.belly(def)
 	local template = visualFor(def)
@@ -91,6 +109,9 @@ function RocketModel.build(def, scale, withSeat, origin)
 			seat.CanTouch = false
 			seat.CFrame = origin * CFrame.new(-0.5 * scale, seatY, 0) * CFrame.Angles(0, -math.pi / 2, 0)
 			table.insert(extras, seat)
+			for _, p in ipairs(handlebar(origin * CFrame.new(-0.5 * scale, seatY + 0.2 * scale, 0), def.accent)) do
+				table.insert(extras, p)
+			end
 		end
 		for _, p in ipairs(extras) do
 			p.Massless = true
@@ -132,6 +153,9 @@ function RocketModel.build(def, scale, withSeat, origin)
 		seat.Anchored = false
 		seat.CFrame = at(-0.5, 1.5, 0) * CFrame.Angles(0, -math.pi / 2, 0)
 		table.insert(pieces, seat)
+		for _, p in ipairs(handlebar(at(-0.5, 1.7, 0), def.accent)) do
+			table.insert(pieces, p)
+		end
 	end
 
 	for _, p in ipairs(pieces) do

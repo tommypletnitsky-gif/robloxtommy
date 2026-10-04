@@ -25,7 +25,7 @@ fuel runs out. Distance = money. Money buys better rockets, upgrades, eggs and n
 2. Shop: buy rockets, upgrades (Fuel / Speed / Money). DONE
 3. Obstacles + boost rings.
 4. DONE - Eggs + pets (money multiplier). See "Eggs + pets" below.
-5. Rebirth + saving (DataStore).
+5. DONE - Rebirth + saving (ProfileStore). See "Rebirth" below.
 6. Polish: sounds, effects, balance.
 
 ## Code layout (synced into Studio from `sync.json`)
@@ -80,3 +80,25 @@ All tuning (speeds, fuel, prices, stage costs) lives in `Config.lua`.
 - Equipped pets follow you (hop when walking, fly beside the rocket). Drawn on each client.
 - Models: generated meshes (cute chibi style) in ReplicatedStorage.PetModels / EggModels (place-only).
 - Server checks everything: stage, money, inventory space, standing at the egg.
+
+## Rebirth (2026-10-04)
+- Rebirth Portal plaza beside the spawn (E to open). Needs Stage 8, then +2 stages per rebirth.
+- Resets money, stages, best distance, rockets, upgrades. Keeps pets, trails, daily/gift rewards.
+- Reward: money x(1 + 0.5 per rebirth) forever, +1 pet slot per rebirth (3 -> up to 6).
+- Confirm by clicking twice; confetti + server-wide announcement; rebirth badge on the HUD and a
+  Rebirths leaderstat.
+
+## Flight controls v4 (2026-10-04, "the movement is the whole game concept, make it perfect")
+- Mouse is locked + hidden while flying: small moves slide an aim point (~2-3 cm = edge of lane),
+  no reaching for the screen edges. Roblox's mouse sensitivity setting scales it.
+- Touch: drag anywhere. Keys: WASD / arrows. Gamepad: left stick. Right mouse: look around.
+- The rocket follows the aim on a smooth critically-damped spring (no wobble), banks into turns,
+  nose points where it's going. Liftoff always goes straight.
+- Land early: pull down past the lowest height and keep pulling (a ring fills red with "LAND");
+  pull up to cancel.
+- Zoom: mouse wheel / I / O / pinch, eased; camera stretches a little on boosts.
+- Camera: straight behind, never rolls, trails sideways/vertical moves on a soft spring and
+  looks a bit toward where you steer.
+- Rider: kneels on the rocket holding a handlebar (every rocket has one), leans into turns,
+  tucks on boosts, fist pump through rings, flails when out of fuel. Other players see it too.
+- Pets fly beside the rocket (never between it and the camera).

@@ -42,6 +42,7 @@ local LEAF = {
 }
 
 local SPAWN = LobbyLayout.SPAWN
+local PROPS = ServerStorage:FindFirstChild("LobbyProps") -- Creator Store props (see their Source attribute)
 local PAD_X = Config.LAUNCH_X - 8
 local LAWN_TOP = 0.08 -- just above the flat terrain under it
 local EDGE_TOP = 0.2 -- borders
@@ -296,8 +297,41 @@ local function eggGarden(hub)
 	end
 end
 
+-- Rebirth Portal ------------------------------------------------------------------------------------
+-- A round plaza on the other side of the spawn with the stone portal at its back, a sign and an
+-- E prompt (attribute OpenWindow = "Rebirth"; RebirthClient opens the window).
+local function rebirthPortal(hub)
+	local r = LobbyLayout.REBIRTH
+	local cx, cz = r.center.X, r.center.Z
+	local m = Instance.new("Model")
+	m.Name = "RebirthPortal"
+	m.Parent = hub
+	local tileMat, tileVar = surface("LobbyPathTiles", M.Cobblestone)
+	path(m, -155, -35, -145, -15, false)
+	disc(m, r.radius, cx, cz, EDGE_TOP + 0.04, BORDER)
+	disc(m, r.radius - 1.4, cx, cz, PAVE_TOP + 0.04, TILE, tileMat, tileVar)
+	disc(m, 5, cx, cz, PAVE_TOP + 0.08, C(165, 105, 245))
+	disc(m, 3.8, cx, cz, PAVE_TOP + 0.12, TILE, tileMat, tileVar)
+
+	local at = r.portal
+	local face = CFrame.lookAt(at, at + Vector3.new(0, 0, 1)) -- opening toward the spawn
+	local template = PROPS and PROPS:FindFirstChild("Portal")
+	local h = 20
+	if template then
+		local p = template:Clone()
+		p:PivotTo(CFrame.new(at.X, PAVE_TOP, at.Z) * CFrame.Angles(0, math.rad(90), 0))
+		p.Parent = m
+		h = template:GetAttribute("Height") or h
+	else
+		part(m, { Size = Vector3.new(18, h, 3), CFrame = CFrame.new(at.X, h / 2, at.Z), Color = C(150, 150, 165) })
+	end
+	local signPart = part(m, { Name = "Sign", Size = Vector3.new(16, 3.6, 0.6), CFrame = face * CFrame.new(0, h + 2.4, 0), Color = SIGN })
+	local l = sign(signPart, Enum.NormalId.Front, "🌟 REBIRTH", WHITE, SIGN, darker(SIGN, 0.5))
+	l.Parent.PixelsPerStud = 24
+	prompt(m, face * CFrame.new(0, 5, 3), "Rebirth", "Rebirth")
+end
+
 -- Decoration --------------------------------------------------------------------------------------
-local PROPS = ServerStorage:FindFirstChild("LobbyProps")
 
 local function prop(parent, name, x, z, yaw, opts)
 	local template = PROPS and PROPS:FindFirstChild(name)
@@ -338,7 +372,7 @@ end
 local TREES = {
 	{ "Oak", -172, -34, 20, LEAF.green },
 	{ "OakBig", -178, 26, 200, LEAF.gold },
-	{ "Pine", -136, -42, 0 },
+	{ "Pine", -128, -48, 0 },
 	{ "Oak", -130, -76, 90, LEAF.pink },
 	{ "Oak", -130, 78, 0, LEAF.orange },
 	{ "OakBig", -60, -50, 45, LEAF.green },
@@ -362,7 +396,7 @@ local HILLS = {
 local ROCKS = {
 	{ "RockA", -182, -50, 30 },
 	{ "RockB", -182, 52, 100 },
-	{ "RockC", -146, -62, 0 },
+	{ "RockC", -134, -66, 0 },
 	{ "RockA", -46, -36, 200 },
 	{ "RockB", -44, 38, 10 },
 	{ "RockC", -68, -30, 0 },
@@ -405,7 +439,7 @@ local function decor(hub)
 		end
 	end
 	-- flower ring around the spawn plaza (open toward the main path and the Egg Garden path)
-	for i, deg in ipairs({ 40, 128, 160, 192, 224, 256, 288, 320 }) do
+	for i, deg in ipairs({ 40, 128, 160, 200, 232, 312 }) do
 		local a = math.rad(deg)
 		prop(d, ({ "FlowerRed", "FlowerYellow", "FlowerGreen" })[i % 3 + 1], SPAWN.X + math.cos(a) * 20.5, SPAWN.Z + math.sin(a) * 20.5, rng:NextNumber(0, 360))
 	end
@@ -444,9 +478,9 @@ local function decor(hub)
 		end
 	end
 
-	-- welcome board at the edge of the spawn plaza, its +X face turned toward where players spawn
-	local bx, bz = -150, -25
-	local toward = Vector3.new(SPAWN.X - 18, 0, 0) - Vector3.new(bx, 0, bz)
+	-- welcome board behind the spawn plaza, facing down the path to the launcher
+	local bx, bz = -176, 0
+	local toward = Vector3.new(1, 0, 0)
 	local board = prop(d, "Board", bx, bz, math.deg(math.atan2(-toward.Z, toward.X)), { scale = 0.8 })
 	if board then
 		local cf = board:GetPivot()
@@ -465,6 +499,7 @@ function Lobby.build(hub)
 	end
 	launchArea(hub)
 	eggGarden(hub)
+	rebirthPortal(hub)
 	decor(hub)
 end
 

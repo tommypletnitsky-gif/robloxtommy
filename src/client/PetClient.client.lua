@@ -511,10 +511,10 @@ local function refreshPets()
 		end
 	end
 	emptyLabel.Visible = #pets == 0
-	summary.Text = string.format("Pets %d / %d    Equipped %d / %d", #pets, Config.MAX_PETS, nEquipped, Config.MAX_EQUIPPED)
+	summary.Text = string.format("Pets %d / %d    Equipped %d / %d", #pets, Config.MAX_PETS, nEquipped, Config.petSlots(player:GetAttribute("Rebirths") or 0))
 	summary2.Text = "Money boost: " .. multText(player:GetAttribute("PetMultiplier") or 1) .. " 💰"
 end
-for _, attr in ipairs({ "Pets", "EquippedPets", "PetMultiplier" }) do
+for _, attr in ipairs({ "Pets", "EquippedPets", "PetMultiplier", "Rebirths" }) do
 	player:GetAttributeChangedSignal(attr):Connect(refreshPets)
 end
 for _, attr in ipairs({ "Money", "UnlockedStage" }) do
@@ -534,8 +534,9 @@ followFolder.Name = "PetFollowers"
 followFolder.Parent = workspace
 
 -- spots around you, in your own space (+Z = behind you)
-local WALK_SLOTS = { Vector3.new(-3.6, 0, 4), Vector3.new(3.6, 0, 4), Vector3.new(0, 0, 6.5) }
-local FLY_SLOTS = { Vector3.new(-6, 1.5, 7), Vector3.new(6, 1.5, 7), Vector3.new(0, 4, 10) }
+local WALK_SLOTS = { Vector3.new(-3.6, 0, 4), Vector3.new(3.6, 0, 4), Vector3.new(0, 0, 6.5), Vector3.new(-6, 0, 7.5), Vector3.new(6, 0, 7.5), Vector3.new(0, 0, 10) }
+-- in flight the pets fly beside the rocket (never between it and the camera)
+local FLY_SLOTS = { Vector3.new(-5.5, 0.5, 0.5), Vector3.new(5.5, 0.5, 0.5), Vector3.new(-9.5, 2, 1.5), Vector3.new(9.5, 2, 1.5), Vector3.new(-13.5, 3.5, 3), Vector3.new(13.5, 3.5, 3) }
 local followers = {} -- [player] = { kinds = string, pets = { { model, pos } } }
 
 local function rebuildFollowers(plr)
@@ -619,8 +620,14 @@ RunService.RenderStepped:Connect(function(dt)
 			local target = root.Position + yaw:VectorToWorldSpace(slot)
 			local lift = 0
 			if flying then
-				lift = math.sin(now * 3 + i) * 0.6
+				-- glide into place in the rocket's own space, so going fast never leaves them behind
+				local rel = slot + Vector3.new(0, math.sin(now * 3 + i) * 0.6, 0)
+				p.rel = p.rel and p.rel:Lerp(rel, 1 - math.exp(-dt * 6)) or rel
+				p.pos = nil
+				p.model:PivotTo(CFrame.new(root.Position + yaw:VectorToWorldSpace(p.rel)) * yaw)
+				continue
 			else
+				p.rel = nil
 				local hit = workspace:Raycast(target + Vector3.new(0, 6, 0), Vector3.new(0, -20, 0), rayParams)
 				target = Vector3.new(target.X, hit and hit.Position.Y or root.Position.Y - 3, target.Z)
 				local speed = (root.AssemblyLinearVelocity * Vector3.new(1, 0, 1)).Magnitude

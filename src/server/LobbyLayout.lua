@@ -19,6 +19,9 @@ function LobbyLayout.eggStand(i, n)
 	return pos, (g.center - pos).Unit
 end
 
+-- Rebirth Portal: a round plaza on the other side of the spawn, the portal at its back.
+LobbyLayout.REBIRTH = { center = Vector3.new(-150, 0, -48), radius = 15, portal = Vector3.new(-150, 0, -57) }
+
 -- Park area (flat lawn).
 LobbyLayout.PARK = { -186, -86, 6, 86 }
 
@@ -26,6 +29,7 @@ LobbyLayout.PAVED_CIRCLES = {
 	{ -150, 0, 17 }, -- spawn plaza
 	{ -8, 0, 24 }, -- launch pad
 	{ -150, 50, 21 }, -- Egg Garden
+	{ -150, -48, 15 }, -- Rebirth Portal plaza
 }
 
 LobbyLayout.PAVED_BOXES = {
@@ -34,6 +38,7 @@ LobbyLayout.PAVED_BOXES = {
 	{ -114, -35, -76, -25 }, -- Rocket Shop porch
 	{ -102.2, 7, -87.8, 27 }, -- path to the Upgrade shop
 	{ -156.2, 15, -143.8, 31 }, -- path to the Egg Garden
+	{ -156.2, -35, -143.8, -15 }, -- path to the Rebirth Portal
 }
 
 -- Building footprints (decor stays out of these).

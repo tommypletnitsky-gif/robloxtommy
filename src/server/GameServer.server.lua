@@ -35,13 +35,14 @@ local UnlockStage = remote("RemoteFunction", "UnlockStage")
 local BuyRocket = remote("RemoteFunction", "BuyRocket") -- (rocketId) buys if needed, then equips
 local BuyUpgrade = remote("RemoteFunction", "BuyUpgrade") -- ("Fuel" | "Speed" | "Money")
 local BuyTrail = remote("RemoteFunction", "BuyTrail") -- (trailId) buys if needed, then equips
-remote("RemoteEvent", "Notify") -- server -> client: (text, color)
+local Notify = remote("RemoteEvent", "Notify") -- server -> client: (text, color)
+local RebirthRemote = remote("RemoteFunction", "Rebirth") -- () -> ok, message
 
 local flights = {} -- [player] = flight state
 
 local function moneyMultiplier(player)
 	local m = 1 + (player:GetAttribute("MoneyLevel") or 0) * Config.Upgrades.Money.perLevel
-	m *= 1 + (player:GetAttribute("Rebirths") or 0) * 0.5
+	m *= Config.rebirthMultiplier(player:GetAttribute("Rebirths") or 0)
 	m *= player:GetAttribute("PetMultiplier") or 1 -- set by PetServer from the equipped pets
 	return m
 end
@@ -79,6 +80,46 @@ local function hubCFrame()
 	return CFrame.lookAt(c + Vector3.new(-40, 4, math.random(-8, 8)), c + Vector3.new(100, 4, 0))
 end
 
+-- How far the hip joints sit below the root part's center, read from the rig (not the animation).
+local function hipDrop(char)
+	local rootJ = char:FindFirstChild("Root", true)
+	local hipJ = char:FindFirstChild("RightHip", true)
+	if rootJ and hipJ and rootJ:IsA("AnimationConstraint") and hipJ:IsA("AnimationConstraint") and rootJ.Attachment0 and rootJ.Attachment1 and hipJ.Attachment0 then
+		return -(rootJ.Attachment0.Position.Y - rootJ.Attachment1.Position.Y + hipJ.Attachment0.Position.Y)
+	elseif rootJ and hipJ and rootJ:IsA("Motor6D") and hipJ:IsA("Motor6D") then
+		return -(rootJ.C0.Position.Y - rootJ.C1.Position.Y + hipJ.C0.Position.Y)
+	end
+	return 1.1
+end
+
+-- Put the rider on the rocket: kneeling on top of the seat, facing the nose, welded on, and
+-- PlatformStanding so no default animation fights RiderAnimator's pose.
+local RIDE_HIP_LIFT = 0.45 -- hips this far above the seat (the knees rest on the rocket)
+local function mountRider(f, char, hum, root)
+	local body = f.model.PrimaryPart
+	local seatLocal = body.CFrame:ToObjectSpace(f.seat.CFrame).Position
+	local y = seatLocal.Y + f.seat.Size.Y / 2 + math.clamp(hipDrop(char), 0.5, 3) + RIDE_HIP_LIFT
+	hum.Sit = false
+	hum.PlatformStand = true
+	char:PivotTo(body.CFrame * CFrame.new(seatLocal.X, y, seatLocal.Z) * CFrame.Angles(0, -math.pi / 2, 0))
+	local weld = Instance.new("WeldConstraint")
+	weld.Name = "RideWeld"
+	weld.Part0 = body
+	weld.Part1 = root
+	weld.Parent = root
+	f.weld = weld
+end
+
+local function dismountRider(f, hum)
+	if f.weld then
+		f.weld:Destroy()
+		f.weld = nil
+	end
+	if hum then
+		hum.PlatformStand = false
+	end
+end
+
 local function endFlight(player, reason)
 	local f = flights[player]
 	if not f or f.ended then
@@ -111,16 +152,11 @@ local function endFlight(player, reason)
 	task.delay(reason == "jumped" and 0 or 2.6, function()
 		local char = player.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		if hum then
-			hum.Sit = false
-			if f.seat and f.seat:FindFirstChild("SeatWeld") then
-				f.seat.SeatWeld:Destroy()
-			end
-		end
+		dismountRider(f, hum)
 		if f.model then
 			f.model:Destroy()
 		end
-		-- Wait a moment after unseating: the client takes back physics ownership of its character
+		-- Wait a moment after getting off: the client takes back physics ownership of its character
 		-- and would otherwise overwrite our teleport with its old position.
 		task.wait(0.2)
 		if player.Parent then
@@ -177,8 +213,7 @@ local function startFlight(player)
 	flights[player] = f
 	player:SetAttribute("Flying", true)
 
-	char:PivotTo(f.seat.CFrame * CFrame.new(0, 3, 0))
-	f.seat:Sit(hum)
+	mountRider(f, char, hum, root)
 
 	-- Physics: the client steers through these; the server watches the result.
 	local att = Instance.new("Attachment")
@@ -205,7 +240,7 @@ local function startFlight(player)
 		if flights[player] ~= f or f.ended then
 			return
 		end
-		if not (hum.Parent and hum.SeatPart == f.seat) then
+		if not (hum.Parent and f.weld and f.weld.Parent) then
 			endFlight(player, "jumped")
 			return
 		end
@@ -267,7 +302,7 @@ RunService.Heartbeat:Connect(function(dt)
 		local body = f.model and f.model.PrimaryPart
 		local char = player.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		if not body or not hum or hum.Health <= 0 or hum.SeatPart ~= f.seat then
+		if not body or not hum or hum.Health <= 0 or not (f.weld and f.weld.Parent) then
 			endFlight(player, "jumped")
 			continue
 		end
@@ -389,6 +424,32 @@ BuyUpgrade.OnServerInvoke = function(player, key)
 	return true, u.name .. " level " .. (level + 1) .. "!"
 end
 
+-- Rebirth ---------------------------------------------------------------------------------
+-- Unlock far enough, then start over for a permanent money bonus and one more pet slot.
+-- Resets money, stages, best distance, rockets and upgrades; keeps pets, trails and rewards.
+RebirthRemote.OnServerInvoke = function(player)
+	if player:GetAttribute("Flying") then
+		return false, "Land first, then rebirth!"
+	end
+	local rebirths = player:GetAttribute("Rebirths") or 0
+	local need = Config.rebirthStage(rebirths)
+	if (player:GetAttribute("UnlockedStage") or 1) < need then
+		return false, "Unlock Stage " .. need .. " to rebirth!"
+	end
+	player:SetAttribute("Money", 0)
+	player:SetAttribute("UnlockedStage", 1)
+	player:SetAttribute("BestDistance", 0)
+	player:SetAttribute("Rocket", "Starter")
+	player:SetAttribute("OwnedRockets", "Starter")
+	for key in pairs(Config.Upgrades) do
+		player:SetAttribute(key .. "Level", 0)
+	end
+	player:SetAttribute("Rebirths", rebirths + 1)
+	PlayerData.save(player)
+	Notify:FireAllClients("🌟 " .. player.DisplayName .. " rebirthed! (Rebirth " .. (rebirths + 1) .. ")", Color3.fromRGB(255, 210, 90))
+	return true, "Rebirth " .. (rebirths + 1) .. "! Money x" .. Config.rebirthMultiplier(rebirths + 1) .. " forever"
+end
+
 -- Players -----------------------------------------------------------------------------
 local function setupLeaderstats(player)
 	local ls = Instance.new("Folder")
@@ -400,12 +461,17 @@ local function setupLeaderstats(player)
 	local stage = Instance.new("IntValue")
 	stage.Name = "Stage"
 	stage.Parent = ls
+	local rebirths = Instance.new("IntValue")
+	rebirths.Name = "Rebirths"
+	rebirths.Parent = ls
 	local function refresh()
 		money.Value = "$" .. Config.abbreviate(player:GetAttribute("Money") or 0)
 		stage.Value = player:GetAttribute("UnlockedStage") or 1
+		rebirths.Value = player:GetAttribute("Rebirths") or 0
 	end
 	player:GetAttributeChangedSignal("Money"):Connect(refresh)
 	player:GetAttributeChangedSignal("UnlockedStage"):Connect(refresh)
+	player:GetAttributeChangedSignal("Rebirths"):Connect(refresh)
 	refresh()
 end
 

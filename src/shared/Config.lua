@@ -7,7 +7,6 @@ Config.PATH_HALF_WIDTH = 40 -- how far left/right you can steer
 Config.FLY_MIN_HEIGHT = 6 -- lowest you can fly above the path
 Config.FLY_MAX_HEIGHT = 70 -- highest you can fly above the path
 Config.LAND_HEIGHT = 3 -- dive below this (rocket center above the path) and the flight ends
-Config.STEER_SPEED = 30 -- studs/sec you move up/down/sideways
 
 Config.HUB_CENTER = Vector3.new(-95, 0, 0)
 Config.LAUNCH_X = 0 -- start line; stage 1 begins here
@@ -98,10 +97,24 @@ function Config.getTrail(id)
 	return Config.Trails[1]
 end
 
+-- Rebirth: unlock far enough, then start over (money, stages, rockets and upgrades reset; pets and
+-- trails stay) for a permanent money bonus and an extra pet slot.
+Config.REBIRTH_BONUS = 0.5 -- +50% money per rebirth (added up: 2 rebirths = x2)
+Config.REBIRTH_SLOTS = 3 -- each rebirth adds a pet slot, up to this many extra
+function Config.rebirthStage(rebirths) -- stage you must unlock for your next rebirth
+	return math.min(Config.NUM_STAGES, 8 + rebirths * 2)
+end
+function Config.rebirthMultiplier(rebirths)
+	return 1 + rebirths * Config.REBIRTH_BONUS
+end
+function Config.petSlots(rebirths)
+	return (Config.MAX_EQUIPPED or 3) + math.min(rebirths or 0, Config.REBIRTH_SLOTS)
+end
+
 -- Eggs + pets. Each egg stands in the lobby's Egg Garden and opens once you've unlocked its stage.
 -- A pet's `mult` is its money multiplier; equipped pets add up: total = 1 + sum(mult - 1).
 -- Pet models live in ReplicatedStorage.PetModels / EggModels (place-only, generated meshes).
-Config.MAX_EQUIPPED = 3
+Config.MAX_EQUIPPED = 3 -- pet slots before rebirths (Config.petSlots adds one per rebirth)
 Config.MAX_PETS = 60
 Config.Rarities = {
 	Common = { order = 1, color = Color3.fromRGB(170, 175, 190) },
