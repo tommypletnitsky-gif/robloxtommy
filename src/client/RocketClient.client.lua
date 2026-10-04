@@ -405,6 +405,28 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	end
 end)
 
+-- Flight camera zoom: mouse wheel (or two-finger pinch) changes it while flying; kept between flights.
+local CAM_DIST = 26 -- default distance behind the rocket
+local camZoom = 1
+local ZOOM_MIN, ZOOM_MAX = 0.45, 2.6
+UserInputService.InputChanged:Connect(function(input, processed)
+	if input.UserInputType == Enum.UserInputType.MouseWheel and not processed and player:GetAttribute("Flying") then
+		camZoom = math.clamp(camZoom * (1 - input.Position.Z * 0.12), ZOOM_MIN, ZOOM_MAX)
+	end
+end)
+local lastPinch = nil
+UserInputService.TouchPinch:Connect(function(_, scale, _, state)
+	if not player:GetAttribute("Flying") then
+		return
+	end
+	if state == Enum.UserInputState.Begin then
+		lastPinch = scale
+	elseif lastPinch and scale > 0 then
+		camZoom = math.clamp(camZoom * (lastPinch / scale), ZOOM_MIN, ZOOM_MAX)
+		lastPinch = scale
+	end
+end)
+
 local function keySteer()
 	local function down(...)
 		for _, k in ipairs({ ... }) do
@@ -538,7 +560,16 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			slowUntil = 0,
 			bonus = 0,
 			scan = 1,
+			pull = 40, -- launch: camera starts pulled way back, then eases in
+			pullHold = os.clock() + 0.5,
+			bank = 0,
+			spin = math.pi * 2, -- a barrel roll as you blast off
+			aimCF = CFrame.new(),
+			focus = nil,
+			flameFx = nil,
 		}
+		local flame = body.Parent:FindFirstChild("Flame", true)
+		flight.flameFx = flame and flame:FindFirstChildOfClass("Fire")
 		flightHud.Visible = true
 		linesFrame.Visible = true
 		if UserInputService.TouchEnabled then
@@ -645,6 +676,9 @@ local function collect(p)
 		UIKit.sound("Coin", 0.45, math.min(1.6, 1 + combo * 0.04))
 	elseif p.kind == "Ring" then
 		f.boostUntil = os.clock() + Config.Pickups.Ring.boostTime
+		f.pull = math.max(f.pull, 20)
+		f.pullHold = os.clock() + 0.25
+		f.spin = math.max(f.spin, math.pi * 2)
 		UIKit.sound("Boost", 0.6)
 		popText("BOOST! +FUEL", Color3.fromRGB(255, 180, 40))
 		addShake(0.4)
@@ -709,11 +743,6 @@ RunService.RenderStepped:Connect(function(dt)
 		return
 	end
 
-	-- The flight camera sits behind the path (not behind the rocket), so the rocket visibly
-	-- moves around the screen and flies to wherever you point.
-	local CAM_BACK, CAM_UP = 44, 36
-	local camBase = Vector3.new(pos.X - CAM_BACK, Config.pathY(pos.X) + CAM_UP, 0)
-
 	-- Steering target from the pointer (or keys)
 	if useKeys or not pointer then
 		local side, up = keySteer()
@@ -762,20 +791,46 @@ RunService.RenderStepped:Connect(function(dt)
 		vel = Vector3.new(speed, slope * speed + (targetY - pos.Y) * 5, (f.offZ - pos.Z) * 5)
 	end
 	f.thrust.VectorVelocity = vel
-	local roll = math.clamp((f.offZ - pos.Z) * 0.04, -0.6, 0.6)
-	f.aim.CFrame = CFrame.lookAt(Vector3.zero, vel.Unit) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(roll, 0, 0)
 
-	-- Camera: steady chase view over the path; FOV widens a little with speed.
-	-- Slow-mo (out of fuel) swings in close beside the rocket.
+	-- Rocket motion: nose follows the flight direction, banks into turns, gentle cruise wobble,
+	-- and a full barrel roll on launch / boost rings. Smoothed so it feels weighty, not twitchy.
+	local targetBank = math.clamp(vel.Z * 0.035, -1, 1)
+	f.bank += (targetBank - f.bank) * math.min(1, dt * 6)
+	local spinAngle = 0
+	if f.spin > 0 then
+		f.spin = math.max(0, f.spin - dt * (math.pi * 2 / 0.6))
+		spinAngle = (math.pi * 2 - f.spin) % (math.pi * 2)
+	end
+	local wobble = f.outOfFuel and 0 or math.sin(now * 3.1) * 0.05
+	local targetAim = CFrame.lookAt(Vector3.zero, vel.Unit) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(f.bank + wobble + spinAngle, 0, math.sin(now * 2.3) * 0.03)
+	f.aimCF = spinAngle > 0 and targetAim or f.aimCF:Lerp(targetAim, math.min(1, dt * 8))
+	f.aim.CFrame = f.aimCF
+
+	-- Flame grows while boosting
+	if f.flameFx then
+		f.flameFx.Size = speedMul > 1 and 11 or 6
+	end
+
+	-- Camera zoom-out kick (launch / boost), held briefly, then eased back to your zoom.
+	if now > f.pullHold then
+		f.pull += (0 - f.pull) * math.min(1, dt * 1.4)
+	end
+
 	if f.outOfFuel then
-		local camTarget = CFrame.lookAt(pos + Vector3.new(-10, 5, 14), pos + Vector3.new(4, 0, 0))
+		-- slow-mo: swing in close beside the rocket (respects your zoom)
+		local camTarget = CFrame.lookAt(pos + Vector3.new(-10, 5, 14) * camZoom, pos + Vector3.new(4, 0, 0))
 		camera.FieldOfView += (60 - camera.FieldOfView) * math.min(1, dt * 2)
 		camera.CFrame = camera.CFrame:Lerp(camTarget, math.min(1, dt * 2)) * shakeOffset
 	else
-		local fov = 70 + math.min(12, f.speed * speedMul * 0.04)
-		camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 3)
-		local look = Vector3.new(pos.X + 30, Config.pathY(pos.X + 30) + CAM_UP - 4, 0)
-		camera.CFrame = CFrame.lookAt(camBase, look) * shakeOffset
+		-- Chase camera: behind and above, following the rocket partly up/down and sideways so you
+		-- still see it move toward your cursor. Distance = your zoom + the speed kick.
+		local dist = CAM_DIST * camZoom + f.pull
+		local wantFocus = Vector3.new(pos.X, Config.pathY(pos.X) + (pos.Y - Config.pathY(pos.X)) * 0.6 + 4, pos.Z * 0.55)
+		f.focus = f.focus and Vector3.new(wantFocus.X, f.focus.Y + (wantFocus.Y - f.focus.Y) * math.min(1, dt * 5), f.focus.Z + (wantFocus.Z - f.focus.Z) * math.min(1, dt * 5)) or wantFocus
+		local camPos = f.focus + Vector3.new(-dist, dist * 0.36, 0)
+		local fov = 70 + math.min(10, f.speed * speedMul * 0.03) + f.pull * 0.3
+		camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 4)
+		camera.CFrame = CFrame.lookAt(camPos, f.focus + Vector3.new(24, 0, 0)) * CFrame.Angles(0, 0, -f.bank * 0.12) * shakeOffset
 	end
 
 	-- Speed lines

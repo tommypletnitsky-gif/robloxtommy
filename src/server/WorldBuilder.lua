@@ -335,7 +335,7 @@ local function buildPickups(folder, s)
 			newPart(m, { Size = Vector3.new(1, 1.2, 4), CFrame = CFrame.new(center) * CFrame.Angles(a, 0, 0) * CFrame.new(0, 7, 0), Color = i % 2 == 0 and Color3.fromRGB(255, 170, 30) or Color3.fromRGB(255, 240, 90), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false, CastShadow = false })
 		end
 	end
-	for _ = 1, Config.Pickups.Obstacle.perStage do
+	for _ = 1, (st.zone == "Earth" and 0 or Config.Pickups.Obstacle.perStage) do -- no birds on Earth
 		local m = pickupModel(folder, "Obstacle", s)
 		local c = spot(rng:NextNumber(x0 + first + 30, x0 + L - 30))
 		local core
