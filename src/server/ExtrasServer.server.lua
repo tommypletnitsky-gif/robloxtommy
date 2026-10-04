@@ -86,6 +86,47 @@ MarketplaceService.ProcessReceipt = function(receipt)
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end
 
+-- Owner test commands (type in chat) -----------------------------------------------------
+--   /money 20000   add money        /stage 5   unlock up to stage 5
+--   /reset         wipe your progress back to the start
+local RunService = game:GetService("RunService")
+local function isOwner(player)
+	return RunService:IsStudio() or player.UserId == game.CreatorId
+end
+
+local function onChat(player, msg)
+	if not isOwner(player) then
+		return
+	end
+	local cmd, arg = string.match(string.lower(msg), "^/(%a+)%s*(%-?%d*)")
+	local n = tonumber(arg)
+	if cmd == "money" then
+		addMoney(player, n or 20000)
+		Notify:FireClient(player, "Added $" .. Config.abbreviate(n or 20000), Color3.fromRGB(130, 255, 130))
+	elseif cmd == "stage" then
+		local s = math.clamp(n or (player:GetAttribute("UnlockedStage") or 1) + 1, 1, Config.NUM_STAGES)
+		player:SetAttribute("UnlockedStage", s)
+		player:SetAttribute("BestDistance", math.max(player:GetAttribute("BestDistance") or 0, (s - 1) * Config.STAGE_LENGTH))
+		Notify:FireClient(player, "Unlocked up to Stage " .. s, Color3.fromRGB(130, 255, 130))
+	elseif cmd == "reset" then
+		for k, v in pairs(PlayerData.DEFAULTS) do
+			player:SetAttribute(k, v)
+		end
+		Notify:FireClient(player, "Progress reset", Color3.fromRGB(255, 200, 120))
+	end
+end
+
+Players.PlayerAdded:Connect(function(player)
+	player.Chatted:Connect(function(msg)
+		onChat(player, msg)
+	end)
+end)
+for _, player in ipairs(Players:GetPlayers()) do
+	player.Chatted:Connect(function(msg)
+		onChat(player, msg)
+	end)
+end
+
 -- Leaderboards ------------------------------------------------------------------------
 local boards = {
 	{ name = "RichestBoard", attr = "Money", store = "Richest_v1", prefix = "$" },
