@@ -496,6 +496,8 @@ function UIKit.toast(text, color)
 			make("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
 	end
+	-- below the flight HUD (distance / fuel) while flying, near the top otherwise
+	toastHolder.Position = UDim2.new(0.5, 0, 0, player:GetAttribute("Flying") and 250 or 70)
 	local l = UIKit.label({ Parent = toastHolder, Size = UDim2.fromOffset(600, 40), Text = text, TextColor3 = color or Color3.new(1, 1, 1), ZIndex = 31, StrokeThickness = 3 })
 	bounce(l)
 	task.delay(3, function()
