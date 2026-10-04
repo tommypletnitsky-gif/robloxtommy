@@ -241,18 +241,10 @@ local function requestLaunch()
 end
 launchBtn.Instance.Activated:Connect(requestLaunch)
 
-local function hookTool(tool)
-	if tool:IsA("Tool") and tool.Name == "Rocket" and not tool:GetAttribute("Hooked") then
-		tool:SetAttribute("Hooked", true)
-		tool.Activated:Connect(requestLaunch)
-	end
-end
-player.CharacterAdded:Connect(function(char)
-	char.ChildAdded:Connect(hookTool)
+-- No tools in this game: hide Roblox's hotbar / inventory bar.
+pcall(function()
+	game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 end)
-if player.Character then
-	player.Character.ChildAdded:Connect(hookTool)
-end
 
 local lobbyUi = { moneyPill, bestPill, stageCard, bottomBar, UIKit.sideBar() }
 player:GetAttributeChangedSignal("Flying"):Connect(function()

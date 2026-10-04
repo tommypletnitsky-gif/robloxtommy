@@ -52,7 +52,7 @@ for i, def in ipairs(Config.Rockets) do
 	cam.CFrame = CFrame.lookAt(Vector3.new(3, 4, 15), Vector3.zero)
 	cam.Parent = vp
 	vp.CurrentCamera = cam
-	table.insert(spinning, { model = model, phase = i })
+	table.insert(spinning, { model = model, phase = i, vp = vp })
 	label({ Parent = r, Position = UDim2.fromOffset(112, 12), Size = UDim2.new(1, -270, 0, 34), TextXAlignment = Enum.TextXAlignment.Left, Text = def.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 	local stats = label({ Parent = r, Position = UDim2.fromOffset(112, 50), Size = UDim2.new(1, -270, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
 	local range = label({ Parent = r, Position = UDim2.fromOffset(112, 76), Size = UDim2.new(1, -270, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(60, 160, 80), StrokeThickness = 0, ZIndex = 12 })
@@ -87,6 +87,21 @@ for i, def in ipairs(Config.Trails) do
 	end)
 	trailRows[def.id] = { def = def, row = r, button = button }
 end
+
+-- The rocket meshes may still be downloading when these previews are built; once they're loaded,
+-- re-add each preview model so the ViewportFrame draws it.
+task.spawn(function()
+	local folder = ReplicatedStorage:FindFirstChild("RocketModels")
+	if folder then
+		pcall(function()
+			game:GetService("ContentProvider"):PreloadAsync(folder:GetChildren())
+		end)
+	end
+	for _, s in ipairs(spinning) do
+		s.model.Parent = nil
+		s.model.Parent = s.vp
+	end
+end)
 
 local function showTab(trails)
 	for _, info in pairs(rocketRows) do

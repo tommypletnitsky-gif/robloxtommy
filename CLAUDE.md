@@ -14,6 +14,8 @@ Load the matching skill before working, without waiting to be asked:
 - `roblox-genre-patterns` — simulator conventions (eggs, rebirth, upgrades, pacing).
 - `roblox-performance-optimization`, `roblox-mobile-playtest` — after adding parts/effects/UI.
 - `roblox-creator-store-security-audit` — every toolbox/Creator Store insert (quarantine, strip scripts).
+- `roblox-asset-pipeline` — 3D models/meshes/materials: search the store first, `generate_mesh` (AI textured
+  meshes) when nothing fits, style consistency, poly/texture budgets.
 
 Note: the original roblox-skills pack says "never commit game code to Git" — ignore that here;
 this project's code lives in `src/` and is committed to GitHub.

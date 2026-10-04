@@ -216,23 +216,4 @@ function RocketModel.setThrust(model, on)
 	end
 end
 
--- A small rocket the player holds as a Tool.
-function RocketModel.buildTool(def)
-	local tool = Instance.new("Tool")
-	tool.Name = "Rocket"
-	tool.ToolTip = def.name .. " - click to launch!"
-	tool.CanBeDropped = false
-	tool.RequiresHandle = true
-	local model = RocketModel.build(def, 0.35, false)
-	local body = model.PrimaryPart
-	body.Name = "Handle"
-	for _, p in ipairs(model:GetChildren()) do
-		p.Parent = tool
-	end
-	model:Destroy()
-	tool.Grip = CFrame.new(0, 0, 0) * CFrame.Angles(0, math.pi / 2, 0)
-	tool:SetAttribute("RocketId", def.id)
-	return tool
-end
-
 return RocketModel

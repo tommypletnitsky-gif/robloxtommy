@@ -58,25 +58,6 @@ local function rocketStats(player)
 	return def, speed, fuel
 end
 
-local function giveTool(player)
-	local def = Config.getRocket(player:GetAttribute("Rocket"))
-	for _, container in ipairs({ player:FindFirstChild("Backpack"), player.Character }) do
-		if container then
-			for _, t in ipairs(container:GetChildren()) do
-				if t:IsA("Tool") and t.Name == "Rocket" then
-					t:Destroy()
-				end
-			end
-		end
-	end
-	local backpack = player:FindFirstChild("Backpack")
-	if not backpack then
-		return
-	end
-	-- Clicking with the tool is picked up by RocketClient, which fires the Launch remote.
-	RocketModel.buildTool(def).Parent = backpack
-end
-
 -- Pickups (coins, gems, boost rings, obstacles) are built into Workspace.World.Pickups.
 local pickups = {} -- [id] = { kind, pos, stage }
 do
@@ -425,15 +406,6 @@ local function onPlayerAdded(player)
 	player:SetAttribute("JoinedAt", os.time())
 	PlayerData.load(player)
 	setupLeaderstats(player)
-	player.CharacterAdded:Connect(function()
-		task.defer(giveTool, player)
-	end)
-	player:GetAttributeChangedSignal("Rocket"):Connect(function()
-		giveTool(player)
-	end)
-	if player.Character then
-		giveTool(player)
-	end
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
