@@ -102,3 +102,14 @@ All tuning (speeds, fuel, prices, stage costs) lives in `Config.lua`.
 - Rider: kneels on the rocket holding a handlebar (every rocket has one), leans into turns,
   tucks on boosts, fist pump through rings, flails when out of fuel. Other players see it too.
 - Pets fly beside the rocket (never between it and the camera).
+
+## Overnight update (2026-10-04, "do the stuff the game should have")
+- Quests: 8 goal chains with money rewards (QUESTS button, "!" when claimable).
+- Settings (gear button): music / sound toggles (saved), codes (ROCKET, BLASTOFF, TOTHEMOON,
+  CANNON), controls help.
+- New-player guide: arrows + sparkle path for launch -> upgrade -> unlock -> first pet.
+- Best-distance flag on the path + "NEW BEST!" mid-flight.
+- Pet Index: collection book of all 24 pets; each full egg set = +10% money forever.
+- Stage unlock celebration; Best distance in the player list; HUD shrinks on small screens.
+- Balance sim (scratch): stages 2-10 take ~2-5 min each, stage 20 ~1.4 h, stage 30 ~12 h of play
+  without pets/rebirth - no walls, so prices unchanged.
