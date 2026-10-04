@@ -1,4 +1,8 @@
--- Shop windows: Rockets (+ Trails tab) and Upgrades. Opened from the bottom bar or the lobby buildings.
+-- Shop windows: Rockets (+ Trails tab) and Upgrades. They open at the lobby buildings (walk in,
+-- press E) and close again when you walk away.
+--   Rockets: a grid of cards - spinning 3D rocket, speed / fuel bars, range, buy / equip button.
+--   Trails:  cards with a big color swatch.
+--   Upgrades: big cards - 3D icon, level bar, what it does now -> next level, price button.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -18,6 +22,8 @@ local abbreviate, meters = Config.abbreviate, Config.meters
 
 local INK_SOFT = Color3.fromRGB(70, 70, 100)
 local GREEN, RED, BLUE, GREY = Color3.fromRGB(80, 200, 90), Color3.fromRGB(235, 90, 90), Color3.fromRGB(70, 140, 255), Color3.fromRGB(160, 165, 185)
+local PURPLE, PINK, ORANGE = Color3.fromRGB(170, 80, 240), Color3.fromRGB(235, 90, 200), Color3.fromRGB(255, 160, 40)
+local MAX_SPEED, MAX_FUEL = Config.Rockets[#Config.Rockets].speed, Config.Rockets[#Config.Rockets].fuel
 
 local function owned(attr)
 	return string.split(player:GetAttribute(attr) or "", ",")
@@ -31,42 +37,60 @@ local function rangeOf(def)
 	return def.speed * upgradeMult("Speed") * def.fuel * upgradeMult("Fuel")
 end
 
--- Rockets window -------------------------------------------------------------------------
-local rocketsWindow, rocketsList = UIKit.window("🚀 Rockets", BLUE)
-local tabRow = make("Frame", { Parent = rocketsList, LayoutOrder = 0, Size = UDim2.new(1, -12, 0, 54), BackgroundTransparency = 1, ZIndex = 11 }, {
-	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10), HorizontalAlignment = Enum.HorizontalAlignment.Center }),
-})
-local rocketsTab = UIKit.button({ Parent = tabRow, Text = "🚀 Rockets", Color = BLUE, Size = UDim2.fromOffset(200, 50), ZIndex = 12 })
-local trailsTab = UIKit.button({ Parent = tabRow, Text = "✨ Trails", Color = GREY, Size = UDim2.fromOffset(200, 50), ZIndex = 12 })
+local function rocketIcon(def)
+	return RocketModel.build(def, 1, false, CFrame.new())
+end
 
-local rocketRows, trailRows = {}, {}
-local spinning = {}
+-- Rockets window -------------------------------------------------------------------------
+local rocketsWindow, rocketsList = UIKit.window("Rockets", BLUE, UDim2.fromOffset(780, 520), rocketIcon(Config.Rockets[4]))
+
+-- tabs: a two-part pill switch
+local tabRow = make("Frame", { Parent = rocketsList, LayoutOrder = 0, Size = UDim2.new(1, -12, 0, 60), BackgroundTransparency = 1, ZIndex = 11 }, {
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center }),
+})
+local rocketsTab = UIKit.button({ Parent = tabRow, Text = "🚀 ROCKETS", Color = BLUE, Size = UDim2.fromOffset(230, 56), ZIndex = 12, Radius = 28 })
+local trailsTab = UIKit.button({ Parent = tabRow, Text = "✨ TRAILS", Color = GREY, Size = UDim2.fromOffset(230, 56), ZIndex = 12, Radius = 28 })
+
+local function grid(order, cell)
+	return make("Frame", { Parent = rocketsList, LayoutOrder = order, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
+		make("UIGridLayout", { CellSize = cell, CellPadding = UDim2.fromOffset(12, 12), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
+	})
+end
+local rocketGrid = grid(1, UDim2.fromOffset(226, 300))
+local trailGrid = grid(2, UDim2.fromOffset(226, 210))
+trailGrid.Visible = false
+
+local rocketCards, trailCards = {}, {}
+local previews = {}
 
 for i, def in ipairs(Config.Rockets) do
-	local r = UIKit.row(rocketsList, i, 110)
-	local vp = make("ViewportFrame", { Parent = r, Position = UDim2.fromOffset(10, 10), Size = UDim2.fromOffset(90, 90), BackgroundColor3 = Color3.fromRGB(215, 230, 255), Ambient = Color3.fromRGB(200, 200, 210), LightColor = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(16) })
-	local model = RocketModel.build(def, 1, false, CFrame.new())
-	model.Parent = vp
-	local cam = Instance.new("Camera")
-	cam.FieldOfView = 40
-	cam.CFrame = CFrame.lookAt(Vector3.new(3, 4, 15), Vector3.zero)
-	cam.Parent = vp
-	vp.CurrentCamera = cam
-	table.insert(spinning, { model = model, phase = i, vp = vp })
-	label({ Parent = r, Position = UDim2.fromOffset(112, 12), Size = UDim2.new(1, -270, 0, 34), TextXAlignment = Enum.TextXAlignment.Left, Text = def.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-	local stats = label({ Parent = r, Position = UDim2.fromOffset(112, 50), Size = UDim2.new(1, -270, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
-	local range = label({ Parent = r, Position = UDim2.fromOffset(112, 76), Size = UDim2.new(1, -270, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(60, 160, 80), StrokeThickness = 0, ZIndex = 12 })
-	local button = UIKit.button({ Parent = r, Text = "", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(140, 58), ZIndex = 12 })
+	local card = UIKit.card(rocketGrid, { LayoutOrder = i, ZIndex = 11, Tint = UIKit.lighter(def.color, 0.75) })
+	-- preview stage
+	local stage = make("Frame", { Parent = card, Position = UDim2.fromOffset(10, 10), Size = UDim2.new(1, -20, 0, 120), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(16), UIKit.stroke(2.5, Color3.fromRGB(200, 210, 235)) })
+	make("UIGradient", { Parent = stage, Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(205, 230, 255), Color3.fromRGB(240, 246, 255)) })
+	local vp = UIKit.icon3D(stage, rocketIcon(def), { ZIndex = 13, Yaw = 145, Zoom = 1.15 })
+	table.insert(previews, vp)
+	local tierPill = UIKit.pill(card, { Text = "#" .. i, Color = UIKit.darker(def.color, 0.15), Position = UDim2.fromOffset(16, 16), Size = UDim2.fromOffset(46, 26), ZIndex = 14 })
+	local eqPill = UIKit.pill(card, { Text = "EQUIPPED", Color = GREEN, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 16), Size = UDim2.fromOffset(98, 26), ZIndex = 14 })
+	label({ Parent = card, Position = UDim2.fromOffset(10, 134), Size = UDim2.new(1, -20, 0, 30), Text = def.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+	-- stat bars
+	label({ Parent = card, Position = UDim2.fromOffset(14, 168), Size = UDim2.fromOffset(60, 18), TextXAlignment = Enum.TextXAlignment.Left, Text = "🔥 Speed", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
+	local _, setSpeed = UIKit.bar(card, { Position = UDim2.fromOffset(78, 169), Size = UDim2.new(1, -92, 0, 16), Color = ORANGE, ShowText = true, ZIndex = 12 })
+	label({ Parent = card, Position = UDim2.fromOffset(14, 192), Size = UDim2.fromOffset(60, 18), TextXAlignment = Enum.TextXAlignment.Left, Text = "⛽ Fuel", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
+	local _, setFuel = UIKit.bar(card, { Position = UDim2.fromOffset(78, 193), Size = UDim2.new(1, -92, 0, 16), Color = Color3.fromRGB(90, 200, 255), ShowText = true, ZIndex = 12 })
+	setSpeed(def.speed / MAX_SPEED, tostring(def.speed))
+	setFuel(def.fuel / MAX_FUEL, def.fuel .. "s")
+	local range = label({ Parent = card, Position = UDim2.fromOffset(10, 214), Size = UDim2.new(1, -20, 0, 22), Text = "", TextColor3 = Color3.fromRGB(40, 160, 70), StrokeThickness = 0, ZIndex = 12 })
+	local button = UIKit.button({ Parent = card, Text = "", Color = GREEN, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -24, 0, 52), ZIndex = 12 })
 	button.Instance.Activated:Connect(function()
 		UIKit.result(BuyRocket:InvokeServer(def.id))
 	end)
-	rocketRows[def.id] = { def = def, row = r, stats = stats, range = range, button = button }
+	rocketCards[def.id] = { def = def, card = card, range = range, button = button, eq = eqPill, stroke = card:FindFirstChildOfClass("UIStroke") }
 end
 
 for i, def in ipairs(Config.Trails) do
-	local r = UIKit.row(rocketsList, 100 + i, 84)
-	r.Visible = false
-	local swatch = make("Frame", { Parent = r, Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(110, 60), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(14), UIKit.stroke(3) })
+	local card = UIKit.card(trailGrid, { LayoutOrder = i, ZIndex = 11 })
+	local swatch = make("Frame", { Parent = card, Position = UDim2.fromOffset(12, 12), Size = UDim2.new(1, -24, 0, 84), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(18), UIKit.stroke(3) })
 	local keys = {}
 	for k, c in ipairs(def.colors) do
 		table.insert(keys, ColorSequenceKeypoint.new(#def.colors == 1 and 0 or (k - 1) / (#def.colors - 1), c))
@@ -75,21 +99,24 @@ for i, def in ipairs(Config.Trails) do
 		table.insert(keys, ColorSequenceKeypoint.new(1, def.colors[1]))
 	end
 	make("UIGradient", { Parent = swatch, Color = ColorSequence.new(keys) })
+	-- streak shapes so it reads as a trail
+	for s = 1, 3 do
+		make("Frame", { Parent = swatch, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.55, Position = UDim2.new(0.1 + s * 0.12, 0, 0.2 + s * 0.18, 0), Size = UDim2.new(0.5, 0, 0, 6), ZIndex = 13 }, { UIKit.corner(4) })
+	end
 	if def.id == "None" then
 		swatch.BackgroundColor3 = Color3.fromRGB(230, 230, 240)
-		label({ Parent = swatch, Size = UDim2.fromScale(1, 1), Text = "-", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
+		label({ Parent = swatch, Size = UDim2.fromScale(1, 1), Text = "no trail", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 14 })
 	end
-	label({ Parent = r, Position = UDim2.fromOffset(136, 14), Size = UDim2.new(1, -300, 0, 32), TextXAlignment = Enum.TextXAlignment.Left, Text = def.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-	label({ Parent = r, Position = UDim2.fromOffset(136, 48), Size = UDim2.new(1, -300, 0, 20), TextXAlignment = Enum.TextXAlignment.Left, Text = (def.glow or 0) > 0.5 and "Glowing trail" or "Trail", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
-	local button = UIKit.button({ Parent = r, Text = "", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(140, 54), ZIndex = 12 })
+	label({ Parent = card, Position = UDim2.fromOffset(10, 100), Size = UDim2.new(1, -20, 0, 30), Text = def.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+	local eqPill = UIKit.pill(card, { Text = "EQUIPPED", Color = GREEN, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 18), Size = UDim2.fromOffset(98, 26), ZIndex = 14 })
+	local button = UIKit.button({ Parent = card, Text = "", Color = GREEN, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -24, 0, 52), ZIndex = 12 })
 	button.Instance.Activated:Connect(function()
 		UIKit.result(BuyTrail:InvokeServer(def.id))
 	end)
-	trailRows[def.id] = { def = def, row = r, button = button }
+	trailCards[def.id] = { def = def, button = button, eq = eqPill, stroke = card:FindFirstChildOfClass("UIStroke") }
 end
 
--- The rocket meshes may still be downloading when these previews are built; once they're loaded,
--- re-add each preview model so the ViewportFrame draws it.
+-- rocket meshes may still be downloading when the previews are built: re-add them once loaded
 task.spawn(function()
 	local folder = ReplicatedStorage:FindFirstChild("RocketModels")
 	if folder then
@@ -97,21 +124,20 @@ task.spawn(function()
 			game:GetService("ContentProvider"):PreloadAsync(folder:GetChildren())
 		end)
 	end
-	for _, s in ipairs(spinning) do
-		s.model.Parent = nil
-		s.model.Parent = s.vp
+	for _, vp in ipairs(previews) do
+		local m = vp:FindFirstChildOfClass("Model")
+		if m then
+			m.Parent = nil
+			m.Parent = vp
+		end
 	end
 end)
 
 local function showTab(trails)
-	for _, info in pairs(rocketRows) do
-		info.row.Visible = not trails
-	end
-	for _, info in pairs(trailRows) do
-		info.row.Visible = trails
-	end
+	rocketGrid.Visible = not trails
+	trailGrid.Visible = trails
 	rocketsTab.setColor(trails and GREY or BLUE)
-	trailsTab.setColor(trails and Color3.fromRGB(230, 90, 200) or GREY)
+	trailsTab.setColor(trails and PINK or GREY)
 	rocketsList.CanvasPosition = Vector2.zero
 end
 rocketsTab.Instance.Activated:Connect(function()
@@ -121,15 +147,21 @@ trailsTab.Instance.Activated:Connect(function()
 	showTab(true)
 end)
 
-local function setBuyButton(button, isEquipped, isOwned, price)
+local function setBuyButton(info, isEquipped, isOwned, price)
+	info.eq.Visible = isEquipped
+	if info.stroke then
+		info.stroke.Color = isEquipped and GREEN or Color3.fromRGB(190, 200, 225)
+		info.stroke.Thickness = isEquipped and 4 or 3
+	end
+	local button = info.button
 	if isEquipped then
-		button.setText("EQUIPPED")
+		button.setText("✔ EQUIPPED")
 		button.setColor(GREY)
 	elseif isOwned then
 		button.setText("EQUIP")
 		button.setColor(BLUE)
 	else
-		button.setText("$" .. abbreviate(price))
+		button.setText("💰 $" .. abbreviate(price))
 		button.setColor((player:GetAttribute("Money") or 0) >= price and GREEN or RED)
 	end
 end
@@ -137,75 +169,96 @@ end
 local function refreshRockets()
 	local mine = owned("OwnedRockets")
 	local equipped = player:GetAttribute("Rocket")
-	for id, info in pairs(rocketRows) do
-		local def = info.def
-		info.stats.Text = string.format("Speed %d   Fuel %ss", def.speed, tostring(def.fuel))
-		info.range.Text = "Range ~" .. meters(rangeOf(def))
-		setBuyButton(info.button, id == equipped, table.find(mine, id) ~= nil, def.price)
+	for id, info in pairs(rocketCards) do
+		info.range.Text = "Range ~" .. meters(rangeOf(info.def))
+		setBuyButton(info, id == equipped, table.find(mine, id) ~= nil, info.def.price)
 	end
 	local mineT = owned("OwnedTrails")
 	local trail = player:GetAttribute("Trail")
-	for id, info in pairs(trailRows) do
-		setBuyButton(info.button, id == trail, table.find(mineT, id) ~= nil or id == "None", info.def.price)
+	for id, info in pairs(trailCards) do
+		setBuyButton(info, id == trail, table.find(mineT, id) ~= nil or id == "None", info.def.price)
 	end
 end
 
--- Spin the rocket previews while the window is open
-RunService.RenderStepped:Connect(function()
-	if not rocketsWindow.Visible then
-		return
-	end
-	local t = os.clock()
-	for _, s in ipairs(spinning) do
-		s.model:PivotTo(CFrame.Angles(0, t * 0.8 + s.phase, math.rad(25)))
-	end
-end)
-
 -- Upgrades window ------------------------------------------------------------------------
-local upgradesWindow, upgradesList = UIKit.window("⬆️ Upgrades", Color3.fromRGB(170, 80, 240))
-local rangeRow = UIKit.row(upgradesList, 0, 60)
-local rangeLabel = label({ Parent = rangeRow, Position = UDim2.fromOffset(14, 10), Size = UDim2.new(1, -28, 1, -20), Text = "", TextColor3 = Color3.fromRGB(255, 170, 30), ZIndex = 12 })
-local upgradeRows = {}
-local ICONS = { Fuel = "⛽", Speed = "🔥", Money = "💰", Cannon = "💥" }
-local WHAT = { Fuel = "fuel", Speed = "speed", Money = "money" }
+local upgradesWindow, upgradesList = UIKit.window("Upgrades", PURPLE, UDim2.fromOffset(720, 520), "Bolt")
+local summary = UIKit.row(upgradesList, 0, 64)
+local summaryText = label({ Parent = summary, Position = UDim2.fromOffset(16, 10), Size = UDim2.new(1, -32, 1, -20), Text = "", TextColor3 = Color3.fromRGB(230, 130, 20), StrokeThickness = 0, ZIndex = 12 })
+
+local UPGRADE_LOOK = {
+	Cannon = { icon = nil, color = Color3.fromRGB(90, 150, 255), what = "Blast out of the cannon" },
+	Fuel = { icon = "FuelCan", color = Color3.fromRGB(255, 170, 40), what = "Fly for longer" },
+	Speed = { icon = "Bolt", color = Color3.fromRGB(255, 90, 70), what = "Fly faster" },
+	Money = { icon = "MoneyBag", color = GREEN, what = "Earn more money" },
+}
+local upgradeCards = {}
+local function cannonIcon(level)
+	local tier = Config.cannonTierInfo(level)
+	local skins = ReplicatedStorage:FindFirstChild("CannonSkins")
+	return skins and skins:FindFirstChild(tier.skin)
+end
+
 for i, key in ipairs({ "Cannon", "Fuel", "Speed", "Money" }) do
 	local u = Config.Upgrades[key]
-	local r = UIKit.row(upgradesList, i, 104)
-	local iconBox = make("Frame", { Parent = r, Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(80, 80), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(20), UIKit.stroke(3), UIKit.gloss(({ Fuel = Color3.fromRGB(255, 170, 40), Speed = Color3.fromRGB(255, 90, 70), Money = GREEN, Cannon = Color3.fromRGB(90, 150, 255) })[key]) })
-	label({ Parent = iconBox, Size = UDim2.fromScale(1, 1), Text = ICONS[key], ZIndex = 13 })
-	label({ Parent = r, Position = UDim2.fromOffset(104, 12), Size = UDim2.new(1, -270, 0, 34), TextXAlignment = Enum.TextXAlignment.Left, Text = u.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-	local info = label({ Parent = r, Position = UDim2.fromOffset(104, 50), Size = UDim2.new(1, -270, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
-	local levelBack = make("Frame", { Parent = r, Position = UDim2.fromOffset(104, 78), Size = UDim2.new(1, -270, 0, 14), BackgroundColor3 = Color3.fromRGB(220, 225, 240), ZIndex = 12 }, { UIKit.corner(7) })
-	local levelFill = make("Frame", { Parent = levelBack, Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(170, 80, 240), ZIndex = 13 }, { UIKit.corner(7) })
-	local button = UIKit.button({ Parent = r, Text = "", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(140, 58), ZIndex = 12 })
+	local look = UPGRADE_LOOK[key]
+	local card = UIKit.card(upgradesList, { LayoutOrder = i, Size = UDim2.new(1, -12, 0, 132), ZIndex = 11, Tint = UIKit.lighter(look.color, 0.8) })
+	local iconBox = make("Frame", { Parent = card, Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(108, 108), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(24), UIKit.stroke(3.5), UIKit.gloss(look.color) })
+	make("Frame", { Parent = iconBox, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.new(0.1, 0, 0.07, 0), Size = UDim2.new(0.8, 0, 0.28, 0), ZIndex = 12 }, { UIKit.corner(14) })
+	local iconHolder = make("Frame", { Parent = iconBox, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 13 })
+	if look.icon then
+		UIKit.icon3D(iconHolder, look.icon, { ZIndex = 13 })
+	end
+	label({ Parent = card, Position = UDim2.fromOffset(134, 12), Size = UDim2.new(1, -330, 0, 34), TextXAlignment = Enum.TextXAlignment.Left, Text = u.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+	local levelPill, levelText = UIKit.pill(card, { Text = "", Color = look.color, Position = UDim2.new(1, -306, 0, 16), Size = UDim2.fromOffset(110, 28), ZIndex = 12 })
+	local what = label({ Parent = card, Position = UDim2.fromOffset(134, 48), Size = UDim2.new(1, -330, 0, 24), TextXAlignment = Enum.TextXAlignment.Left, Text = look.what, TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
+	local _, setLevel = UIKit.bar(card, { Position = UDim2.fromOffset(134, 80), Size = UDim2.new(1, -320, 0, 18), Color = look.color, ZIndex = 12 })
+	local change = label({ Parent = card, Position = UDim2.fromOffset(134, 102), Size = UDim2.new(1, -320, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(40, 160, 70), StrokeThickness = 0, ZIndex = 12 })
+	local button = UIKit.button({ Parent = card, Text = "", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0), Size = UDim2.fromOffset(170, 74), ZIndex = 12 })
 	button.Instance.Activated:Connect(function()
 		UIKit.result(BuyUpgrade:InvokeServer(key))
 	end)
-	upgradeRows[key] = { info = info, button = button, fill = levelFill }
+	upgradeCards[key] = { button = button, setLevel = setLevel, levelText = levelText, change = change, what = what, iconHolder = iconHolder, cannonSkin = nil }
+end
+
+local function pct(x)
+	return math.floor(x * 100 + 0.5)
 end
 
 local function refreshUpgrades()
 	local money = player:GetAttribute("Money") or 0
 	local def = Config.getRocket(player:GetAttribute("Rocket"))
-	rangeLabel.Text = "🚀 " .. def.name .. " range: ~" .. meters(rangeOf(def))
-	for key, r in pairs(upgradeRows) do
+	summaryText.Text = "🚀 " .. def.name .. " flies about " .. meters(rangeOf(def)) .. " (before the cannon blast)"
+	for key, r in pairs(upgradeCards) do
 		local u = Config.Upgrades[key]
 		local level = player:GetAttribute(key .. "Level") or 0
+		r.levelText.Text = "Lv " .. level .. "/" .. u.maxLevel
+		r.setLevel(level / u.maxLevel)
+		local maxed = level >= u.maxLevel
 		if key == "Cannon" then
 			local power, time = Config.cannonBlast(level)
+			local np, nt = Config.cannonBlast(level + 1)
 			local tier, nextTier = Config.cannonTierInfo(level)
-			r.info.Text = string.format("Lv %d/%d  %s  •  x%.1f for %.1fs", level, u.maxLevel, tier.name, power, time)
-				.. (nextTier and ("  •  new look at Lv " .. nextTier.from) or "")
+			r.what.Text = tier.name .. (nextTier and ("  •  new look at Lv " .. nextTier.from) or "  •  final look!")
+			r.change.Text = maxed and string.format("Blast x%.1f for %.1fs", power, time) or string.format("Blast x%.1f → x%.1f   (%.1fs → %.1fs)", power, np, time, nt)
+			if r.cannonSkin ~= tier.skin then
+				r.cannonSkin = tier.skin
+				r.iconHolder:ClearAllChildren()
+				local skin = cannonIcon(level)
+				if skin then
+					UIKit.icon3D(r.iconHolder, skin, { ZIndex = 13, Yaw = -60, Zoom = 1.3 })
+				end
+			end
 		else
-			r.info.Text = string.format("Level %d / %d   +%d%% %s", level, u.maxLevel, math.floor(level * u.perLevel * 100 + 0.5), WHAT[key])
+			local now, nextV = pct(level * u.perLevel), pct((level + 1) * u.perLevel)
+			local word = ({ Fuel = "fuel", Speed = "speed", Money = "money" })[key]
+			r.change.Text = maxed and string.format("+%d%% %s", now, word) or string.format("+%d%% → +%d%% %s", now, nextV, word)
 		end
-		r.fill.Size = UDim2.fromScale(level / u.maxLevel, 1)
-		if level >= u.maxLevel then
-			r.button.setText("MAX")
+		if maxed then
+			r.button.setText("MAX ⭐")
 			r.button.setColor(GREY)
 		else
 			local cost = Config.upgradeCost(key, level)
-			r.button.setText("$" .. abbreviate(cost))
+			r.button.setText("⬆ $" .. abbreviate(cost))
 			r.button.setColor(money >= cost and GREEN or RED)
 		end
 	end

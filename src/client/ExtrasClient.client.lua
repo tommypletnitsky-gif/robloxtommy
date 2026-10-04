@@ -15,9 +15,9 @@ local abbreviate = Config.abbreviate
 local side = UIKit.sideBar()
 
 local PINK, GOLD, TEAL = Color3.fromRGB(255, 110, 170), Color3.fromRGB(255, 180, 40), Color3.fromRGB(40, 190, 200)
-local giftsBtn = UIKit.button({ Parent = side, LayoutOrder = 1, Icon = "🎁", Text = "GIFTS", Color = PINK, Size = UDim2.fromOffset(84, 88) })
-local dailyBtn = UIKit.button({ Parent = side, LayoutOrder = 2, Icon = "📅", Text = "DAILY", Color = GOLD, Size = UDim2.fromOffset(84, 88) })
-local donateBtn = UIKit.button({ Parent = side, LayoutOrder = 3, Icon = "❤️", Text = "SUPPORT", Color = TEAL, Size = UDim2.fromOffset(84, 88) })
+local giftsBtn = UIKit.button({ Parent = side, LayoutOrder = 1, Icon3D = "Gift", Text = "GIFTS", Color = PINK, Size = UDim2.fromOffset(92, 98), Radius = 22 })
+local dailyBtn = UIKit.button({ Parent = side, LayoutOrder = 2, Icon3D = "Calendar", Text = "DAILY", Color = GOLD, Size = UDim2.fromOffset(92, 98), Radius = 22 })
+local donateBtn = UIKit.button({ Parent = side, LayoutOrder = 3, Icon3D = "Heart", Text = "SUPPORT", Color = TEAL, Size = UDim2.fromOffset(92, 98), Radius = 22 })
 local giftBadge = UIKit.badge(giftsBtn.Instance)
 local dailyBadge = UIKit.badge(dailyBtn.Instance)
 
@@ -26,16 +26,17 @@ local function stage()
 end
 
 -- Gifts --------------------------------------------------------------------------------------
-local giftsWindow, giftsList = UIKit.window("🎁 Free Gifts", PINK)
-local grid = make("Frame", { Parent = giftsList, Size = UDim2.new(1, -12, 0, 330), BackgroundTransparency = 1, ZIndex = 11 }, {
-	make("UIGridLayout", { CellSize = UDim2.fromOffset(100, 150), CellPadding = UDim2.fromOffset(8, 10), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
+local giftsWindow, giftsList = UIKit.window("Free Gifts", PINK, UDim2.fromOffset(680, 500), "Gift")
+local grid = make("Frame", { Parent = giftsList, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
+	make("UIGridLayout", { CellSize = UDim2.fromOffset(116, 170), CellPadding = UDim2.fromOffset(10, 12), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
 local giftCells = {}
 for i, minutes in ipairs(Config.GiftMinutes) do
-	local cell = make("Frame", { Parent = grid, LayoutOrder = i, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 11 }, { UIKit.corner(18), UIKit.stroke(3, Color3.fromRGB(190, 200, 225)) })
-	label({ Parent = cell, Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 46), Text = "🎁", ZIndex = 12 })
-	local reward = label({ Parent = cell, Position = UDim2.fromOffset(4, 54), Size = UDim2.new(1, -8, 0, 26), Text = "", TextColor3 = Color3.fromRGB(60, 170, 80), StrokeThickness = 0, ZIndex = 12 })
-	local btn = UIKit.button({ Parent = cell, Text = "", Color = GOLD, Position = UDim2.fromOffset(8, 92), Size = UDim2.new(1, -16, 0, 48), ZIndex = 12, Radius = 12 })
+	local cell = UIKit.card(grid, { LayoutOrder = i, ZIndex = 11, Tint = Color3.fromRGB(255, 228, 242) })
+	local iconBox = make("Frame", { Parent = cell, Position = UDim2.fromOffset(8, 4), Size = UDim2.new(1, -16, 0, 72), BackgroundTransparency = 1, ZIndex = 12 })
+	UIKit.icon3D(iconBox, "Gift", { ZIndex = 12 })
+	local reward = label({ Parent = cell, Position = UDim2.fromOffset(4, 78), Size = UDim2.new(1, -8, 0, 26), Text = "", TextColor3 = Color3.fromRGB(60, 170, 80), StrokeThickness = 0, ZIndex = 12 })
+	local btn = UIKit.button({ Parent = cell, Text = "", Color = GOLD, Position = UDim2.fromOffset(8, 110), Size = UDim2.new(1, -16, 0, 50), ZIndex = 12, Radius = 14 })
 	btn.Instance.Activated:Connect(function()
 		local ok, msg = ClaimGift:InvokeServer(i)
 		UIKit.result(ok, msg)
@@ -68,19 +69,22 @@ local function refreshGifts()
 end
 
 -- Daily reward --------------------------------------------------------------------------------
-local dailyWindow, dailyList = UIKit.window("📅 Daily Reward", GOLD, UDim2.fromOffset(600, 360))
-local dayRow = make("Frame", { Parent = dailyList, Size = UDim2.new(1, -12, 0, 130), BackgroundTransparency = 1, ZIndex = 11 }, {
-	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center }),
+local dailyWindow, dailyList = UIKit.window("Daily Reward", GOLD, UDim2.fromOffset(700, 400), "Calendar")
+local dayRow = make("Frame", { Parent = dailyList, Size = UDim2.new(1, -12, 0, 170), BackgroundTransparency = 1, ZIndex = 11 }, {
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
 local dayCells = {}
 for d = 1, 7 do
-	local cell = make("Frame", { Parent = dayRow, Size = UDim2.fromOffset(72, 120), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 11 }, { UIKit.corner(16), UIKit.stroke(3, Color3.fromRGB(190, 200, 225)) })
+	local big = d == 7
+	local cell = UIKit.card(dayRow, { LayoutOrder = d, Size = UDim2.fromOffset(big and 100 or 82, big and 160 or 140), ZIndex = 11, Tint = big and Color3.fromRGB(255, 236, 190) or Color3.fromRGB(240, 244, 255) })
 	label({ Parent = cell, Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 24), Text = "Day " .. d, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-	label({ Parent = cell, Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, 40), Text = d == 7 and "💎" or "💰", ZIndex = 12 })
-	local amount = label({ Parent = cell, Position = UDim2.fromOffset(2, 80), Size = UDim2.new(1, -4, 0, 26), Text = "", TextColor3 = Color3.fromRGB(60, 170, 80), StrokeThickness = 0, ZIndex = 12 })
-	dayCells[d] = { cell = cell, amount = amount }
+	local iconBox = make("Frame", { Parent = cell, Position = UDim2.fromOffset(4, 30), Size = UDim2.new(1, -8, 0, big and 74 or 60), BackgroundTransparency = 1, ZIndex = 12 })
+	UIKit.icon3D(iconBox, big and "Gift" or "Coin", { ZIndex = 12 })
+	local amount = label({ Parent = cell, AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 2, 1, -10), Size = UDim2.new(1, -4, 0, 26), Text = "", TextColor3 = Color3.fromRGB(60, 170, 80), StrokeThickness = 0, ZIndex = 12 })
+	local check = UIKit.pill(cell, { Text = "✔", Color = Color3.fromRGB(80, 200, 90), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 6, 0, -6), Size = UDim2.fromOffset(30, 30), ZIndex = 14 })
+	dayCells[d] = { cell = cell, amount = amount, check = check, stroke = cell:FindFirstChildOfClass("UIStroke") }
 end
-local dailyClaim = UIKit.button({ Parent = dailyList, LayoutOrder = 2, Text = "CLAIM!", Color = Color3.fromRGB(80, 200, 90), Size = UDim2.fromOffset(260, 70) })
+local dailyClaim = UIKit.button({ Parent = dailyList, LayoutOrder = 2, Text = "CLAIM!", Color = Color3.fromRGB(80, 200, 90), Size = UDim2.fromOffset(300, 76), Radius = 24 })
 dailyClaim.Instance.Activated:Connect(function()
 	local ok, msg = ClaimDaily:InvokeServer()
 	UIKit.result(ok, msg)
@@ -100,8 +104,13 @@ local function refreshDaily()
 	local nextDay = ready and ((os.time() - last < 48 * 3600) and streak + 1 or 1) or streak
 	for d, c in ipairs(dayCells) do
 		c.amount.Text = "$" .. abbreviate(Config.dailyReward(stage(), d))
-		local highlight = d == math.min(nextDay, 7)
-		c.cell.BackgroundColor3 = highlight and Color3.fromRGB(255, 240, 180) or (d < math.min(nextDay, 7) and Color3.fromRGB(220, 245, 220) or Color3.new(1, 1, 1))
+		local today = math.min(nextDay, 7)
+		local highlight = d == today
+		c.check.Visible = d < today
+		if c.stroke then
+			c.stroke.Color = highlight and Color3.fromRGB(255, 170, 30) or Color3.fromRGB(190, 200, 225)
+			c.stroke.Thickness = highlight and 5 or 3
+		end
 	end
 	if ready then
 		dailyClaim.setText("CLAIM!")
@@ -115,12 +124,14 @@ local function refreshDaily()
 end
 
 -- Donations ----------------------------------------------------------------------------------
-local donateWindow, donateList = UIKit.window("❤️ Support the Game", TEAL)
+local donateWindow, donateList = UIKit.window("Support the Game", TEAL, UDim2.fromOffset(620, 500), "Heart")
 local thanks = UIKit.row(donateList, 0, 70)
 label({ Parent = thanks, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 1, -16), Text = "Donations help us add new rockets & worlds!\nTop donators get shown on the board in the lobby.", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 for i, d in ipairs(Config.Donations) do
-	local r = UIKit.row(donateList, i, 76)
-	label({ Parent = r, Position = UDim2.fromOffset(16, 12), Size = UDim2.new(1, -200, 1, -24), TextXAlignment = Enum.TextXAlignment.Left, Text = "❤️ Donate " .. d.robux .. " Robux", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+	local r = UIKit.row(donateList, i, 80)
+	local iconBox = make("Frame", { Parent = r, Position = UDim2.fromOffset(8, 4), Size = UDim2.fromOffset(72, 72), BackgroundTransparency = 1, ZIndex = 12 })
+	UIKit.icon3D(iconBox, "Heart", { ZIndex = 12 })
+	label({ Parent = r, Position = UDim2.fromOffset(88, 14), Size = UDim2.new(1, -250, 1, -28), TextXAlignment = Enum.TextXAlignment.Left, Text = "Donate " .. d.robux .. " Robux", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 	local btn = UIKit.button({ Parent = r, Text = d.id ~= 0 and ("R$ " .. d.robux) or "SOON", Color = d.id ~= 0 and TEAL or Color3.fromRGB(160, 165, 185), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(140, 54), ZIndex = 12 })
 	btn.Instance.Activated:Connect(function()
 		if d.id == 0 then

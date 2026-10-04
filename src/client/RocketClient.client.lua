@@ -26,16 +26,21 @@ local abbreviate, meters = Config.abbreviate, Config.meters
 local gui = UIKit.gui()
 
 -- Top-left: money + best pills ------------------------------------------------------------
-local function pill(y, color, icon)
+local function pill(y, color, icon, icon3D)
 	local f = make("Frame", { Parent = gui, Position = UDim2.fromOffset(14, y), Size = UDim2.fromOffset(230, 54), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(27), UIKit.stroke(3.5), UIKit.gloss(color), make("UIScale", {}) })
 	make("Frame", { Parent = f, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.fromScale(0.08, 0.1), Size = UDim2.fromScale(0.84, 0.3) }, { UIKit.corner(10) })
-	local circle = make("Frame", { Parent = f, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -8, 0.5, 0), Size = UDim2.fromOffset(62, 62), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(31), UIKit.stroke(3.5) })
-	label({ Parent = circle, Size = UDim2.fromScale(1, 1), Text = icon })
+	local circle = make("Frame", { Parent = f, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -8, 0.5, 0), Size = UDim2.fromOffset(62, 62), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(31), UIKit.stroke(3.5), UIKit.gloss(Color3.fromRGB(255, 250, 235)) })
+	local icons = ReplicatedStorage:WaitForChild("UIIcons", 5)
+	if icons and icons:FindFirstChild(icon3D or "") then
+		UIKit.icon3D(circle, icon3D, { Position = UDim2.fromScale(-0.05, -0.08), Size = UDim2.fromScale(1.1, 1.1) })
+	else
+		label({ Parent = circle, Size = UDim2.fromScale(1, 1), Text = icon })
+	end
 	local text = label({ Parent = f, Position = UDim2.fromOffset(62, 6), Size = UDim2.new(1, -74, 1, -12), TextXAlignment = Enum.TextXAlignment.Left, Text = "", StrokeThickness = 3 })
 	return f, text
 end
-local moneyPill, moneyText = pill(70, Color3.fromRGB(80, 210, 90), "💰")
-local bestPill, bestText = pill(134, Color3.fromRGB(255, 180, 40), "🏆")
+local moneyPill, moneyText = pill(70, Color3.fromRGB(80, 210, 90), "💰", "Coin")
+local bestPill, bestText = pill(134, Color3.fromRGB(255, 180, 40), "🏆", "Trophy")
 
 -- Right: stage card --------------------------------------------------------------------------
 local stageCard = make("Frame", {
@@ -54,7 +59,13 @@ local unlockBtn = UIKit.button({ Parent = stageCard, Text = "UNLOCK", Color = Co
 
 -- Bottom bar: LAUNCH (PetClient adds PETS beside it) ------------------------------------------
 local bottomBar = UIKit.bottomBar()
-local launchBtn = UIKit.button({ Parent = bottomBar, LayoutOrder = 2, Text = "LAUNCH!", Color = Color3.fromRGB(255, 130, 30), Size = UDim2.fromOffset(230, 92), Radius = 24, TextStroke = 4 })
+local function launchIcon()
+	return RocketModel.build(Config.getRocket(player:GetAttribute("Rocket")), 1, false, CFrame.new())
+end
+local launchBtn = UIKit.button({ Parent = bottomBar, LayoutOrder = 2, Text = "LAUNCH!", Color = Color3.fromRGB(255, 130, 30), Size = UDim2.fromOffset(260, 96), Radius = 28, TextStroke = 4, Icon3D = launchIcon(), IconSide = true, IconYaw = 145, IconZoom = 1.1 })
+player:GetAttributeChangedSignal("Rocket"):Connect(function()
+	launchBtn.setIcon3D(launchIcon(), 145)
+end)
 local launchPulse = make("UIScale", { Parent = launchBtn.Instance })
 task.spawn(function()
 	while true do

@@ -119,7 +119,7 @@ local function windowTitle(w)
 end
 
 -- Egg window --------------------------------------------------------------------------------------
-local eggWindow, eggList = UIKit.window("🥚 Egg", GREEN)
+local eggWindow, eggList = UIKit.window("Egg", GREEN, UDim2.fromOffset(640, 440))
 local eggTitle = windowTitle(eggWindow)
 local currentEgg = nil -- the egg def while its window is open
 local eggPrompt = nil -- the prompt's part (window closes when you walk away)
@@ -166,7 +166,7 @@ end
 local function openEgg(egg, promptPart)
 	currentEgg = egg
 	eggPrompt = promptPart
-	eggTitle.Text = "🥚 " .. egg.name
+	eggTitle.Text = egg.name
 	for rarity, c in pairs(eggCards) do
 		local kind = egg.pets[rarity]
 		local pet = Config.Pets[kind]
@@ -416,7 +416,7 @@ task.spawn(function()
 end)
 
 -- Pets window ---------------------------------------------------------------------------------------
-local petsWindow, petsList = UIKit.window("🐾 Pets", PINK)
+local petsWindow, petsList = UIKit.window("Pets", PINK, UDim2.fromOffset(680, 500), petFolder and petFolder:FindFirstChild("Kitty") or nil)
 local topRow = UIKit.row(petsList, 0, 66)
 local summary = label({ Parent = topRow, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -220, 0, 28), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 local summary2 = label({ Parent = topRow, Position = UDim2.fromOffset(14, 36), Size = UDim2.new(1, -220, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 12 })
@@ -523,7 +523,7 @@ end
 refreshPets()
 
 -- PETS button in the bottom bar
-local petsBtn = UIKit.button({ Parent = UIKit.bottomBar(), LayoutOrder = 4, Icon = "🐾", Text = "PETS", Color = PINK, Size = UDim2.fromOffset(96, 100) })
+local petsBtn = UIKit.button({ Parent = UIKit.bottomBar(), LayoutOrder = 4, Icon3D = petFolder and petFolder:FindFirstChild("Puppy") or nil, Icon = "🐾", Text = "PETS", Color = PINK, Size = UDim2.fromOffset(104, 104), Radius = 24 })
 petsBtn.Instance.Activated:Connect(function()
 	UIKit.toggle(petsWindow)
 end)

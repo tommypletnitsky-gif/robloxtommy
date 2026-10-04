@@ -2,6 +2,7 @@
 -- bright windows, toasts, and sounds. Every client script uses the same ScreenGui ("RocketHUD").
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -113,49 +114,201 @@ end
 UIKit.bounce = bounce
 UIKit.spr = spr
 
--- A glossy chunky button. opts: Text, Color, Size, Position, AnchorPoint, Parent, LayoutOrder, Icon (emoji above text)
+-- 3D icons --------------------------------------------------------------------------------
+-- A ViewportFrame showing a model (ReplicatedStorage.UIIcons[name], or any Model) that bobs and
+-- turns gently, and spins once when you hover / press its button. Models pivot at their feet and
+-- face -Z (like the pets) or +X (rockets: pass Yaw = -90).
+local icons = {} -- live icons, animated below
+local iconFolder = nil
+local function iconTemplate(source)
+	if typeof(source) == "Instance" then
+		return source
+	end
+	iconFolder = iconFolder or ReplicatedStorage:WaitForChild("UIIcons", 5)
+	return iconFolder and iconFolder:FindFirstChild(source)
+end
+
+function UIKit.icon3D(parent, source, props)
+	props = props or {}
+	local template = iconTemplate(source)
+	local vp = make("ViewportFrame", {
+		Parent = parent,
+		Name = "Icon3D",
+		BackgroundTransparency = 1,
+		Size = props.Size or UDim2.fromScale(1, 1),
+		Position = props.Position or UDim2.new(),
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		ZIndex = props.ZIndex or (parent:IsA("GuiObject") and parent.ZIndex + 1 or 1),
+		Ambient = Color3.fromRGB(200, 200, 210),
+		LightColor = Color3.new(1, 1, 1),
+		LightDirection = Vector3.new(-0.4, -1, -0.6),
+	})
+	if not template then
+		return vp
+	end
+	local model = template:Clone()
+	if model:IsA("BasePart") then
+		local m = Instance.new("Model")
+		model.Parent = m
+		model = m
+	end
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+		elseif d:IsA("LuaSourceContainer") or d:IsA("ParticleEmitter") or d:IsA("Fire") or d:IsA("Light") or d:IsA("Sound") then
+			d:Destroy()
+		end
+	end
+	local cf, size = model:GetBoundingBox()
+	local center = cf.Position
+	local base = CFrame.new(-center) -- model centered on the origin
+	model:PivotTo(base * model:GetPivot())
+	local cam = Instance.new("Camera")
+	cam.FieldOfView = 30
+	local d = size.Magnitude * (props.Zoom or 1.55)
+	cam.CFrame = CFrame.lookAt(Vector3.new(0, size.Magnitude * 0.18, -d), Vector3.zero) -- from the front (models face -Z)
+	cam.Parent = vp
+	vp.CurrentCamera = cam
+	model.Parent = vp
+	local info = { vp = vp, model = model, h = size.Y, home = model:GetPivot(), yaw = math.rad(props.Yaw or 0), tilt = math.rad(props.Tilt or 0), phase = math.random() * 6, spin = 0, still = props.Still }
+	table.insert(icons, info)
+	vp.Destroying:Connect(function()
+		local i = table.find(icons, info)
+		if i then
+			table.remove(icons, i)
+		end
+	end)
+	local api = {}
+	function api.spin()
+		info.spin = math.pi * 2
+	end
+	vp:SetAttribute("Icon", true)
+	return vp, api
+end
+
+RunService.RenderStepped:Connect(function(dt)
+	local t = os.clock()
+	for _, info in ipairs(icons) do
+		if info.vp.Parent and info.vp.Visible and info.vp:FindFirstAncestorOfClass("ScreenGui") then
+			if info.spin > 0 then
+				info.spin = math.max(0, info.spin - dt * 9)
+			end
+			local wob = info.still and 0 or math.sin(t * 1.6 + info.phase) * 0.25
+			local bob = info.still and 0 or math.sin(t * 2.2 + info.phase) * 0.04
+			info.model:PivotTo(CFrame.new(0, bob * info.h, 0) * CFrame.Angles(info.tilt, info.yaw + wob + (math.pi * 2 - info.spin) % (math.pi * 2), 0) * info.home)
+		end
+	end
+end)
+
+-- Meshes download after the icons are built; re-add them so the ViewportFrames draw them.
+task.spawn(function()
+	local f = ReplicatedStorage:WaitForChild("UIIcons", 10)
+	if f then
+		pcall(function()
+			game:GetService("ContentProvider"):PreloadAsync(f:GetChildren())
+		end)
+	end
+	for _, info in ipairs(icons) do
+		local p = info.model.Parent
+		info.model.Parent = nil
+		info.model.Parent = p
+	end
+end)
+
+-- A chunky 3D-looking button: glossy face sitting on a darker "lip" that it presses down into.
+-- opts: Text, Color, Size, Position, AnchorPoint, Parent, LayoutOrder, ZIndex, Radius,
+--       Icon (emoji above the text) or Icon3D (UIIcons name / Model, above the text; IconYaw),
+--       TextStroke, StrokeThickness
 function UIKit.button(opts)
 	local color = opts.Color or Color3.fromRGB(80, 200, 90)
+	local radius = opts.Radius or 16
+	local z = opts.ZIndex or 1
+	local LIP = 5
 	local b = make("TextButton", {
 		Parent = opts.Parent,
 		Size = opts.Size or UDim2.fromOffset(140, 52),
 		Position = opts.Position or UDim2.new(),
 		AnchorPoint = opts.AnchorPoint or Vector2.zero,
 		LayoutOrder = opts.LayoutOrder or 0,
-		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1,
 		AutoButtonColor = false,
 		Text = "",
-		ZIndex = opts.ZIndex or 1,
-	}, { UIKit.corner(opts.Radius or 16), UIKit.stroke(opts.StrokeThickness or 3.5) })
+		ZIndex = z,
+	})
+	local lip = make("Frame", { Parent = b, Name = "Lip", BackgroundColor3 = UIKit.darker(color, 0.35), Position = UDim2.fromOffset(0, LIP), Size = UDim2.new(1, 0, 1, -LIP), ZIndex = z }, { UIKit.corner(radius), UIKit.stroke(opts.StrokeThickness or 3.5) })
+	local face = make("Frame", { Parent = b, Name = "Face", BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 1, -LIP), ZIndex = z + 1 }, { UIKit.corner(radius), UIKit.stroke(opts.StrokeThickness or 3.5) })
 	local grad = UIKit.gloss(color)
-	grad.Parent = b
-	-- shine strip on the top half
-	make("Frame", { Parent = b, Name = "Shine", BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.72, Position = UDim2.new(0.08, 0, 0.08, 0), Size = UDim2.new(0.84, 0, 0.28, 0), ZIndex = b.ZIndex }, { UIKit.corner(10) })
-	local text
-	if opts.Icon then
-		UIKit.label({ Parent = b, Name = "Icon", Position = UDim2.fromScale(0.1, 0.04), Size = UDim2.fromScale(0.8, 0.6), Text = opts.Icon, ZIndex = b.ZIndex + 1 })
-		text = UIKit.label({ Parent = b, Name = "Label", Position = UDim2.fromScale(0.05, 0.64), Size = UDim2.fromScale(0.9, 0.3), Text = opts.Text or "", ZIndex = b.ZIndex + 1 })
+	grad.Parent = face
+	-- soft shine on the top half and a thin highlight line
+	make("Frame", { Parent = face, Name = "Shine", BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.new(0.06, 0, 0.07, 0), Size = UDim2.new(0.88, 0, 0.3, 0), ZIndex = z + 1 }, { UIKit.corner(radius - 4) })
+	local text, iconApi
+	if (opts.Icon3D or opts.Icon) and opts.IconSide then
+		-- wide button: big icon on the left, text on the right
+		local iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = UDim2.fromScale(0.0, -0.25), Size = UDim2.fromScale(0.4, 1.4), ZIndex = z + 2 })
+		if opts.Icon3D then
+			local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 2, Yaw = opts.IconYaw, Zoom = opts.IconZoom })
+			iconApi = api
+		else
+			UIKit.label({ Parent = iconBox, Name = "Icon", Size = UDim2.fromScale(1, 1), Text = opts.Icon, ZIndex = z + 2 })
+		end
+		text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.38, 0.16), Size = UDim2.fromScale(0.58, 0.68), Text = opts.Text or "", ZIndex = z + 3, StrokeThickness = opts.TextStroke })
+	elseif opts.Icon3D or opts.Icon then
+		local iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = UDim2.fromScale(0.08, -0.02), Size = UDim2.fromScale(0.84, 0.68), ZIndex = z + 2 })
+		if opts.Icon3D then
+			local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 2, Yaw = opts.IconYaw, Zoom = opts.IconZoom })
+			iconApi = api
+		else
+			UIKit.label({ Parent = iconBox, Name = "Icon", Size = UDim2.fromScale(1, 1), Text = opts.Icon, ZIndex = z + 2 })
+		end
+		text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.04, 0.66), Size = UDim2.fromScale(0.92, 0.28), Text = opts.Text or "", ZIndex = z + 3 })
 	else
-		text = UIKit.label({ Parent = b, Name = "Label", Position = UDim2.fromScale(0.06, 0.14), Size = UDim2.fromScale(0.88, 0.72), Text = opts.Text or "", ZIndex = b.ZIndex + 1, StrokeThickness = opts.TextStroke })
+		text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.06, 0.14), Size = UDim2.fromScale(0.88, 0.72), Text = opts.Text or "", ZIndex = z + 3, StrokeThickness = opts.TextStroke })
 	end
 	local hoverScale = make("UIScale", { Parent = b })
 	b.MouseEnter:Connect(function()
-		spr.target(hoverScale, 0.5, 5, { Scale = 1.08 })
+		spr.target(hoverScale, 0.5, 5, { Scale = 1.06 })
+		if iconApi then
+			iconApi.spin()
+		end
 	end)
 	b.MouseLeave:Connect(function()
 		spr.target(hoverScale, 0.6, 5, { Scale = 1 })
 	end)
+	-- press: the face sinks onto its lip
+	b.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			face.Position = UDim2.fromOffset(0, LIP - 1)
+		end
+	end)
+	b.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			face.Position = UDim2.new()
+		end
+	end)
 	b.Activated:Connect(function()
 		UIKit.sound("Click", 0.4)
 		spr.stop(hoverScale)
-		hoverScale.Scale = 0.82
+		hoverScale.Scale = 0.88
 		spr.target(hoverScale, 0.35, 5, { Scale = 1 }) -- squish then spring back
+		if iconApi then
+			iconApi.spin()
+		end
 	end)
-	local api = { Instance = b, Label = text }
+	local api = { Instance = b, Label = text, Face = face }
+	-- swap the 3D icon (e.g. the LAUNCH button shows your equipped rocket)
+	function api.setIcon3D(source, yaw)
+		local box = face:FindFirstChild("IconBox")
+		if box then
+			box:ClearAllChildren()
+			local _, a = UIKit.icon3D(box, source, { ZIndex = z + 2, Yaw = yaw, Zoom = opts.IconZoom })
+			iconApi = a
+		end
+	end
 	function api.setColor(c)
 		grad:Destroy()
 		grad = UIKit.gloss(c)
-		grad.Parent = b
+		grad.Parent = face
+		lip.BackgroundColor3 = UIKit.darker(c, 0.35)
 	end
 	function api.setText(t)
 		text.Text = t
@@ -163,36 +316,80 @@ function UIKit.button(opts)
 	return api
 end
 
+-- Small rounded label with a colored background (prices, tags, "EQUIPPED"...).
+function UIKit.pill(parent, props)
+	local p = make("Frame", { Parent = parent, Name = props.Name or "Pill", AnchorPoint = props.AnchorPoint or Vector2.zero, Position = props.Position or UDim2.new(), Size = props.Size or UDim2.fromOffset(90, 26), BackgroundColor3 = props.Color or Color3.fromRGB(80, 200, 90), ZIndex = props.ZIndex or 12 }, { UIKit.corner(40), UIKit.stroke(2.5) })
+	local l = UIKit.label({ Parent = p, Name = "Text", Position = UDim2.fromScale(0.06, 0.1), Size = UDim2.fromScale(0.88, 0.8), Text = props.Text or "", ZIndex = (props.ZIndex or 12) + 1, StrokeThickness = 2 })
+	return p, l
+end
+
+-- A rounded progress bar. Returns frame, set(fraction, text?)
+function UIKit.bar(parent, props)
+	local back = make("Frame", { Parent = parent, Name = props.Name or "Bar", Position = props.Position or UDim2.new(), Size = props.Size or UDim2.new(1, 0, 0, 16), BackgroundColor3 = Color3.fromRGB(225, 228, 240), ZIndex = props.ZIndex or 12 }, { UIKit.corner(40), UIKit.stroke(2, Color3.fromRGB(170, 175, 200)) })
+	local fill = make("Frame", { Parent = back, Name = "Fill", Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = (props.ZIndex or 12) + 1 }, { UIKit.corner(40), UIKit.gloss(props.Color or Color3.fromRGB(90, 180, 255)) })
+	local l = props.ShowText and UIKit.label({ Parent = back, Size = UDim2.fromScale(1, 1), Text = "", ZIndex = (props.ZIndex or 12) + 2, StrokeThickness = 2 }) or nil
+	return back, function(fraction, text)
+		fill.Size = UDim2.fromScale(math.clamp(fraction, 0, 1), 1)
+		fill.Visible = fraction > 0.005
+		if l and text then
+			l.Text = text
+		end
+	end
+end
+
+-- A white card for grids / lists with an optional colored top band.
+function UIKit.card(parent, props)
+	local c = make("Frame", { Parent = parent, Name = props.Name or "Card", LayoutOrder = props.LayoutOrder or 0, Size = props.Size or UDim2.fromOffset(180, 220), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = props.ZIndex or 11 }, { UIKit.corner(20), UIKit.stroke(3, props.Border or Color3.fromRGB(190, 200, 225)) })
+	make("UIGradient", { Parent = c, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), props.Tint or Color3.fromRGB(232, 238, 252)) })
+	return c
+end
+
 -- Windows -----------------------------------------------------------------------------
 local windows = {}
 UIKit.windows = windows
 
--- A bright window with a colored header, a red X, and a scrolling list. Returns window, list.
-function UIKit.window(title, color, size)
+-- A big bright window: drop shadow, colored header ribbon with a 3D icon and title, round red
+-- close button, and a scrolling list. Returns window, list.
+--   UIKit.window(title, color, size, icon3D)
+function UIKit.window(title, color, size, icon)
 	local w = make("Frame", {
 		Parent = UIKit.gui(),
 		Name = "Window_" .. title,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.48),
-		Size = size or UDim2.fromOffset(600, 440),
-		BackgroundColor3 = Color3.fromRGB(250, 250, 255),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = size or UDim2.fromOffset(620, 450),
+		BackgroundTransparency = 1,
 		Visible = false,
 		ZIndex = 10,
-	}, { UIKit.corner(24), UIKit.stroke(5), make("UISizeConstraint", { MaxSize = Vector2.new(600, 460) }), make("UIScale", {}) })
-	make("UIGradient", { Parent = w, Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(225, 232, 250)) })
-	local header = make("Frame", { Parent = w, Size = UDim2.new(1, 0, 0, 62), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 11 }, { UIKit.corner(24), UIKit.gloss(color) })
-	-- square off the header's bottom corners
-	make("Frame", { Parent = header, Position = UDim2.new(0, 0, 1, -24), Size = UDim2.new(1, 0, 0, 24), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 11 }, { make("UIGradient", { Rotation = 90, Color = ColorSequence.new(color, UIKit.darker(color, 0.18)) }) })
-	UIKit.label({ Parent = header, Position = UDim2.fromOffset(22, 8), Size = UDim2.new(1, -100, 1, -16), TextXAlignment = Enum.TextXAlignment.Left, Text = title, ZIndex = 12, StrokeThickness = 3 })
-	local close = UIKit.button({ Parent = header, Text = "X", Color = Color3.fromRGB(240, 70, 70), Size = UDim2.fromOffset(48, 48), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), ZIndex = 13, Radius = 14 })
+	}, { make("UIScale", { Name = "OpenScale" }) })
+	-- drop shadow, then the panel (siblings, so the shadow stays behind)
+	make("Frame", { Parent = w, Name = "Shadow", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.6, Position = UDim2.fromOffset(0, 10), Size = UDim2.fromScale(1, 1), ZIndex = 9 }, { UIKit.corner(28) })
+	local panel = make("Frame", { Parent = w, Name = "Panel", BackgroundColor3 = Color3.fromRGB(250, 250, 255), Size = UDim2.fromScale(1, 1), ZIndex = 10 }, { UIKit.corner(28), UIKit.stroke(5) })
+	make("UIGradient", { Parent = panel, Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), UIKit.lighter(color, 0.82)) })
+	local header = make("Frame", { Parent = w, Name = "Header", Size = UDim2.new(1, 0, 0, 70), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 11 }, { UIKit.corner(28), UIKit.gloss(color) })
+	-- square off the header's bottom corners, then a darker band under it
+	make("Frame", { Parent = header, Position = UDim2.new(0, 0, 1, -28), Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 11 }, { make("UIGradient", { Rotation = 90, Color = ColorSequence.new(color, UIKit.darker(color, 0.18)) }) })
+	make("Frame", { Parent = header, Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 5), BackgroundColor3 = UIKit.darker(color, 0.35), BorderSizePixel = 0, ZIndex = 11 })
+	-- sparkle dots on the header
+	for i = 1, 6 do
+		make("Frame", { Parent = header, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.75, Position = UDim2.new(0.35 + i * 0.075, 0, 0.18 + (i % 2) * 0.42, 0), Size = UDim2.fromOffset(8 + (i % 3) * 3, 8 + (i % 3) * 3), ZIndex = 11 }, { UIKit.corner(20) })
+	end
+	local titleX = 24
+	if icon then
+		local holder = make("Frame", { Parent = header, BackgroundTransparency = 1, Position = UDim2.fromOffset(10, -22), Size = UDim2.fromOffset(92, 92), ZIndex = 13 })
+		UIKit.icon3D(holder, icon, { ZIndex = 13 })
+		titleX = 104
+	end
+	UIKit.label({ Parent = header, Name = "Title", Position = UDim2.fromOffset(titleX, 10), Size = UDim2.new(1, -titleX - 80, 1, -20), TextXAlignment = Enum.TextXAlignment.Left, Text = title, ZIndex = 12, StrokeThickness = 3.5 })
+	local close = UIKit.button({ Parent = header, Text = "X", Color = Color3.fromRGB(240, 70, 70), Size = UDim2.fromOffset(54, 54), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), ZIndex = 13, Radius = 27 })
 	close.Instance.Activated:Connect(function()
 		UIKit.closeAll()
 	end)
 	local list = make("ScrollingFrame", {
 		Parent = w,
 		Name = "List",
-		Position = UDim2.fromOffset(16, 74),
-		Size = UDim2.new(1, -32, 1, -88),
+		Position = UDim2.fromOffset(16, 88),
+		Size = UDim2.new(1, -32, 1, -102),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 8,
@@ -200,7 +397,7 @@ function UIKit.window(title, color, size)
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		CanvasSize = UDim2.new(),
 		ZIndex = 11,
-	}, { make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center }), make("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 8) }) })
+	}, { make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center }), make("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 10) }) })
 	table.insert(windows, w)
 	return w, list
 end
@@ -216,15 +413,24 @@ function UIKit.toggle(w)
 	UIKit.closeAll()
 	w.Visible = open
 	if open then
-		local s = w:FindFirstChildOfClass("UIScale")
-		s.Scale = 0.6
-		spr.target(s, 0.55, 3.5, { Scale = 1 }) -- windows spring open
+		local s = w:FindFirstChild("OpenScale") or w:FindFirstChildOfClass("UIScale")
+		local fit = 1
+		local view = workspace.CurrentCamera.ViewportSize
+		local size = w.Size
+		local px = Vector2.new(size.X.Offset + size.X.Scale * view.X, size.Y.Offset + size.Y.Scale * view.Y)
+		if px.X > 10 and view.X > 300 and view.Y > 200 then -- (right after joining the screen size can still read 1x1)
+			fit = math.clamp(math.min((view.X - 24) / px.X, (view.Y - 90) / px.Y), 0.45, 1)
+		end
+		s.Scale = 0.6 * fit
+		spr.target(s, 0.55, 3.5, { Scale = fit }) -- windows spring open
 	end
 end
 
 -- A white rounded row card for lists.
 function UIKit.row(list, order, height)
-	return make("Frame", { Parent = list, LayoutOrder = order, Size = UDim2.new(1, -12, 0, height), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 11 }, { UIKit.corner(18), UIKit.stroke(3, Color3.fromRGB(190, 200, 225)) })
+	local r = make("Frame", { Parent = list, LayoutOrder = order, Size = UDim2.new(1, -12, 0, height), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 11 }, { UIKit.corner(18), UIKit.stroke(3, Color3.fromRGB(190, 200, 225)) })
+	make("UIGradient", { Parent = r, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(236, 240, 252)) })
+	return r
 end
 
 -- Shared bars (created on first use so scripts can load in any order) -------------------
@@ -240,7 +446,7 @@ end
 
 function UIKit.sideBar()
 	if not bars.side then
-		bars.side = make("Frame", { Parent = UIKit.gui(), Name = "SideBar", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.58, 0), Size = UDim2.fromOffset(84, 300), BackgroundTransparency = 1 }, {
+		bars.side = make("Frame", { Parent = UIKit.gui(), Name = "SideBar", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.6, 0), Size = UDim2.fromOffset(92, 330), BackgroundTransparency = 1 }, {
 			make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
 	end

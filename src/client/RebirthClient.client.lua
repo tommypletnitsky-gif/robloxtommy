@@ -23,7 +23,7 @@ local function rebirths()
 end
 
 -- Window ------------------------------------------------------------------------------------------
-local window, list = UIKit.window("🌟 Rebirth", PURPLE)
+local window, list = UIKit.window("Rebirth", PURPLE, UDim2.fromOffset(640, 460), "Trophy")
 
 local headRow = UIKit.row(list, 1, 52)
 local headText = label({ Parent = headRow, Position = UDim2.fromOffset(14, 6), Size = UDim2.new(1, -28, 1, -12), Text = "", TextColor3 = UIKit.darker(PURPLE, 0.25), StrokeThickness = 0, ZIndex = 12 })
