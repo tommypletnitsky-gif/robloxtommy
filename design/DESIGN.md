@@ -6,8 +6,9 @@ Status: approved (owner asked for "good looking UI", design decided by Claude, 2
 - Bright glossy cartoon style (Pet Simulator–like): thick dark outlines (#1E1E32), vertical gloss
   gradients, white shine strip on the top third, FredokaOne font with dark text stroke.
 - **3D icons instead of emoji**: generated meshes in `ReplicatedStorage.UIIcons`
-  (Gift, Calendar, Heart, Coin, Trophy, Bolt, FuelCan, MoneyBag) shown in ViewportFrames that bob
-  gently and spin once on hover / press (`UIKit.icon3D`). Rockets, pets and cannons use their own
+  (Gift, Calendar, Heart, Coin, Trophy, Bolt, FuelCan, MoneyBag) shown in ViewportFrames that hold
+  still and spin once on hover / press (`UIKit.icon3D`). **Never animate icons every frame**: each
+  moving ViewportFrame is re-drawn every frame (9 bobbing HUD icons cost ~45 FPS). Rockets, pets and cannons use their own
   game models as icons.
 - **Buttons** (`UIKit.button`): glossy face on a darker "lip" (5 px) that it presses down into,
   hover grows 6%, click squish + sound. Optional 3D icon above the text, or on the left (`IconSide`).

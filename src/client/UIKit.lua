@@ -128,6 +128,10 @@ local function iconTemplate(source)
 	return iconFolder and iconFolder:FindFirstChild(source)
 end
 
+local function pose(info, spinAngle)
+	info.model:PivotTo(CFrame.Angles(info.tilt, info.yaw + spinAngle, 0) * info.home)
+end
+
 function UIKit.icon3D(parent, source, props)
 	props = props or {}
 	local template = iconTemplate(source)
@@ -183,19 +187,57 @@ function UIKit.icon3D(parent, source, props)
 		info.spin = math.pi * 2
 	end
 	vp:SetAttribute("Icon", true)
+	pose(info, 0)
 	return vp, api
 end
 
-RunService.RenderStepped:Connect(function(dt)
-	local t = os.clock()
-	for _, info in ipairs(icons) do
-		if info.vp.Parent and info.vp.Visible and info.vp:FindFirstAncestorOfClass("ScreenGui") then
-			if info.spin > 0 then
-				info.spin = math.max(0, info.spin - dt * 9)
+-- Only icons you can actually see are animated: every ancestor visible (a closed window hides
+-- everything in it) and, inside a scrolling list, not scrolled out of view.
+local function onScreen(vp)
+	local node = vp
+	local clip = nil
+	while node do
+		if node:IsA("ScreenGui") then
+			if not node.Enabled then
+				return false
 			end
-			local wob = info.still and 0 or math.sin(t * 1.6 + info.phase) * 0.25
-			local bob = info.still and 0 or math.sin(t * 2.2 + info.phase) * 0.04
-			info.model:PivotTo(CFrame.new(0, bob * info.h, 0) * CFrame.Angles(info.tilt, info.yaw + wob + (math.pi * 2 - info.spin) % (math.pi * 2), 0) * info.home)
+			break
+		elseif node:IsA("GuiObject") then
+			if not node.Visible then
+				return false
+			end
+			if not clip and node:IsA("ScrollingFrame") then
+				clip = node
+			end
+		elseif not node:IsA("Folder") then
+			return false
+		end
+		node = node.Parent
+	end
+	if not node then
+		return false
+	end
+	if clip then
+		local a, as = vp.AbsolutePosition, vp.AbsoluteSize
+		local c, cs = clip.AbsolutePosition, clip.AbsoluteSize
+		if a.Y + as.Y < c.Y or a.Y > c.Y + cs.Y or a.X + as.X < c.X or a.X > c.X + cs.X then
+			return false
+		end
+	end
+	return true
+end
+
+-- Icons hold still (a ViewportFrame is only re-drawn when its model moves, so a still icon costs
+-- nothing per frame). They spin once when you hover / press their button.
+RunService.RenderStepped:Connect(function(dt)
+	for _, info in ipairs(icons) do
+		if info.spin > 0 then
+			info.spin = math.max(0, info.spin - dt * 9)
+			if onScreen(info.vp) then
+				pose(info, (math.pi * 2 - info.spin) % (math.pi * 2))
+			elseif info.spin <= 0 then
+				pose(info, 0)
+			end
 		end
 	end
 end)
