@@ -1,7 +1,12 @@
--- Loads/saves player progress with DataStores. Live values are player attributes.
--- If DataStores aren't available (e.g. Studio without API access) the game still works, it just doesn't save.
+-- Player progress, saved with ProfileStore (session-locked, autosaving; the DevForum's standard).
+-- Live values are player attributes; every change is mirrored into the profile so ProfileStore's
+-- autosave always has the latest. Old saves from the first version (raw DataStore "RocketSim_v1")
+-- are copied over once.
+local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
-local RunService = game:GetService("RunService")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local ProfileStore = require(ServerScriptService.Vendor.ProfileStore)
 
 local PlayerData = {}
 
@@ -21,97 +26,85 @@ PlayerData.DEFAULTS = {
 	Donated = 0,
 	DailyStreak = 0,
 	LastDaily = 0,
+	Migrated = false,
 }
 
-local store
-local storeOk = pcall(function()
-	store = DataStoreService:GetDataStore("RocketSim_v1")
-end)
+local store = ProfileStore.New("RocketSim_PS1", PlayerData.DEFAULTS)
+local profiles = {} -- [player] = profile
 
-local loaded = {} -- [player] = true once data loaded successfully (never save over data we failed to read)
-
-local function key(player)
-	return "u_" .. player.UserId
+-- One-time copy of progress saved by the old raw-DataStore version.
+local function migrateOld(player, data)
+	if data.Migrated then
+		return
+	end
+	data.Migrated = true
+	local ok, old = pcall(function()
+		return DataStoreService:GetDataStore("RocketSim_v1"):GetAsync("u_" .. player.UserId)
+	end)
+	if ok and type(old) == "table" then
+		for k, default in pairs(PlayerData.DEFAULTS) do
+			if k ~= "Migrated" and type(old[k]) == type(default) then
+				data[k] = old[k]
+			end
+		end
+	end
 end
 
 function PlayerData.load(player)
 	for k, v in pairs(PlayerData.DEFAULTS) do
 		player:SetAttribute(k, v)
 	end
-	if not storeOk or not store then
-		player:SetAttribute("DataLoaded", true)
+	local profile = store:StartSessionAsync("u_" .. player.UserId, {
+		Cancel = function()
+			return player.Parent ~= Players
+		end,
+	})
+	if not profile then
+		-- couldn't load (or the player left while loading): play on defaults, nothing is saved
 		player:SetAttribute("SaveStatus", "off")
+		player:SetAttribute("DataLoaded", true)
 		return
 	end
-	local data
-	local ok, err
-	for _ = 1, 3 do
-		ok, err = pcall(function()
-			data = store:GetAsync(key(player))
-		end)
-		if ok then
-			break
-		end
-		task.wait(1)
+	profile:AddUserId(player.UserId) -- GDPR compliance
+	profile:Reconcile() -- fill in any new fields
+	profile.OnSessionEnd:Connect(function()
+		profiles[player] = nil
+		player:Kick("Your data was loaded on another server. Please rejoin.")
+	end)
+	if player.Parent ~= Players then
+		profile:EndSession()
+		return
 	end
-	if ok then
-		if type(data) == "table" then
-			for k, default in pairs(PlayerData.DEFAULTS) do
-				if type(data[k]) == type(default) then
-					player:SetAttribute(k, data[k])
-				end
+	migrateOld(player, profile.Data)
+	profiles[player] = profile
+	for k in pairs(PlayerData.DEFAULTS) do
+		player:SetAttribute(k, profile.Data[k])
+		player:GetAttributeChangedSignal(k):Connect(function()
+			if profiles[player] == profile then
+				profile.Data[k] = player:GetAttribute(k)
 			end
-		end
-		loaded[player] = true
-		player:SetAttribute("SaveStatus", "on")
-	else
-		warn("[PlayerData] load failed for " .. player.Name .. ": " .. tostring(err))
-		player:SetAttribute("SaveStatus", "off")
+		end)
 	end
+	player:SetAttribute("SaveStatus", ProfileStore.DataStoreState == "Access" and "on" or "mock")
 	player:SetAttribute("DataLoaded", true)
 end
 
+-- Ask ProfileStore to save soon (e.g. right after a purchase or daily reward).
 function PlayerData.save(player)
-	if not loaded[player] or not store then
-		return false
+	local profile = profiles[player]
+	if profile and profile:IsActive() then
+		profile:Save()
+		return true
 	end
-	local data = {}
-	for k in pairs(PlayerData.DEFAULTS) do
-		data[k] = player:GetAttribute(k)
-	end
-	local ok, err = pcall(function()
-		store:SetAsync(key(player), data)
-	end)
-	if not ok then
-		warn("[PlayerData] save failed for " .. player.Name .. ": " .. tostring(err))
-	end
-	return ok
+	return false
 end
 
 function PlayerData.release(player)
-	PlayerData.save(player)
-	loaded[player] = nil
+	local profile = profiles[player]
+	if profile then
+		profiles[player] = nil
+		profile:EndSession()
+	end
 end
-
--- Autosave every 90 seconds and on shutdown.
-task.spawn(function()
-	while true do
-		task.wait(90)
-		for player in pairs(loaded) do
-			if player.Parent then
-				PlayerData.save(player)
-			end
-		end
-	end
-end)
-
-game:BindToClose(function()
-	if RunService:IsStudio() then
-		task.wait(1)
-	end
-	for player in pairs(loaded) do
-		PlayerData.save(player)
-	end
-end)
 
 return PlayerData

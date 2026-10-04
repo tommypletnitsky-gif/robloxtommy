@@ -6,6 +6,7 @@ local SoundService = game:GetService("SoundService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local spr = require(script.Parent:WaitForChild("spr")) -- spring animations (Fraktality/spr, MIT)
 
 local UIKit = {}
 UIKit.FONT = Enum.Font.FredokaOne
@@ -106,10 +107,11 @@ end
 -- Buttons -----------------------------------------------------------------------------
 local function bounce(target)
 	local scale = target:FindFirstChildOfClass("UIScale") or make("UIScale", { Parent = target })
-	scale.Scale = 0.86
-	TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	scale.Scale = 0.75
+	spr.target(scale, 0.4, 4, { Scale = 1 }) -- wobbly pop
 end
 UIKit.bounce = bounce
+UIKit.spr = spr
 
 -- A glossy chunky button. opts: Text, Color, Size, Position, AnchorPoint, Parent, LayoutOrder, Icon (emoji above text)
 function UIKit.button(opts)
@@ -138,15 +140,16 @@ function UIKit.button(opts)
 	end
 	local hoverScale = make("UIScale", { Parent = b })
 	b.MouseEnter:Connect(function()
-		TweenService:Create(hoverScale, TweenInfo.new(0.12), { Scale = 1.06 }):Play()
+		spr.target(hoverScale, 0.5, 5, { Scale = 1.08 })
 	end)
 	b.MouseLeave:Connect(function()
-		TweenService:Create(hoverScale, TweenInfo.new(0.12), { Scale = 1 }):Play()
+		spr.target(hoverScale, 0.6, 5, { Scale = 1 })
 	end)
 	b.Activated:Connect(function()
 		UIKit.sound("Click", 0.4)
-		hoverScale.Scale = 0.88
-		TweenService:Create(hoverScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		spr.stop(hoverScale)
+		hoverScale.Scale = 0.82
+		spr.target(hoverScale, 0.35, 5, { Scale = 1 }) -- squish then spring back
 	end)
 	local api = { Instance = b, Label = text }
 	function api.setColor(c)
@@ -215,7 +218,7 @@ function UIKit.toggle(w)
 	if open then
 		local s = w:FindFirstChildOfClass("UIScale")
 		s.Scale = 0.6
-		TweenService:Create(s, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		spr.target(s, 0.55, 3.5, { Scale = 1 }) -- windows spring open
 	end
 end
 

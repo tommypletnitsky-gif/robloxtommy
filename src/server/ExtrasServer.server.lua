@@ -110,7 +110,9 @@ local function onChat(player, msg)
 		Notify:FireClient(player, "Unlocked up to Stage " .. s, Color3.fromRGB(130, 255, 130))
 	elseif cmd == "reset" then
 		for k, v in pairs(PlayerData.DEFAULTS) do
-			player:SetAttribute(k, v)
+			if k ~= "Migrated" then -- don't re-import the old save on next join
+				player:SetAttribute(k, v)
+			end
 		end
 		Notify:FireClient(player, "Progress reset", Color3.fromRGB(255, 200, 120))
 	end
