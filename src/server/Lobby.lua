@@ -29,6 +29,9 @@ local ORANGE = C(255, 150, 40)
 local YELLOW = C(255, 210, 50)
 local PINK = C(255, 110, 170)
 local GREEN = C(90, 190, 90)
+local SIGN = C(53, 139, 204) -- #358bcc, every sign in the lobby
+local LAWN = C(119, 221, 119) -- #77dd77, the lobby grass
+local APRON = C(196, 208, 217) -- #c4d0d9, the launch area floor
 local FLOWERS = { C(255, 120, 180), YELLOW, WHITE, C(255, 90, 90), C(190, 120, 255) }
 
 local SPAWN = LobbyLayout.SPAWN
@@ -93,7 +96,7 @@ local function ground(hub, rng)
 
 	-- launch apron: dark concrete with hazard stripes along the edges
 	local ax0, ax1, az = -40, 4, 32
-	part(hub, { Name = "Apron", Size = Vector3.new(ax1 - ax0, 0.4, az * 2), CFrame = CFrame.new((ax0 + ax1) / 2, 0.4, 0), Color = C(150, 152, 165), Material = M.Concrete, CastShadow = false })
+	part(hub, { Name = "Apron", Size = Vector3.new(ax1 - ax0, 0.4, az * 2), CFrame = CFrame.new((ax0 + ax1) / 2, 0.4, 0), Color = APRON, CastShadow = false })
 	for x = ax0, ax1 - 4, 4 do
 		for _, side in ipairs({ -1, 1 }) do
 			part(hub, { Size = Vector3.new(4, 0.45, 1.6), CFrame = CFrame.new(x + 2, 0.43, side * (az - 0.8)), Color = (x / 4) % 2 == 0 and YELLOW or C(40, 40, 45), CastShadow = false })
@@ -141,28 +144,19 @@ local function spawnArea(hub, rng)
 		column(hub, 1.5, 6, foot, darker(BLUE, 0.2))
 		ball(hub, 5.5, foot + Vector3.new(0, 23.5, 0), YELLOW)
 	end
-	local banner = part(hub, { Name = "TitleBanner", Size = Vector3.new(2, 8, 30), CFrame = CFrame.new(ax, 19, 0), Color = BLUE })
+	local banner = part(hub, { Name = "TitleBanner", Size = Vector3.new(2, 8, 30), CFrame = CFrame.new(ax, 19, 0), Color = SIGN })
 	for _, face in ipairs({ Enum.NormalId.Left, Enum.NormalId.Right }) do
-		local l = sign(banner, face, "ROCKET SIMULATOR", YELLOW, BLUE, darker(BLUE, 0.5))
+		local l = sign(banner, face, "ROCKET SIMULATOR", YELLOW, SIGN, darker(SIGN, 0.5))
 		l.Parent.PixelsPerStud = 20
 	end
 
 end
 
--- Central plaza: a low round flower garden (keeps the view to the launch pad open) ------------
+-- Central plaza: a low round grass island (keeps the view to the launch pad open) -------------
 local function statuePlaza(hub, rng)
 	-- stone curb + grass island
 	cyl(hub, 1.2, 26, CFrame.new(PLAZA + Vector3.new(0, 0.9, 0)) * UP, STONE)
-	cyl(hub, 1.3, 23, CFrame.new(PLAZA + Vector3.new(0, 0.95, 0)) * UP, C(122, 172, 96), { Material = M.Grass })
-	-- rings of flowers (low, so nothing blocks the view)
-	for ring, info in ipairs({ { r = 9, n = 20, c = { C(255, 120, 180), C(255, 255, 255) } }, { r = 5, n = 12, c = { YELLOW, C(255, 160, 60) } } }) do
-		for i = 0, info.n - 1 do
-			local a = i / info.n * math.pi * 2 + ring
-			local q = PLAZA + Vector3.new(math.cos(a) * info.r, 1.9, math.sin(a) * info.r)
-			ball(hub, 1.3, q, info.c[(i % 2) + 1], { CastShadow = false })
-		end
-	end
-
+	cyl(hub, 1.3, 23, CFrame.new(PLAZA + Vector3.new(0, 0.95, 0)) * UP, LAWN, { Material = M.Grass })
 end
 
 -- Buildings -----------------------------------------------------------------------------------
@@ -192,8 +186,38 @@ local function radarDish(parent, pos)
 	tag(m, "LobbySpin")
 end
 
+-- Detailed shop buildings generated in Studio (generate_mesh), stored in ServerStorage.ShopModels:
+-- pivot at the bottom center, doorway facing -Z, attributes Width/Height/Depth.
+-- Returns false if the model is missing so the part-built version is used instead.
+local SHOP_LAYOUT = {
+	RocketShop = { signY = 0.52, title = "🚀 ROCKET SHOP", window = "Rockets" },
+	UpgradeLab = { signY = 0.36, title = "⬆️ UPGRADE LAB", window = "Upgrades" },
+}
+local function placeShop(hub, name, center, facing)
+	local folder = game:GetService("ServerStorage"):FindFirstChild("ShopModels")
+	local template = folder and folder:FindFirstChild(name)
+	if not template then
+		return false
+	end
+	local info = SHOP_LAYOUT[name]
+	local m = template:Clone()
+	m:PivotTo(CFrame.lookAt(center, center + facing))
+	m.Parent = hub
+	local depth, height = template:GetAttribute("Depth"), template:GetAttribute("Height")
+	local front = center + facing * (depth / 2)
+	local signCF = CFrame.lookAt(front + facing * 1.2 + Vector3.new(0, height * info.signY, 0), front + facing * 5 + Vector3.new(0, height * info.signY, 0))
+	local signPart = part(m, { Name = "Sign", Size = Vector3.new(22, 5, 0.6), CFrame = signCF, Color = SIGN })
+	local l = sign(signPart, Enum.NormalId.Front, info.title, WHITE, SIGN, darker(SIGN, 0.5))
+	l.Parent.PixelsPerStud = 24
+	prompt(m, CFrame.lookAt(front + facing * 2 + Vector3.new(0, 5, 0), front + facing * 5 + Vector3.new(0, 5, 0)), info.title:sub(info.title:find(" ") + 1), info.window)
+	return true
+end
+
 -- Rocket Shop: a hangar with an arched roof and rockets on display inside (door faces the plaza).
 local function rocketShop(hub)
+	if placeShop(hub, "RocketShop", Vector3.new(PLAZA.X, 0, -54), Vector3.new(0, 0, 1)) then
+		return
+	end
 	local center = Vector3.new(PLAZA.X, 0, -54)
 	local face = CFrame.lookAt(center, center + Vector3.new(0, 0, 1)) -- local -Z = door side (toward plaza)
 	local function at(x, y, z)
@@ -231,8 +255,8 @@ local function rocketShop(hub)
 			part(m, { Size = Vector3.new(half * 2, R * 0.55 / 5 + 0.1, 1), CFrame = at(0, H + y0 + R * 0.055, z), Color = z < 0 and C(40, 60, 120) or wall })
 		end
 	end
-	local signPart = part(m, { Name = "Sign", Size = Vector3.new(22, 5, 0.6), CFrame = at(0, H + 3.4, -D / 2 - 2.1), Color = WHITE })
-	local l = sign(signPart, Enum.NormalId.Front, "🚀 ROCKET SHOP", BLUE, WHITE, darker(BLUE, 0.4))
+	local signPart = part(m, { Name = "Sign", Size = Vector3.new(22, 5, 0.6), CFrame = at(0, H + 3.4, -D / 2 - 2.1), Color = SIGN })
+	local l = sign(signPart, Enum.NormalId.Front, "🚀 ROCKET SHOP", WHITE, SIGN, darker(SIGN, 0.5))
 	l.Parent.PixelsPerStud = 24
 	-- neon trim around the doorway
 	part(m, { Size = Vector3.new(W - 15, 0.6, 0.6), CFrame = at(0, H - 2.2, -D / 2 - 0.7), Color = C(120, 220, 255), CastShadow = false })
@@ -257,6 +281,9 @@ end
 
 -- Upgrade Lab: a glass dome on a striped base, glowing tubes, blinking antenna (door faces the plaza).
 local function upgradeLab(hub)
+	if placeShop(hub, "UpgradeLab", Vector3.new(PLAZA.X, 0, 56), Vector3.new(0, 0, -1)) then
+		return
+	end
 	local center = Vector3.new(PLAZA.X, 0, 56)
 	local m = Instance.new("Model")
 	m.Name = "UpgradeLab"
@@ -274,8 +301,8 @@ local function upgradeLab(hub)
 	part(m, { Size = Vector3.new(14, 10, 8), CFrame = CFrame.new(porch + Vector3.new(0, 5, 0)), Color = lighter(PURPLE, 0.2) })
 	part(m, { Size = Vector3.new(8, 7, 0.4), CFrame = CFrame.new(porch + Vector3.new(0, 3.5, -4.1)), Color = C(40, 20, 70) })
 	part(m, { Size = Vector3.new(8.6, 0.5, 0.5), CFrame = CFrame.new(porch + Vector3.new(0, 7.2, -4.3)), Color = C(150, 255, 200), CastShadow = false })
-	local signPart = part(m, { Name = "Sign", Size = Vector3.new(20, 4.5, 0.6), CFrame = CFrame.new(porch + Vector3.new(0, 12.6, -2)), Color = WHITE })
-	local l = sign(signPart, Enum.NormalId.Front, "⬆️ UPGRADE LAB", PURPLE, WHITE, darker(PURPLE, 0.4))
+	local signPart = part(m, { Name = "Sign", Size = Vector3.new(20, 4.5, 0.6), CFrame = CFrame.new(porch + Vector3.new(0, 12.6, -2)), Color = SIGN })
+	local l = sign(signPart, Enum.NormalId.Front, "⬆️ UPGRADE LAB", WHITE, SIGN, darker(SIGN, 0.5))
 	l.Parent.PixelsPerStud = 24
 	-- glowing tubes
 	for i, col in ipairs({ C(120, 255, 170), C(120, 220, 255), C(255, 120, 220) }) do
@@ -347,7 +374,7 @@ local function leaderboard(parent, name, cf, title, color)
 	list.Parent = rows
 end
 
--- Launch area: pad, tower, fuel tanks, floodlights, mission screen, mini launch pads -------------
+-- Launch area: pad + tower ----------------------------------------------------------------------
 local function launchArea(hub, rng)
 	local HALF = Config.PATH_HALF_WIDTH
 	cyl(hub, 1.2, 24, CFrame.new(PAD_X, 0.9, 0) * UP, C(150, 155, 170), { Name = "LaunchPad" })
@@ -375,17 +402,6 @@ local function launchArea(hub, rng)
 	part(hub, { Size = Vector3.new(9, 1, 9), CFrame = CFrame.new(towerC + Vector3.new(0, TH + 0.5, 0)), Color = WHITE })
 	ball(hub, 3, towerC + Vector3.new(0, TH + 2.5, 0), C(255, 60, 60), {})
 	part(hub, { Name = "Gantry", Size = Vector3.new(2, 1.4, 12), CFrame = CFrame.new(towerC + Vector3.new(0, 10, 8.5)), Color = WHITE })
-
-	-- fuel tanks with pipes to the pad
-	for i, spot in ipairs({ Vector3.new(-30, 0, 46), Vector3.new(-46, 0, 54), Vector3.new(-16, 0, 56) }) do
-		local h = 22 + i * 3
-		column(hub, h, 12, spot, Color3.fromRGB(250, 250, 255))
-		column(hub, 3, 12.4, spot + Vector3.new(0, h * 0.5, 0), C(255, 80, 80))
-		ball(hub, 12, spot + Vector3.new(0, h, 0), BLUE)
-		beam(hub, spot + Vector3.new(0, 1.2, 0), Vector3.new(PAD_X, 1.2, 9), 1.2, C(170, 175, 190), { Material = M.Metal })
-	end
-
-
 end
 
 -- A few trees: two blossoms framing spawn, four in the far corners ----------------------------

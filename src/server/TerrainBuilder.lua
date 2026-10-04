@@ -211,7 +211,7 @@ function TerrainBuilder.applyColors()
 		[M.Basalt] = Color3.fromRGB(85, 62, 60),
 		[M.CrackedLava] = Color3.fromRGB(255, 110, 40),
 		[M.Rock] = Color3.fromRGB(150, 148, 160),
-		[M.Ground] = Color3.fromRGB(122, 168, 96), -- lobby turf (same soft green as the grass)
+		[M.Ground] = Color3.fromRGB(119, 221, 119), -- lobby lawn #77dd77
 	}
 	for mat, c in pairs(colors) do
 		t:SetMaterialColor(mat, c)
