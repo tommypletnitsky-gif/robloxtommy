@@ -317,6 +317,56 @@ function Config.dailyReward(stage, day)
 	return math.floor(Config.moneyPerStud(stage) * 400 * math.min(day, 7))
 end
 
+-- Gamepasses. Create each one on the Creator Dashboard (your experience -> Monetization ->
+-- Passes), then paste its id here. id = 0 shows "coming soon" in the store.
+-- Owning one sets the player attribute "Pass_<key>" (GamepassServer); in Studio you can test with
+-- the chat command  /pass all  (or /pass VIP).
+Config.Gamepasses = {
+	{ key = "DoubleMoney", id = 0, name = "2x Money", icon = "MoneyBag", robux = 199, color = Color3.fromRGB(80, 200, 90), desc = "Earn double money from every flight, coin and reward!" },
+	{ key = "VIP", id = 0, name = "VIP", icon = "Crown", robux = 249, color = Color3.fromRGB(255, 190, 40), desc = "+25% money, +1 pet slot, gold VIP tag over your head and in chat." },
+	{ key = "RainbowPets", id = 0, name = "Rainbow Pets", icon = "Rainbow", robux = 299, color = Color3.fromRGB(235, 90, 200), desc = "Your pets turn rainbow: their money boost is x1.5!" },
+	{ key = "LuckyEggs", id = 0, name = "Lucky Eggs", icon = "Clover", robux = 149, color = Color3.fromRGB(60, 190, 110), desc = "Epic and Legendary pets are 3x more likely when you hatch." },
+	{ key = "PetSlots", id = 0, name = "+3 Pet Slots", icon = "Paw", robux = 179, color = Color3.fromRGB(110, 140, 240), desc = "Equip 3 more pets at once." },
+	{ key = "MegaFuel", id = 0, name = "Mega Fuel", icon = "FuelCan", robux = 129, color = Color3.fromRGB(255, 150, 40), desc = "+50% fuel on every rocket: fly much farther!" },
+}
+Config.PASS = {
+	DoubleMoney = 2, -- money x
+	VIPMoney = 1.25, -- money x
+	VIPSlots = 1,
+	RainbowBoost = 1.5, -- pet boost x
+	LuckyEggs = 3, -- Epic / Legendary chance x
+	PetSlots = 3,
+	MegaFuel = 1.5, -- fuel x
+}
+-- hatch chances (%) per rarity; Lucky Eggs pass: Epic + Legendary x3, taken from Common
+function Config.rarityChances(lucky)
+	local chance = table.clone(Config.RARITY_CHANCE)
+	if lucky then
+		local extra = 0
+		for _, r in ipairs({ "Epic", "Legendary" }) do
+			extra += chance[r] * (Config.PASS.LuckyEggs - 1)
+			chance[r] *= Config.PASS.LuckyEggs
+		end
+		chance.Common = math.max(0, chance.Common - extra)
+	end
+	return chance
+end
+
+function Config.hasPass(player, key)
+	return player:GetAttribute("Pass_" .. key) == true
+end
+-- pet slots with rebirths and passes
+function Config.petSlotsFor(player)
+	local n = Config.petSlots(player:GetAttribute("Rebirths") or 0)
+	if Config.hasPass(player, "VIP") then
+		n += Config.PASS.VIPSlots
+	end
+	if Config.hasPass(player, "PetSlots") then
+		n += Config.PASS.PetSlots
+	end
+	return n
+end
+
 -- Robux donations. Create Developer Products on the Creator Dashboard, then paste their ids here.
 -- id = 0 means "not set up yet" and the button shows as coming soon.
 Config.Donations = {

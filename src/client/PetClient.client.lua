@@ -137,8 +137,8 @@ for i, rarity in ipairs(RARITIES) do
 	local name = label({ Parent = card, Position = UDim2.fromOffset(4, 98), Size = UDim2.new(1, -8, 0, 24), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
 	label({ Parent = card, Position = UDim2.fromOffset(4, 122), Size = UDim2.new(1, -8, 0, 20), Text = rarity, TextColor3 = color, StrokeThickness = 1.5, ZIndex = 13 })
 	local boost = label({ Parent = card, Position = UDim2.fromOffset(4, 143), Size = UDim2.new(1, -8, 0, 22), Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 13 })
-	label({ Parent = card, Position = UDim2.fromOffset(4, 165), Size = UDim2.new(1, -8, 0, 20), Text = Config.RARITY_CHANCE[rarity] .. "%", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
-	eggCards[rarity] = { holder = holder, name = name, boost = boost }
+	local chanceText = label({ Parent = card, Position = UDim2.fromOffset(4, 165), Size = UDim2.new(1, -8, 0, 20), Text = Config.RARITY_CHANCE[rarity] .. "%", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
+	eggCards[rarity] = { holder = holder, name = name, boost = boost, chance = chanceText }
 end
 
 local hatchRow = UIKit.row(eggList, 2, 84)
@@ -172,6 +172,9 @@ local function openEgg(egg, promptPart)
 		local pet = Config.Pets[kind]
 		c.name.Text = pet.name
 		c.boost.Text = multText(pet.mult) .. " 💰"
+		local lucky = Config.hasPass(player, "LuckyEggs")
+		c.chance.Text = (lucky and "🍀 " or "") .. Config.rarityChances(lucky)[rarity] .. "%"
+		c.chance.TextColor3 = lucky and Color3.fromRGB(40, 160, 70) or INK_SOFT
 		c.holder:ClearAllChildren()
 		viewport(c.holder, petModel(kind), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })
 	end
@@ -575,10 +578,10 @@ local function refreshPets()
 		end
 	end
 	emptyLabel.Visible = #pets == 0
-	summary.Text = string.format("Pets %d / %d    Equipped %d / %d", #pets, Config.MAX_PETS, nEquipped, Config.petSlots(player:GetAttribute("Rebirths") or 0))
+	summary.Text = string.format("Pets %d / %d    Equipped %d / %d", #pets, Config.MAX_PETS, nEquipped, Config.petSlotsFor(player))
 	summary2.Text = "Money boost: " .. multText(player:GetAttribute("PetMultiplier") or 1) .. " 💰"
 end
-for _, attr in ipairs({ "Pets", "EquippedPets", "PetMultiplier", "Rebirths" }) do
+for _, attr in ipairs({ "Pets", "EquippedPets", "PetMultiplier", "Rebirths", "Pass_VIP", "Pass_PetSlots" }) do
 	player:GetAttributeChangedSignal(attr):Connect(refreshPets)
 end
 for _, attr in ipairs({ "Money", "UnlockedStage" }) do
@@ -621,6 +624,27 @@ local function rebuildFollowers(plr)
 					d.CastShadow = true
 				end
 			end
+			if Config.hasPass(plr, "RainbowPets") then
+				-- Rainbow Pets pass: rainbow sparkles around the pet
+				local main = m:FindFirstChildWhichIsA("BasePart", true)
+				local e = Instance.new("ParticleEmitter")
+				e.Name = "Rainbow"
+				e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+				e.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 80)),
+					ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 210, 60)),
+					ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 230, 110)),
+					ColorSequenceKeypoint.new(0.75, Color3.fromRGB(70, 160, 255)),
+					ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 90, 255)),
+				})
+				e.Size = NumberSequence.new(0.5, 0)
+				e.Lifetime = NumberRange.new(0.6, 1)
+				e.Speed = NumberRange.new(1, 3)
+				e.SpreadAngle = Vector2.new(180, 180)
+				e.Rate = 14
+				e.LightEmission = 0.5
+				e.Parent = main
+			end
 			m.Parent = followFolder
 			table.insert(f.pets, { model = m, pos = nil })
 		end
@@ -628,6 +652,9 @@ local function rebuildFollowers(plr)
 end
 
 local function watchPlayer(plr)
+	plr:GetAttributeChangedSignal("Pass_RainbowPets"):Connect(function()
+		rebuildFollowers(plr)
+	end)
 	plr:GetAttributeChangedSignal("PetKinds"):Connect(function()
 		rebuildFollowers(plr)
 	end)

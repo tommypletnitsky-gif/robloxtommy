@@ -113,3 +113,10 @@ All tuning (speeds, fuel, prices, stage costs) lives in `Config.lua`.
 - Stage unlock celebration; Best distance in the player list; HUD shrinks on small screens.
 - Balance sim (scratch): stages 2-10 take ~2-5 min each, stage 20 ~1.4 h, stage 30 ~12 h of play
   without pets/rebirth - no walls, so prices unchanged.
+
+## Gamepasses (2026-10-05)
+STORE button (bottom bar) -> 6 passes, ids in Config.Gamepasses (0 = "coming soon"):
+2x Money (x2 money), VIP (x1.25 money, +1 pet slot, gold tag over head + [VIP] in chat),
+Rainbow Pets (pet boost x1.5 + rainbow sparkles), Lucky Eggs (Epic/Legendary x3),
++3 Pet Slots, Mega Fuel (+50% fuel). GamepassServer checks ownership on join and after purchase.
+Test in Studio with chat: /pass all, /pass VIP, /pass none.

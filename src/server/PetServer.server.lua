@@ -30,8 +30,8 @@ local busy = {} -- [player] = true while a hatch is being handled
 local RARITY_ORDER = { "Common", "Rare", "Epic", "Legendary" }
 
 -- Pet list helpers ----------------------------------------------------------------------------
-local function slots(player) -- 3 pet slots, +1 per rebirth (Config.petSlots)
-	return Config.petSlots(player:GetAttribute("Rebirths") or 0)
+local function slots(player) -- 3 pet slots, +1 per rebirth, + gamepasses (Config.petSlotsFor)
+	return Config.petSlotsFor(player)
 end
 
 local function getPets(player)
@@ -77,7 +77,11 @@ local function refresh(player)
 	for _, uid in ipairs(equipped) do
 		table.insert(kinds, owned[uid])
 	end
-	player:SetAttribute("PetMultiplier", Config.petMultiplier(kinds))
+	local mult = Config.petMultiplier(kinds)
+	if Config.hasPass(player, "RainbowPets") then
+		mult = 1 + (mult - 1) * Config.PASS.RainbowBoost
+	end
+	player:SetAttribute("PetMultiplier", mult)
 	player:SetAttribute("PetKinds", table.concat(kinds, ","))
 
 	-- Pet Index: every kind you've ever owned (kept even if you delete the pet); a full egg set
@@ -113,12 +117,13 @@ local function bestFirst(a, b)
 end
 
 -- Hatching --------------------------------------------------------------------------------------
-local function rollRarity()
+local function rollRarity(lucky)
+	local chance = Config.rarityChances(lucky)
 	local roll = rng:NextNumber(0, 100)
 	local acc = 0
 	for i = #RARITY_ORDER, 1, -1 do -- rarest first so rounding never eats a Legendary
 		local r = RARITY_ORDER[i]
-		acc += Config.RARITY_CHANCE[r]
+		acc += chance[r]
 		if roll < acc then
 			return r
 		end
@@ -169,7 +174,7 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 	local nextId = player:GetAttribute("NextPetId") or 1
 	local results = {}
 	for _ = 1, count do
-		local rarity = rollRarity()
+		local rarity = rollRarity(Config.hasPass(player, "LuckyEggs"))
 		local kind = egg.pets[rarity]
 		table.insert(pets, { uid = nextId, kind = kind })
 		table.insert(results, { uid = nextId, kind = kind })
@@ -259,7 +264,7 @@ end
 
 -- Players ---------------------------------------------------------------------------------------
 local function watch(player)
-	for _, attr in ipairs({ "Pets", "EquippedPets", "DataLoaded", "Rebirths" }) do
+	for _, attr in ipairs({ "Pets", "EquippedPets", "DataLoaded", "Rebirths", "Pass_RainbowPets", "Pass_VIP", "Pass_PetSlots" }) do
 		player:GetAttributeChangedSignal(attr):Connect(function()
 			refresh(player)
 		end)

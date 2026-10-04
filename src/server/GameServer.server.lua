@@ -45,6 +45,12 @@ local function moneyMultiplier(player)
 	m *= Config.rebirthMultiplier(player:GetAttribute("Rebirths") or 0)
 	m *= player:GetAttribute("PetMultiplier") or 1 -- set by PetServer from the equipped pets
 	m *= 1 + (player:GetAttribute("IndexSets") or 0) * Config.INDEX_SET_BONUS -- completed Pet Index sets
+	if Config.hasPass(player, "DoubleMoney") then
+		m *= Config.PASS.DoubleMoney
+	end
+	if Config.hasPass(player, "VIP") then
+		m *= Config.PASS.VIPMoney
+	end
 	return m
 end
 
@@ -58,6 +64,9 @@ local function rocketStats(player)
 	local def = Config.getRocket(player:GetAttribute("Rocket"))
 	local speed = def.speed * (1 + (player:GetAttribute("SpeedLevel") or 0) * Config.Upgrades.Speed.perLevel)
 	local fuel = def.fuel * (1 + (player:GetAttribute("FuelLevel") or 0) * Config.Upgrades.Fuel.perLevel)
+	if Config.hasPass(player, "MegaFuel") then
+		fuel *= Config.PASS.MegaFuel
+	end
 	return def, speed, fuel
 end
 

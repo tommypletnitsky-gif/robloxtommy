@@ -25,5 +25,7 @@
   {"file": "src/server/QuestServer.server.lua", "path": "ServerScriptService.QuestServer", "class": "Script"},
   {"file": "src/client/QuestClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.QuestClient", "class": "LocalScript"},
   {"file": "src/client/GuideClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.GuideClient", "class": "LocalScript"},
-  {"file": "src/client/BestMarkerClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.BestMarkerClient", "class": "LocalScript"}
+  {"file": "src/client/BestMarkerClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.BestMarkerClient", "class": "LocalScript"},
+  {"file": "src/server/GamepassServer.server.lua", "path": "ServerScriptService.GamepassServer", "class": "Script"},
+  {"file": "src/client/StoreClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.StoreClient", "class": "LocalScript"}
 ]
