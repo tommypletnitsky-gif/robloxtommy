@@ -11,6 +11,7 @@
   {"file": "src/server/GameServer.server.lua", "path": "ServerScriptService.GameServer", "class": "Script"},
   {"file": "src/server/ExtrasServer.server.lua", "path": "ServerScriptService.ExtrasServer", "class": "Script"},
   {"file": "src/client/UIKit.lua", "path": "StarterPlayer.StarterPlayerScripts.ClientModules.UIKit", "class": "ModuleScript"},
+  {"file": "src/client/RiderAnimator.lua", "path": "StarterPlayer.StarterPlayerScripts.ClientModules.RiderAnimator", "class": "ModuleScript"},
   {"file": "src/client/RocketClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.RocketClient", "class": "LocalScript"},
   {"file": "src/client/ShopClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.ShopClient", "class": "LocalScript"},
   {"file": "src/client/ExtrasClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.ExtrasClient", "class": "LocalScript"}

@@ -11,6 +11,7 @@ local Lighting = game:GetService("Lighting")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
+local Rider = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("RiderAnimator"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LaunchRemote = remotes:WaitForChild("Launch")
 local FlightEvent = remotes:WaitForChild("Flight")
@@ -443,6 +444,22 @@ local function keySteer()
 end
 
 local launchFx -- smoke at the pad during countdown
+local countdown = nil -- { body, base, t0, dur } while sitting on the pad
+
+-- Hold the right mouse button while flying to swing the camera around; it springs back after.
+local lookHeld, lookYaw, lookPitch = false, 0, 0
+UserInputService.InputBegan:Connect(function(input, processed)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 and flight and not processed then
+		lookHeld = true
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+	end
+end)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 and lookHeld then
+		lookHeld = false
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	end
+end)
 
 local function makeLaunchSmoke(at)
 	local p = Instance.new("Part")
@@ -503,11 +520,12 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		resetPickups()
 		combo = 0
 		local body = info.rocket and info.rocket.PrimaryPart
-		camera.CameraType = Enum.CameraType.Scriptable
+		camera.CameraType = Enum.CameraType.Custom -- you can still look around during the countdown
 		if body then
-			camera.CFrame = CFrame.lookAt(body.Position + Vector3.new(-18, 7, 20), body.Position + Vector3.new(2, 2, 0))
 			launchFx = makeLaunchSmoke(body.Position - Vector3.new(0, 3, 0))
+			countdown = { body = body, base = body.CFrame, t0 = os.clock(), dur = info.seconds }
 		end
+		Rider.start(player.Character)
 		playMusic("FlightMusic")
 		bigLabel.Visible = true
 		for i = info.seconds, 1, -1 do
@@ -529,6 +547,12 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		if not body then
 			return
 		end
+		if countdown and countdown.body == body then
+			body.CFrame = countdown.base
+		end
+		countdown = nil
+		local camFrom = camera.CFrame
+		camera.CameraType = Enum.CameraType.Scriptable
 		UIKit.sound("Launch", 0.7)
 		addShake(1.2)
 		if launchFx then
@@ -563,7 +587,9 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			pull = 40, -- launch: camera starts pulled way back, then eases in
 			pullHold = os.clock() + 0.5,
 			bank = 0,
-			spin = math.pi * 2, -- a barrel roll as you blast off
+			spin = 0,
+			camFrom = camFrom, -- blend from wherever you were looking into the chase camera
+			camBlend = 0,
 			aimCF = CFrame.new(),
 			focus = nil,
 			flameFx = nil,
@@ -595,6 +621,11 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 	elseif kind == "outOfFuel" then
 		if flight then
 			flight.outOfFuel = os.clock()
+			local flame = flight.body.Parent and flight.body.Parent:FindFirstChild("Flame", true)
+			local smoke = flame and flame:FindFirstChildOfClass("ParticleEmitter")
+			if smoke then
+				smoke:Emit(30)
+			end
 			if flight.engine then
 				TweenService:Create(flight.engine, TweenInfo.new(0.5), { Volume = 0 }):Play()
 			end
@@ -650,6 +681,10 @@ end)
 player:GetAttributeChangedSignal("Flying"):Connect(function()
 	if not player:GetAttribute("Flying") then
 		flight = nil
+		countdown = nil
+		Rider.stop()
+		lookHeld, lookYaw, lookPitch = false, 0, 0
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		stopFlightFx()
 		camera.CameraType = Enum.CameraType.Custom
 		camera.FieldOfView = 70
@@ -724,6 +759,16 @@ RunService.RenderStepped:Connect(function(dt)
 		shake *= math.exp(-dt * 5)
 	end
 
+	if countdown and countdown.body.Parent then
+		-- the rocket rumbles harder each second and its nose lifts, ready to launch
+		local p = math.clamp((now - countdown.t0) / countdown.dur, 0, 1)
+		local j = 0.05 + p * 0.25
+		countdown.body.CFrame = countdown.base
+			* CFrame.Angles(0, 0, math.rad(14) * p)
+			* CFrame.new((math.random() - 0.5) * j, (math.random() - 0.5) * j, (math.random() - 0.5) * j)
+		Rider.update(dt, { lean = -0.12, side = 0, grip = 1, cheer = 0, flail = 0, yaw = 0, pitch = 0.15, shake = 0.5 + p })
+	end
+
 	local f = flight
 	if not f then
 		if shake > 0.01 and camera.CameraType == Enum.CameraType.Scriptable then
@@ -738,8 +783,11 @@ RunService.RenderStepped:Connect(function(dt)
 
 	-- Landed (server anchored the rocket): slow orbit around it until we're sent home.
 	if f.landed then
-		local a = now * 0.5
-		camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(pos + Vector3.new(math.cos(a) * 18, 8, math.sin(a) * 18), pos), math.min(1, dt * 3))
+		-- stay straight behind the rocket, drifting a little closer
+		local dist = CAM_DIST * camZoom * 0.85
+		local focus = f.focus or pos
+		camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(focus + Vector3.new(-dist, dist * 0.32, 0), focus + Vector3.new(14, 0, 0)), math.min(1, dt * 2))
+		Rider.update(dt, { lean = 0.05, side = 0, grip = 0.4, cheer = 0, flail = 0, yaw = 0, pitch = 0, shake = 0 })
 		return
 	end
 
@@ -785,7 +833,8 @@ RunService.RenderStepped:Connect(function(dt)
 		local fall = pos.Y > Config.pathY(pos.X) + 2.5 and (-8 - t * 6) or 0
 		vel = Vector3.new(f.speed * math.max(0.08, 0.3 - t * 0.1), fall, -pos.Z * 0.5)
 	else
-		local speed = f.speed * speedMul
+		local ramp = math.clamp(0.25 + (now - f.launchedAt) / 1.1 * 0.75, 0.25, 1)
+		local speed = f.speed * speedMul * ramp
 		local slope = Config.pathY(pos.X + 1) - Config.pathY(pos.X)
 		local targetY = Config.pathY(pos.X) + f.offY
 		vel = Vector3.new(speed, slope * speed + (targetY - pos.Y) * 5, (f.offZ - pos.Z) * 5)
@@ -816,22 +865,49 @@ RunService.RenderStepped:Connect(function(dt)
 		f.pull += (0 - f.pull) * math.min(1, dt * 1.4)
 	end
 
-	if f.outOfFuel then
-		-- slow-mo: swing in close beside the rocket (respects your zoom)
-		local camTarget = CFrame.lookAt(pos + Vector3.new(-10, 5, 14) * camZoom, pos + Vector3.new(4, 0, 0))
-		camera.FieldOfView += (60 - camera.FieldOfView) * math.min(1, dt * 2)
-		camera.CFrame = camera.CFrame:Lerp(camTarget, math.min(1, dt * 2)) * shakeOffset
+	-- Rider: lean into turns, push back on liftoff, tuck forward on boosts, cheer through rings,
+	-- flail when the engine dies.
+	local boosting = speedMul > 1
+	local launching = now - f.launchedAt < 0.9
+	Rider.update(dt, {
+		lean = f.outOfFuel and 0.05 or (launching and -0.3 or (boosting and 0.45 or 0.2)),
+		side = f.bank * 0.5,
+		grip = 1,
+		cheer = (boosting and f.spin > 0) and 1 or 0,
+		flail = f.outOfFuel and 1 or 0,
+		yaw = -math.clamp((f.offZ - pos.Z) * 0.04, -0.6, 0.6),
+		pitch = math.clamp(vel.Y / math.max(1, f.speed) * 0.5, -0.4, 0.5),
+		shake = f.outOfFuel and 0.15 or (boosting and 1.6 or 1),
+	})
+
+	-- Right mouse look: swing around while held, spring back when released.
+	if lookHeld then
+		local d = UserInputService:GetMouseDelta()
+		lookYaw = math.clamp(lookYaw - d.X * 0.006, -2.8, 2.8)
+		lookPitch = math.clamp(lookPitch - d.Y * 0.004, -0.25, 0.9)
 	else
-		-- Chase camera: behind and above, following the rocket partly up/down and sideways so you
-		-- still see it move toward your cursor. Distance = your zoom + the speed kick.
-		local dist = CAM_DIST * camZoom + f.pull
-		local wantFocus = Vector3.new(pos.X, Config.pathY(pos.X) + (pos.Y - Config.pathY(pos.X)) * 0.6 + 4, pos.Z * 0.55)
-		f.focus = f.focus and Vector3.new(wantFocus.X, f.focus.Y + (wantFocus.Y - f.focus.Y) * math.min(1, dt * 5), f.focus.Z + (wantFocus.Z - f.focus.Z) * math.min(1, dt * 5)) or wantFocus
-		local camPos = f.focus + Vector3.new(-dist, dist * 0.36, 0)
-		local fov = 70 + math.min(10, f.speed * speedMul * 0.03) + f.pull * 0.3
-		camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 4)
-		camera.CFrame = CFrame.lookAt(camPos, f.focus + Vector3.new(24, 0, 0)) * CFrame.Angles(0, 0, -f.bank * 0.12) * shakeOffset
+		local back = math.exp(-dt * 3)
+		lookYaw *= back
+		lookPitch *= back
 	end
+
+	-- Chase camera, always straight behind: follows the rocket partly up/down and sideways so you
+	-- still see it fly toward your cursor. Distance = your zoom + the speed kick.
+	local dist = CAM_DIST * camZoom * (f.outOfFuel and 0.85 or 1) + f.pull
+	local wantFocus = Vector3.new(pos.X, Config.pathY(pos.X) + (pos.Y - Config.pathY(pos.X)) * 0.6 + 4, pos.Z * 0.55)
+	f.focus = f.focus and Vector3.new(wantFocus.X, f.focus.Y + (wantFocus.Y - f.focus.Y) * math.min(1, dt * 5), f.focus.Z + (wantFocus.Z - f.focus.Z) * math.min(1, dt * 5)) or wantFocus
+	local el = math.atan(0.36) + lookPitch
+	local offset = Vector3.new(-math.cos(el) * math.cos(lookYaw), math.sin(el), math.cos(el) * math.sin(lookYaw)) * dist
+	local ahead = 24 * math.max(0, 1 - math.abs(lookYaw))
+	local chase = CFrame.lookAt(f.focus + offset, f.focus + Vector3.new(ahead, 0, 0)) * CFrame.Angles(0, 0, -f.bank * 0.12)
+	local fov = (f.outOfFuel and 64 or 70 + math.min(10, f.speed * speedMul * 0.03)) + f.pull * 0.3
+	camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 4)
+	if f.camBlend < 1 then
+		f.camBlend = math.min(1, f.camBlend + dt / 0.6)
+		local e = 1 - (1 - f.camBlend) ^ 3
+		chase = f.camFrom:Lerp(chase, e)
+	end
+	camera.CFrame = chase * shakeOffset
 
 	-- Speed lines
 	if not f.outOfFuel then
