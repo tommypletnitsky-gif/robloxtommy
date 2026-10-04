@@ -25,6 +25,12 @@ local function visualFor(def)
 	return folder and folder:FindFirstChild(def.id)
 end
 
+-- How far below its pivot the rocket's belly is (where the launcher cradle holds it).
+function RocketModel.belly(def)
+	local template = visualFor(def)
+	return template and template:GetAttribute("Belly") or 1.3
+end
+
 -- def: entry from Config.Rockets. scale: 1 = flying size. withSeat: adds a Seat on top.
 function RocketModel.build(def, scale, withSeat, origin)
 	scale = scale or 1

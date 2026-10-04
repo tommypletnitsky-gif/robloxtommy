@@ -148,8 +148,12 @@ local function startFlight(player)
 	local def, speed, fuel = rocketStats(player)
 	hum:UnequipTools()
 
+	-- the rocket rests in the launcher's cradle (Lobby sets RestY on the launcher)
 	local startX = Config.LAUNCH_X - 8
-	local origin = CFrame.new(startX, Config.pathY(startX) + 4, 0)
+	local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
+	local launcher = hub and hub:FindFirstChild("Launcher")
+	local restY = launcher and launcher:GetAttribute("RestY")
+	local origin = CFrame.new(startX, restY and (restY + RocketModel.belly(def)) or (Config.pathY(startX) + 4), 0)
 	local model = RocketModel.build(def, 1, true, origin)
 	model.Name = player.Name
 	RocketModel.addTrail(model, Config.getTrail(player:GetAttribute("Trail")))

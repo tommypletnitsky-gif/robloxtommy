@@ -3,24 +3,23 @@
 local LobbyLayout = {}
 
 LobbyLayout.SPAWN = Vector3.new(-150, 0, 0)
-LobbyLayout.PLAZA = Vector3.new(-80, 0, 0)
 
--- Park area (fenced). Inside it the ground is flat grass.
+-- The two shops face the main path from either side.
+LobbyLayout.ROCKET_SHOP = { pos = Vector3.new(-95, 0, -46), facing = Vector3.new(0, 0, 1) }
+LobbyLayout.UPGRADE_LAB = { pos = Vector3.new(-95, 0, 46), facing = Vector3.new(0, 0, -1) }
+
+-- Park area (flat lawn). Inside it the ground is one flat #77dd77 part.
 LobbyLayout.PARK = { -186, -86, 6, 86 }
 
 LobbyLayout.PAVED_CIRCLES = {
-	{ -150, 0, 23 }, -- spawn plaza
-	{ -80, 0, 29 }, -- central plaza
-	{ -80, 56, 17.5 }, -- Upgrade Lab dome
+	{ -150, 0, 12 }, -- spawn pad
+	{ -8, 0, 22 }, -- launch apron
 }
 
 LobbyLayout.PAVED_BOXES = {
-	{ -132, -10, -103, 10 }, -- avenue: spawn -> plaza
-	{ -57, -10, -37, 10 }, -- avenue: plaza -> launch apron
-	{ -87, -42, -73, 42 }, -- side paths to the buildings
-	{ -99, -68, -61, -40 }, -- Rocket Shop floor
-	{ -88, 34, -72, 44 }, -- Upgrade Lab porch
-	{ -41, -33, 8, 33 }, -- launch apron + pad
+	{ -150, -7, -26, 7 }, -- main path: spawn -> launcher
+	{ -101, -28, -89, -7 }, -- path to the Rocket Shop
+	{ -101, 7, -89, 27 }, -- path to the Upgrade Lab
 }
 
 function LobbyLayout.inPark(x, z)

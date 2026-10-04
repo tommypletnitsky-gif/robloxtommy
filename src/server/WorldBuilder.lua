@@ -62,22 +62,7 @@ local function buildHub(world)
 	local hub = Instance.new("Folder")
 	hub.Name = "Hub"
 	hub.Parent = world
-	Lobby.build(hub)
-
-	-- trees on the hills around the park
-	local TerrainBuilder = require(game:GetService("ServerScriptService").TerrainBuilder)
-	local rng = Random.new(42)
-	for _ = 1, 16 do
-		local x, z
-		repeat
-			x = rng:NextNumber(-300, -5)
-			z = rng:NextNumber(-170, 170)
-		until math.abs(z) > 92 or x < -192
-		local h, wet = TerrainBuilder.height(x, z)
-		if not wet then
-			Lobby.tree(hub, Vector3.new(x, h, z), rng, rng:NextNumber(28, 40))
-		end
-	end
+	Lobby.build(hub) -- spawn is kept empty: lawn, paths, two shops, launcher
 end
 
 -- Pickups ----------------------------------------------------------------------------------

@@ -452,21 +452,78 @@ local function setLetterbox(on)
 	end
 end
 
--- The launch tower's gantry arm swings back before liftoff (only on this player's screen).
-local gantry = { part = nil, home = nil }
-local function swingGantry(away)
-	if not gantry.part then
-		local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
-		gantry.part = hub and hub:FindFirstChild("Gantry")
-		gantry.home = gantry.part and gantry.part.CFrame
+-- The launcher animates on this player's screen only (Hub.Launcher, parts named by Lobby):
+--   "arm"    countdown starts: the tower's walkway arm swings back
+--   "clamps" ignition: both clamps fold open, away from the rocket
+--   "kick"   liftoff: the roller shoots forward with the rocket and springs back
+--   "reset"  flight over: everything glides home
+local launcher = { parts = nil, home = {} }
+local function launcherParts()
+	if launcher.parts then
+		return launcher.parts
 	end
-	local g = gantry.part
-	if not g then
+	local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
+	local m = hub and hub:FindFirstChild("Launcher")
+	if not m then
+		return nil
+	end
+	launcher.parts = {}
+	for _, name in ipairs({ "Arm", "ClampL", "ClampR", "Pistons" }) do
+		local p = m:FindFirstChild(name)
+		if p then
+			launcher.parts[name] = p
+			launcher.home[name] = p.CFrame
+		end
+	end
+	launcher.tower = m:FindFirstChild("Tower")
+	launcher.center = m:GetPivot().Position
+	return launcher.parts
+end
+
+local function rotateAbout(home, pivot, rot)
+	return CFrame.new(pivot) * rot * CFrame.new(-pivot) * home
+end
+
+local function animateLauncher(phase)
+	local parts = launcherParts()
+	if not parts then
 		return
 	end
-	local hinge = g.CFrame * CFrame.new(0, 0, -g.Size.Z / 2) -- tower end of the arm
-	local target = away and (CFrame.new(hinge.Position) * CFrame.Angles(0, math.rad(-80), 0) * CFrame.new(hinge.Position):Inverse() * gantry.home) or gantry.home
-	TweenService:Create(g, TweenInfo.new(away and 1.4 or 0.1, Enum.EasingStyle.Sine), { CFrame = target }):Play()
+	local function tween(p, cf, t, style, dir)
+		TweenService:Create(p, TweenInfo.new(t, style or Enum.EasingStyle.Sine, dir or Enum.EasingDirection.InOut), { CFrame = cf }):Play()
+	end
+	local home = launcher.home
+	if phase == "arm" and parts.Arm then
+		-- hinge on the arm's end at the tower, swing it forward (out of the cutscene camera's view)
+		local arm = parts.Arm
+		local a, b = home.Arm * Vector3.new(0, 0, arm.Size.Z / 2), home.Arm * Vector3.new(0, 0, -arm.Size.Z / 2)
+		local t = launcher.tower and launcher.tower.Position or a
+		local flatDist = function(v)
+			return Vector2.new(v.X - t.X, v.Z - t.Z).Magnitude
+		end
+		local hinge = flatDist(a) < flatDist(b) and a or b
+		tween(arm, rotateAbout(home.Arm, hinge, CFrame.Angles(0, math.rad(95), 0)), 1.6)
+	elseif phase == "clamps" then
+		for _, name in ipairs({ "ClampL", "ClampR" }) do
+			local p = parts[name]
+			if p then
+				-- fold outward (front clamp forward, back clamp backward) around its bottom outer edge
+				local s = home[name].Position.X > launcher.center.X and 1 or -1
+				local hinge = home[name].Position + Vector3.new(s * p.Size.X / 2, -p.Size.Y / 2, 0)
+				tween(p, rotateAbout(home[name], hinge, CFrame.Angles(0, 0, -s * math.rad(90))), 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+			end
+		end
+	elseif phase == "kick" and parts.Pistons then
+		local p = parts.Pistons
+		tween(p, home.Pistons + Vector3.new(4, 0, 0), 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		task.delay(0.25, function()
+			tween(p, home.Pistons, 0.9, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		end)
+	elseif phase == "reset" then
+		for name, p in pairs(parts) do
+			tween(p, home[name], 1.2)
+		end
+	end
 end
 local countdown = nil -- { body, base, t0, dur } while sitting on the pad
 
@@ -551,7 +608,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			camera.CameraType = Enum.CameraType.Scriptable
 			camera.FieldOfView = 56
 			setLetterbox(true)
-			swingGantry(true)
+			animateLauncher("arm")
 		end
 		Rider.start(player.Character)
 		playMusic("FlightMusic")
@@ -562,6 +619,9 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			UIKit.bounce(bigLabel)
 			UIKit.sound("Beep", 0.5, 1 + (3 - i) * 0.1)
 			addShake(0.15 * (4 - i))
+			if i == 1 then
+				animateLauncher("clamps") -- engines light now too
+			end
 			task.wait(1)
 		end
 		bigLabel.Text = "LIFTOFF!"
@@ -582,6 +642,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		local camFrom = camera.CFrame
 		camera.CameraType = Enum.CameraType.Scriptable
 		setLetterbox(false)
+		animateLauncher("kick")
 		UIKit.sound("Launch", 0.7)
 		addShake(1.2)
 		if launchFx then
@@ -605,7 +666,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			fuel = info.fuel,
 			startX = info.startX,
 			launchedAt = os.clock(),
-			offY = 4,
+			offY = math.max(4, body.Position.Y - Config.pathY(body.Position.X)), -- climb from the cradle
 			offZ = 0,
 			armed = false, -- steering starts once you move the mouse after liftoff
 			stage = 0,
@@ -721,7 +782,7 @@ player:GetAttributeChangedSignal("Flying"):Connect(function()
 		flight = nil
 		countdown = nil
 		setLetterbox(false)
-		swingGantry(false)
+		animateLauncher("reset")
 		Rider.stop()
 		lookHeld, lookYaw, lookPitch = false, 0, 0
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
