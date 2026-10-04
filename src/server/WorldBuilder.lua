@@ -75,7 +75,7 @@ local function buildHub(world)
 		until math.abs(z) > 92 or x < -192
 		local h, wet = TerrainBuilder.height(x, z)
 		if not wet then
-			Scenery.Decor.roundTree(hub, Vector3.new(x, h, z), rng, Color3.fromRGB(110, 210, 90))
+			Lobby.tree(hub, Vector3.new(x, h, z), rng, rng:NextNumber(28, 40))
 		end
 	end
 end

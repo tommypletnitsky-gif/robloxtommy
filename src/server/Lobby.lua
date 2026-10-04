@@ -1,6 +1,6 @@
 -- The starting area: a cartoon space-center park.
---   spawn plaza -> flower avenue + entrance arch -> shuttle statue fountain -> launch apron
---   Rocket Shop hangar (north) and Upgrade Lab dome (south) open onto the statue plaza.
+--   spawn plaza -> flower avenue + entrance arch -> round flower-garden plaza -> launch apron
+--   Rocket Shop hangar (north) and Upgrade Lab dome (south) open onto the central plaza.
 -- Animated bits are tagged for LobbyClient: LobbySpin / LobbyBlink / MiniPad.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -48,6 +48,51 @@ local function disc(parent, diameter, center, top, color, props)
 	return cyl(parent, 0.3, diameter, CFrame.new(center.X, top - 0.15, center.Z) * UP, color, t)
 end
 
+-- Trees + bushes come from Yasu's Stylized Tree Pack (scripts-free, stored in
+-- ServerStorage.TreeModels, pivot at the base, attribute Height). Leaves get a bright tint.
+local LEAF_TINTS = { C(140, 215, 80), C(120, 205, 70), C(150, 220, 90), C(110, 195, 85), C(130, 210, 95) }
+local BLOSSOM = C(255, 160, 200)
+
+local function plant(parent, kind, pos, rng, height, leafTint)
+	local folder = game:GetService("ServerStorage"):FindFirstChild("TreeModels")
+	local list = {}
+	if folder then
+		for _, m in ipairs(folder:GetChildren()) do
+			if m:GetAttribute("Kind") == kind then
+				table.insert(list, m)
+			end
+		end
+	end
+	if #list == 0 then
+		return false
+	end
+	local m = list[rng:NextInteger(1, #list)]:Clone()
+	m:ScaleTo(m:GetScale() * height / m:GetAttribute("Height"))
+	m:PivotTo(CFrame.new(pos - Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
+	local tint = leafTint or LEAF_TINTS[rng:NextInteger(1, #LEAF_TINTS)]
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("SurfaceAppearance") then
+			pcall(function()
+				d.Color = d.AlphaMode == Enum.AlphaMode.Transparency and tint or C(150, 105, 75)
+			end)
+		end
+	end
+	m.Parent = parent
+	return true
+end
+
+function Lobby.tree(parent, pos, rng, height, leafTint)
+	if not plant(parent, "Tree", pos, rng, height or rng:NextNumber(24, 34), leafTint) then
+		Scenery.Decor.roundTree(parent, pos, rng)
+	end
+end
+
+function Lobby.bush(parent, pos, rng, size)
+	if not plant(parent, "Bush", pos, rng, size or rng:NextNumber(4, 6.5)) then
+		Scenery.Decor.bush(parent, pos, rng)
+	end
+end
+
 local function flowerBed(parent, pos, rng)
 	part(parent, { Size = Vector3.new(4, 1.4, 4), CFrame = CFrame.new(pos + Vector3.new(0, 0.7, 0)), Color = C(160, 110, 70), Material = M.WoodPlanks })
 	part(parent, { Size = Vector3.new(3.4, 0.4, 3.4), CFrame = CFrame.new(pos + Vector3.new(0, 1.45, 0)), Color = C(110, 80, 50), Material = M.Ground })
@@ -66,16 +111,6 @@ local function lamp(parent, pos, bannerColor)
 	if bannerColor then
 		part(parent, { Size = Vector3.new(0.2, 4, 2.2), CFrame = CFrame.new(pos + Vector3.new(0, 7.5, 1.3)), Color = bannerColor, CastShadow = false })
 		beam(parent, pos + Vector3.new(0, 9.5, 0), pos + Vector3.new(0, 9.5, 2.4), 0.25, C(60, 60, 80))
-	end
-end
-
-local function bench(parent, pos, facing)
-	local cf = CFrame.lookAt(pos, facing)
-	local wood = C(170, 115, 70)
-	part(parent, { Size = Vector3.new(6, 0.5, 2), CFrame = cf * CFrame.new(0, 1.6, 0), Color = wood, Material = M.WoodPlanks })
-	part(parent, { Size = Vector3.new(6, 1.6, 0.4), CFrame = cf * CFrame.new(0, 2.6, 1) * CFrame.Angles(math.rad(-12), 0, 0), Color = wood, Material = M.WoodPlanks })
-	for _, x in ipairs({ -2.4, 2.4 }) do
-		part(parent, { Size = Vector3.new(0.4, 1.6, 1.8), CFrame = cf * CFrame.new(x, 0.8, 0), Color = C(60, 60, 80) })
 	end
 end
 
@@ -184,51 +219,29 @@ local function spawnArea(hub, rng)
 	end
 end
 
--- Statue plaza: giant shuttle on a pedestal in a fountain, benches, lamps ---------------------------
+-- Central plaza: a low round flower garden (keeps the view to the launch pad open) + 4 lamps -----
 local function statuePlaza(hub, rng)
-	-- fountain pool
-	cyl(hub, 1.8, 30, CFrame.new(PLAZA + Vector3.new(0, 1.1, 0)) * UP, WHITE)
-	cyl(hub, 1.9, 27, CFrame.new(PLAZA + Vector3.new(0, 1.15, 0)) * UP, C(80, 190, 255), { Material = M.Glass, Transparency = 0.25, Reflectance = 0.3 })
-	-- pedestal
-	column(hub, 7, 12, PLAZA, STONE)
-	column(hub, 1.2, 13, PLAZA + Vector3.new(0, 6.4, 0), ORANGE)
-	-- the shuttle, nose up
-	local shuttle = RocketModel.build(Config.getRocket("Shuttle"), 5, false, CFrame.new(PLAZA + Vector3.new(0, 7.6 + 25, 0)) * CFrame.Angles(0, math.rad(90), math.pi / 2))
-	shuttle.Name = "ShuttleStatue"
-	for _, d in ipairs(shuttle:GetDescendants()) do
-		if d:IsA("BasePart") then
-			d.Anchored = true
-			d.CanCollide = true
-		elseif d:IsA("Fire") or d:IsA("ParticleEmitter") or d:IsA("PointLight") then
-			d:Destroy()
+	-- stone curb + grass island
+	cyl(hub, 1.2, 26, CFrame.new(PLAZA + Vector3.new(0, 0.9, 0)) * UP, STONE)
+	cyl(hub, 1.3, 23, CFrame.new(PLAZA + Vector3.new(0, 0.95, 0)) * UP, C(110, 205, 85), { Material = M.Grass })
+	-- rings of flowers (low, so nothing blocks the view)
+	for ring, info in ipairs({ { r = 10, n = 22, c = { C(255, 120, 180), C(255, 255, 255) } }, { r = 7, n = 16, c = { YELLOW, C(255, 160, 60) } }, { r = 4, n = 10, c = { C(190, 120, 255), C(120, 200, 255) } } }) do
+		for i = 0, info.n - 1 do
+			local a = i / info.n * math.pi * 2 + ring
+			local q = PLAZA + Vector3.new(math.cos(a) * info.r, 1.9, math.sin(a) * info.r)
+			ball(hub, 1.3, q, info.c[(i % 2) + 1], { CastShadow = false })
 		end
 	end
-	shuttle.Parent = hub
-	-- fountain sprays around the pedestal
-	for i = 0, 5 do
-		local a = i / 6 * math.pi * 2
-		local nozzle = part(hub, { Size = Vector3.new(1, 1, 1), CFrame = CFrame.new(PLAZA + Vector3.new(math.cos(a) * 9.5, 2.2, math.sin(a) * 9.5)), Color = WHITE, Transparency = 1, CanCollide = false })
-		local e = Instance.new("ParticleEmitter")
-		e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-		e.Color = ColorSequence.new(C(200, 240, 255), C(120, 200, 255))
-		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 0.3) })
-		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
-		e.Lifetime = NumberRange.new(1, 1.4)
-		e.Rate = 25
-		e.Speed = NumberRange.new(14, 18)
-		e.SpreadAngle = Vector2.new(8, 8)
-		e.Acceleration = Vector3.new(0, -26, 0)
-		e.Parent = nozzle
+	-- a few round bushes inside the garden
+	for i = 0, 3 do
+		local a = i / 4 * math.pi * 2 + math.pi / 4
+		Lobby.bush(hub, PLAZA + Vector3.new(math.cos(a) * 8.5, 1.5, math.sin(a) * 8.5), rng, 3.5)
 	end
-	-- benches facing the statue, lamps around the ring
-	for i = 0, 5 do
-		local a = i / 6 * math.pi * 2 + math.pi / 6
-		local p = PLAZA + Vector3.new(math.cos(a) * 22, 0.6, math.sin(a) * 22)
-		bench(hub, p, Vector3.new(PLAZA.X, 0.6, PLAZA.Z) + (p - PLAZA) * 2)
-	end
-	for i = 0, 7 do
-		local a = i / 8 * math.pi * 2
-		lamp(hub, PLAZA + Vector3.new(math.cos(a) * 27, 0.6, math.sin(a) * 27), FLOWERS[(i % #FLOWERS) + 1])
+	Lobby.bush(hub, PLAZA + Vector3.new(0, 1.5, 0), rng, 4.5)
+	-- 4 lamps on the diagonals (not in the walking lines)
+	for i = 0, 3 do
+		local a = i / 4 * math.pi * 2 + math.pi / 4
+		lamp(hub, PLAZA + Vector3.new(math.cos(a) * 26, 0.6, math.sin(a) * 26), FLOWERS[(i % #FLOWERS) + 1])
 	end
 	-- flower beds + lamps along the avenue
 	for _, x in ipairs({ -112, -106 }) do -- just a couple, past the arch
@@ -595,11 +608,15 @@ local function parkProps(hub, rng)
 	bigDish(hub, Vector3.new(-40, 0.3, -66))
 	picnicTable(hub, Vector3.new(-160, 0.3, -66), 0.4)
 	picnicTable(hub, Vector3.new(-104, 0.3, 76), -0.3)
-	for _, p in ipairs({ { -174, -72 }, { -176, -40 }, { -140, -78 }, { -102, -76 }, { -60, -78 }, { -174, 40 }, { -178, 72 }, { -142, 79 }, { -106, 60 }, { -18, -60 } }) do
-		D.roundTree(hub, Vector3.new(p[1], 0.3, p[2]), rng, C(100, 200, 80))
+	for i, p in ipairs({ { -174, -72 }, { -176, -40 }, { -140, -78 }, { -102, -76 }, { -60, -78 }, { -174, 40 }, { -178, 72 }, { -142, 79 }, { -106, 62 }, { -18, -60 } }) do
+		Lobby.tree(hub, Vector3.new(p[1], 0.3, p[2]), rng, nil, (i % 4 == 0) and BLOSSOM or nil)
+	end
+	-- two blossom trees framing the spawn plaza
+	for _, z in ipairs({ -24, 24 }) do
+		Lobby.tree(hub, Vector3.new(-132, 0.3, z), rng, 22, BLOSSOM)
 	end
 	for z = -72, 72, 12 do
-		D.bush(hub, Vector3.new(-181, 0.3, z), rng, C(80, 180, 75))
+		Lobby.bush(hub, Vector3.new(-181, 0.3, z), rng)
 	end
 	for _, p in ipairs({ { -138, -56 }, { -110, -58 }, { -168, 56 }, { -140, 54 }, { -60, 76 }, { -56, -48 } }) do
 		D.flowers(hub, Vector3.new(p[1], 0.3, p[2]), rng)
