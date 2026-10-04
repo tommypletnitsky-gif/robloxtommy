@@ -1,0 +1,584 @@
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+PET FUSION SIMULATOR — UNIFIED FINAL DESIGN + TECHNICAL CONTRACT (v2)
+Single source of truth. 4 implementers (DataAuthor, ServerDev, ClientDev, WorldBuilder)
+code against THIS document only, no cross-talk. Every name, number, and signature is FINAL.
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+
+================================================================================
+SECTION A — CONFLICT RESOLUTIONS (read first; these are binding decisions)
+================================================================================
+The six source specs disagreed in places. Canonical choices, applied everywhere below:
+
+A1. WORLD STRUCTURE: 5 zones in ONE streamed world (from CONTENT spec). Each zone has its
+    own egg pedestals + orb field. Zone gates are server-checked at travel pads. (Overrides
+    the 4-zone / single-zone variants in ECONOMY/MONETIZATION.)
+A2. PET ROSTER: the 33-pet CONTENT roster is canonical (ids, names, rarities, basePower).
+A3. EGGS: 10 eggs (2 per zone) from CONTENT spec, with its costs/odds. (Overrides ECONOMY's
+    6-egg list and MONETIZATION's 4-egg list.)
+A4. MUTATIONS: 5 tiers None/Golden/Rainbow/Void/Celestial with mults 1/3/8/25/100
+    (CONTENT). Fusion is DETERMINISTIC for v2 (no shiny/perfect fuse roll — that was optional).
+A5. SHINY: independent 2.5% (1/40) roll on hatch, x1.5 power, cosmetic (CONTENT). VIP -> 5%.
+A6. REBIRTH:
+      RebirthCost(n) = 1,000,000 * 3.2^n   (n = current rebirths, 0-indexed) [ECONOMY]
+      RebirthMult    = 1 + 0.75 * rebirths  [all specs agree]
+      EquipSlots     = 3 + rebirths, capped at 10 from rebirths; +gamepass/tokens to hard cap 14.
+A7. CLICK VALUE: clickValue = max(1, floor(0.10 * CPS)) * RebirthMult, server-clamped,
+    12 clicks/sec cap. (Reconciles UX/CONTENT "0.10*CPS" with rebirth scaling.) No crit in v2.
+A8. PRIMARY ACTIVE INCOME = ORB FIELDS (CONTENT), not click-spam. Clicking is a minor booster.
+A9. DataStore key = "PetFusionV2", schema Version = 2, with V1->V2 migration (Section G).
+A10. ITEM CURRENCY: Coins only (soft). RebirthTokens tracked but no shop in v2 (store the count).
+
+================================================================================
+SECTION B — ReplicatedStorage.PetData (ModuleScript) — EXACT TABLES + FUNCTIONS
+================================================================================
+File: ReplicatedStorage/PetData.lua  (ModuleScript). Returns one table `PetData`.
+All consumers (server + client) require this. Plain data + pure functions only (no services
+that error on client). Numbers below are FINAL.
+
+----------------------------------------
+B1. PetData.Config  (global tuning constants)
+----------------------------------------
+PetData.Config = {
+  StartCoins        = 250,        -- starter chest grant (after firstJoin)
+  ClickCapPerSec    = 12,
+  HatchCapPerSec    = 6,
+  FuseCapPerSec     = 4,
+  EquipCapPerSec    = 10,
+  EquipSlotsBase    = 3,
+  EquipSlotsHardCap = 14,
+  EquipSlotsRebirthCap = 10,      -- max slots obtainable from rebirths alone
+  ShinyChance       = 0.025,      -- 1/40
+  ShinyChanceVIP    = 0.05,
+  ShinyMult         = 1.5,
+  OfflineRate       = 0.5,        -- 50% of CPS while offline
+  OfflineCapSeconds = 8*3600,     -- 8h (VIP 12h handled in server)
+  OfflineRateVIP    = 0.65,
+  OfflineCapVIP     = 12*3600,
+  InvSoftCap        = 200,
+  InvHardCap        = 500,
+  AutosaveInterval  = 60,
+  NewPlayerBoostSec = 600,        -- 10 min 2x coins on first join
+  LuckCap           = 8,
+}
+
+----------------------------------------
+B2. PetData.Rarities  (color + base-power band, ordered)
+----------------------------------------
+Order array (low->high), used for luck weighting & "rarer half" logic:
+PetData.RarityOrder = {"Common","Uncommon","Rare","Epic","Legendary","Mythic","Secret"}
+PetData.Rarities = {
+  Common    = {color=Color3.fromRGB(176,176,176)},
+  Uncommon  = {color=Color3.fromRGB(95,200,95)},
+  Rare      = {color=Color3.fromRGB(74,168,255)},
+  Epic      = {color=Color3.fromRGB(176,92,255)},
+  Legendary = {color=Color3.fromRGB(255,176,46)},
+  Mythic    = {color=Color3.fromRGB(255,59,107)},
+  Secret    = {color=Color3.fromRGB(20,240,224)},   -- animated stroke client-side
+}
+"Rarer half" for Luck = {Rare,Epic,Legendary,Mythic,Secret} (Common/Uncommon never scaled).
+
+----------------------------------------
+B3. PetData.Mutations  (id -> mult + color). Ordered chain.
+----------------------------------------
+PetData.MutOrder = {"None","Golden","Rainbow","Void","Celestial"}
+PetData.Mutations = {
+  None      = {mult=1,   color=nil},
+  Golden    = {mult=3,   color=Color3.fromRGB(255,215,0)},
+  Rainbow   = {mult=8,   color=Color3.fromRGB(255,255,255)}, -- hue-cycled client-side
+  Void      = {mult=25,  color=Color3.fromRGB(122,43,255)},
+  Celestial = {mult=100, color=Color3.fromRGB(255,255,255)}, -- white glow + halo
+}
+NextMut(mut) returns next id or nil if Celestial (top).
+
+----------------------------------------
+B4. PetData.Pets  (33 entries). Shape: {name, rarity, basePower, pool}
+----------------------------------------
+-- pool ids: "Meadow","Forest","Frost","Volcano","Sky"
+PetData.Pets = {
+  -- MEADOW (7)
+  meadow_bunny   = {name="Meadow Bunny",   rarity="Common",    basePower=2,     pool="Meadow"},
+  field_mouse    = {name="Field Mouse",     rarity="Common",    basePower=3,     pool="Meadow"},
+  clover_cat     = {name="Clover Cat",      rarity="Uncommon",  basePower=7,     pool="Meadow"},
+  honey_bee      = {name="Honey Bee",       rarity="Uncommon",  basePower=9,     pool="Meadow"},
+  sun_pup        = {name="Sunny Pup",       rarity="Rare",      basePower=22,    pool="Meadow"},
+  meadow_fox     = {name="Meadow Fox",      rarity="Epic",      basePower=75,    pool="Meadow"},
+  golden_stag    = {name="Golden Stag",     rarity="Legendary", basePower=300,   pool="Meadow"},
+  -- FOREST (7)
+  mossling       = {name="Mossling",        rarity="Common",    basePower=3,     pool="Forest"},
+  leaf_sprite    = {name="Leaf Sprite",     rarity="Uncommon",  basePower=8,     pool="Forest"},
+  acorn_owl      = {name="Acorn Owl",       rarity="Rare",      basePower=28,    pool="Forest"},
+  thorn_wolf     = {name="Thorn Wolf",      rarity="Epic",      basePower=90,    pool="Forest"},
+  ancient_treant = {name="Ancient Treant",  rarity="Legendary", basePower=400,   pool="Forest"},
+  forest_dragon  = {name="Forest Dragon",   rarity="Mythic",    basePower=1800,  pool="Forest"},
+  whisperwing    = {name="Whisperwing",     rarity="Secret",    basePower=6000,  pool="Forest"},
+  -- FROST (7)
+  snow_chick     = {name="Snow Chick",      rarity="Common",    basePower=4,     pool="Frost"},
+  frost_kit      = {name="Frost Kit",       rarity="Uncommon",  basePower=10,    pool="Frost"},
+  ice_seal       = {name="Ice Seal",        rarity="Rare",      basePower=33,    pool="Frost"},
+  glacier_bear   = {name="Glacier Bear",    rarity="Epic",      basePower=115,   pool="Frost"},
+  aurora_deer    = {name="Aurora Deer",     rarity="Legendary", basePower=480,   pool="Frost"},
+  frost_wyvern   = {name="Frost Wyvern",    rarity="Mythic",    basePower=2300,  pool="Frost"},
+  crystalline    = {name="Crystalline",     rarity="Secret",    basePower=9000,  pool="Frost"},
+  -- VOLCANO (6)
+  ember_imp      = {name="Ember Imp",       rarity="Uncommon",  basePower=10,    pool="Volcano"},
+  cinder_hound   = {name="Cinder Hound",    rarity="Rare",      basePower=35,    pool="Volcano"},
+  magma_golem    = {name="Magma Golem",     rarity="Epic",      basePower=120,   pool="Volcano"},
+  phoenix_chick  = {name="Phoenix Chick",   rarity="Legendary", basePower=500,   pool="Volcano"},
+  inferno_drake  = {name="Inferno Drake",   rarity="Mythic",    basePower=2500,  pool="Volcano"},
+  molten_titan   = {name="Molten Titan",    rarity="Secret",    basePower=14000, pool="Volcano"},
+  -- SKY (6)
+  cloud_lamb       = {name="Cloud Lamb",        rarity="Rare",      basePower=35,    pool="Sky"},
+  star_sprite      = {name="Star Sprite",       rarity="Epic",      basePower=120,   pool="Sky"},
+  seraph_owl       = {name="Seraph Owl",        rarity="Legendary", basePower=500,   pool="Sky"},
+  celestial_unicorn= {name="Celestial Unicorn", rarity="Mythic",    basePower=2500,  pool="Sky"},
+  astral_serpent   = {name="Astral Serpent",    rarity="Secret",    basePower=16000, pool="Sky"},
+  the_architect    = {name="The Architect",     rarity="Secret",    basePower=20000, pool="Sky"}, -- index-100% grant only; also 5% Secret slot of Celestial Deluxe
+}
+STARTER PET (starter chest) = "clover_cat" (Uncommon), auto-equipped. Guarantees CPS>0.
+
+----------------------------------------
+B5. PetData.Eggs  (10 eggs). Shape: {zone, cost, pool, odds={rarity=percent}}
+----------------------------------------
+-- odds percentages sum to 100. Server converts to integer weights (x10 -> sum 1000) at runtime.
+PetData.Eggs = {
+  basic           = {zone=1, cost=50,            pool="Meadow",  odds={Common=55,Uncommon=30,Rare=12,Epic=2.5,Legendary=0.5}},
+  meadow_deluxe   = {zone=1, cost=2500,          pool="Meadow",  odds={Common=30,Uncommon=35,Rare=25,Epic=8,Legendary=1.8,Mythic=0.2}},
+  forest          = {zone=2, cost=1500,          pool="Forest",  odds={Common=40,Uncommon=33,Rare=19,Epic=6,Legendary=1.7,Mythic=0.3}},
+  forest_deluxe   = {zone=2, cost=60000,         pool="Forest",  odds={Common=20,Uncommon=30,Rare=30,Epic=14,Legendary=5,Mythic=0.95,Secret=0.05}},
+  frost           = {zone=3, cost=40000,         pool="Frost",   odds={Common=30,Uncommon=30,Rare=25,Epic=10,Legendary=4,Mythic=0.9,Secret=0.1}},
+  frost_deluxe    = {zone=3, cost=1500000,       pool="Frost",   odds={Common=12,Uncommon=24,Rare=32,Epic=20,Legendary=9,Mythic=2.8,Secret=0.2}},
+  ember           = {zone=4, cost=5000000,       pool="Volcano", odds={Common=18,Uncommon=26,Rare=30,Epic=16,Legendary=7,Mythic=2.7,Secret=0.3}},
+  ember_deluxe    = {zone=4, cost=120000000,     pool="Volcano", odds={Common=6,Uncommon=16,Rare=30,Epic=26,Legendary=14,Mythic=7,Secret=1}},
+  celestial       = {zone=5, cost=750000000,     pool="Sky",     odds={Common=4,Uncommon=12,Rare=26,Epic=28,Legendary=18,Mythic=10,Secret=2}},
+  celestial_deluxe= {zone=5, cost=25000000000,   pool="Sky",     odds={Uncommon=5,Rare=18,Epic=30,Legendary=25,Mythic=17,Secret=5}},
+}
+EggOrder (for UI carousel per zone):
+PetData.EggOrder = {basic,meadow_deluxe,forest,forest_deluxe,frost,frost_deluxe,ember,ember_deluxe,celestial,celestial_deluxe} (as string ids)
+NOTE: pools with no pet of a rolled rarity must never be selected — pickPet re-rolls within
+available rarities of that pool (Volcano/Sky have no Common; their Common odds are reassigned
+to Uncommon at runtime by pickPet's fallback). Volcano lowest = Uncommon, Sky lowest = Rare.
+"whisperwing" only reachable via Forest Deluxe Secret slot; "the_architect" only via Celestial
+Deluxe Secret slot OR index-100% grant; "astral_serpent" is the default Sky Secret.
+
+----------------------------------------
+B6. PetData.Zones  (5). Shape: {name, gate={coins,rebirths}, clickBase, orbValue, eggs={ids}}
+----------------------------------------
+PetData.Zones = {
+  [1] = {name="Meadow",    gate={coins=0,         rebirths=0}, clickBase=1,    orbValue=5,     eggs={"basic","meadow_deluxe"}},
+  [2] = {name="Forest",    gate={coins=5000,      rebirths=0}, clickBase=8,    orbValue=40,    eggs={"forest","forest_deluxe"}},
+  [3] = {name="Frostpeak", gate={coins=250000,    rebirths=0}, clickBase=60,   orbValue=300,   eggs={"frost","frost_deluxe"}},
+  [4] = {name="Volcano",   gate={coins=10000000,  rebirths=1}, clickBase=500,  orbValue=2500,  eggs={"ember","ember_deluxe"}},
+  [5] = {name="Skyhaven",  gate={coins=2000000000,rebirths=5}, clickBase=5000, orbValue=30000, eggs={"celestial","celestial_deluxe"}},
+}
+Gate semantics: BOTH coins (lifetime-earned) AND rebirths must be met. Zone 1 always open.
+
+----------------------------------------
+B7. PetData.Gamepasses  (id -> {assetId, effect}). assetId = TODO placeholder (set in Studio).
+----------------------------------------
+PetData.Gamepasses = {
+  Coins2x      = {assetId=0, coinMult=2},                          -- TODO real id
+  Luck2x       = {assetId=0, luckMult=2},
+  AutoHatch    = {assetId=0, autoHatch=true, x50=true},
+  VIP          = {assetId=0, coinMult=1.5, luckMult=1.25, equipSlots=2, shinyVIP=true, offlineVIP=true, dailyX2=true},
+  EquipSlots2  = {assetId=0, equipSlots=2},
+  FastCoins    = {assetId=0, coinMult=1.5},
+  AutoCollect  = {assetId=0, autoClick=4},                         -- 4 clicks/sec auto
+}
+Stacking: coinMult multiplies; luckMult multiplies (final L clamped to Config.LuckCap=8);
+equipSlots adds (hard cap 14).
+
+----------------------------------------
+B8. PetData.DevProducts  (id -> {assetId, kind, amount/min})
+----------------------------------------
+PetData.DevProducts = {
+  CoinPackS    = {assetId=0, coins=25000,   minCPS=600},   -- grant max(coins, CPS*minCPS sec)
+  CoinPackM    = {assetId=0, coins=150000,  minCPS=2700},
+  CoinPackL    = {assetId=0, coins=1000000, minCPS=10800},
+  LuckBoost15  = {assetId=0, boost="luck",  mult=3, sec=900},
+  CoinBoost15  = {assetId=0, boost="coin",  mult=2, sec=900},
+  MegaHatch50  = {assetId=0, megaHatch=50},
+  InvPlus100   = {assetId=0, invAdd=100},
+}
+
+----------------------------------------
+B9. PetData.DailyRewards  (7-day cycle, loops). reward kinds: coins / boost / pet / luckpotion
+----------------------------------------
+PetData.DailyRewards = {
+  [1] = {coins=1000,  cpsSec=60},
+  [2] = {boost="luck", mult=3, sec=600},
+  [3] = {coins=2500,  cpsSec=120},
+  [4] = {boost="coin", mult=2, sec=600},
+  [5] = {petRarity="Rare"},        -- guaranteed Rare from highest UNLOCKED egg's pool
+  [6] = {coins=5000,  cpsSec=300},
+  [7] = {petRarity="Epic", boost="luck", mult=2, sec=1800}, -- Epic + 2x luck 30m
+}
+Grace: claim within 48h of last claim else streak resets to day 1. VIP doubles coin rewards.
+
+----------------------------------------
+B10. PetData.Quests  (daily pool — server picks 3/day; targets scale with rebirths)
+----------------------------------------
+PetData.Quests = {
+  hatch   = {desc="Hatch %d eggs",     baseTarget=20, perRebirth=20, reward={coins=2000,cpsSec=60}},
+  fuse    = {desc="Fuse %d times",     baseTarget=5,  perRebirth=0,  reward={boost="luck",mult=3,sec=600}},
+  earn    = {desc="Earn %s coins",     scaleCPS=300,                 reward={coins=5000,cpsSec=120}}, -- target=floor(10*CPS*300)
+  index   = {desc="Discover a new pet",baseTarget=1,  perRebirth=0,  reward={boost="coin",mult=2,sec=600}},
+  equipG  = {desc="Equip a Golden+ pet",baseTarget=1, perRebirth=0,  reward={coins=3000}},
+}
+Complete all 3 daily -> bonus chest = {coins=10000} (or Epic pet, server picks coins in v2).
+
+----------------------------------------
+B11. PetData.IndexRewards  (one-time, server-granted; bonus = permanent IndexBonus % CPS)
+----------------------------------------
+PetData.IndexRewards = {
+  poolComplete = 0.10,   -- +10% CPS per fully-discovered pool (any mut counts the base pet); max 5 pools = +50%
+  full100      = {grantPet="the_architect", cpsBonus=1.0},  -- +100% CPS + free Architect
+}
+Index "discovered" key = pet Type id (base pet; mutation/shiny do not create separate index entries in v2).
+Total base pets to 100% = 33 (the_architect counts; granting it on 100% completes itself harmlessly/idempotent).
+
+----------------------------------------
+B12. FUNCTIONS (exact signatures; pure; deterministic except RNG ones take optional rng)
+----------------------------------------
+PetData.power(pet) -> number
+  -- pet = {Type, Mut, Shiny}. Returns BasePower * MutMult * (Shiny and 1.5 or 1).
+  -- Does NOT apply rebirth/gamepass/index (server applies global mults to the SUM).
+  local base = PetData.Pets[pet.Type].basePower
+  return base * PetData.Mutations[pet.Mut].mult * (pet.Shiny and PetData.Config.ShinyMult or 1)
+
+PetData.pickRarity(eggId, luck, rng) -> rarityString
+  -- Build weights from Eggs[eggId].odds (x10 -> ints). For each rarity in the "rarer half"
+  -- set, weight *= luck. Renormalize, weighted pick with rng (default math.random).
+
+PetData.pickPet(eggId, luck, rng) -> {Type, Mut="None", Shiny=bool}
+  -- rarity = pickRarity(...). candidates = pets in egg.pool with that rarity.
+  -- If none (e.g. Volcano Common), step rarity UP one tier until candidates exist.
+  -- Pick uniformly among candidates. Shiny = rng() < shinyChance (caller passes effective chance).
+  -- SPECIAL: Forest Deluxe Secret -> whisperwing; Celestial Deluxe Secret -> 50/50 astral_serpent/the_architect;
+  --          other eggs' Secret -> that pool's default Secret. Encode via per-egg secret override table inside fn.
+
+PetData.nextMut(mut) -> string|nil      -- None->Golden->Rainbow->Void->Celestial->nil
+
+PetData.rebirthCost(rebirths) -> number  -- math.floor(1000000 * 3.2 ^ rebirths)
+
+PetData.rebirthMult(rebirths) -> number  -- 1 + 0.75 * rebirths
+
+PetData.equipSlots(rebirths, gamepassBonus) -> number
+  -- math.min(Config.EquipSlotsBase + math.min(rebirths, Config.EquipSlotsRebirthCap - Config.EquipSlotsBase) ...)
+  -- Concretely: base 3 + min(rebirths,7) from rebirths (=>cap 10), + gamepassBonus, clamp <= 14.
+
+PetData.clickValue(cps, rebirths) -> number   -- max(1, math.floor(0.10*cps)) * rebirthMult(rebirths)
+
+PetData.zoneUnlocked(zoneIndex, coinsEarned, rebirths) -> bool
+  -- coinsEarned >= gate.coins AND rebirths >= gate.rebirths
+
+PetData.effectiveLuck(rebirths, gamepassLuckMult, potionMult) -> number
+  -- L = 1 * gamepassLuckMult * potionMult * (1 + 0.02*rebirths capped at +0.5); clamp <= Config.LuckCap
+
+PetData.format(n) -> string   -- 1,234 / 12.3K / 4.56M / 7.8B / 1.2T then aa,ab,ac... suffixes
+
+================================================================================
+SECTION C — ReplicatedStorage.Remotes  (EXACT remotes + arg shapes)
+================================================================================
+WorldBuilder creates Folder "Remotes" in ReplicatedStorage with these children.
+ALWAYS access via R:WaitForChild(name). Never name a remote Remove/Clone/Destroy.
+All client->server are INTENTS; server validates everything. Pet identity = Guid string.
+
+RemoteEvents (client -> server):
+  ClickCoin        : fire()                         -- registers one crystal tap; server rate-limits 12/s
+  HatchRequest     : fire(eggId:string, count:number)  -- count in {1,3,10,50}
+  EquipPet         : fire(guid:string)
+  UnequipPet       : fire(guid:string)
+  FuseRequest      : fire(guids:{string,string,string})
+  FuseAll          : fire()                          -- server fuses every complete triple
+  SellPets         : fire(guids:{string})
+  SellBulk         : fire(filter:string)             -- "Common"|"Unequipped"|"Unlocked"
+  LockPet          : fire(guid:string, locked:bool)
+  RebirthRequest   : fire()
+  TravelTo         : fire(zoneIndex:number)          -- request zone travel (also via pad ProximityPrompt server-side)
+  ClaimDaily       : fire()
+  ClaimQuest       : fire(questId:string)
+  ClaimPlaytime    : fire()
+  ClaimIndexTier   : fire(poolName:string)           -- or "full100"
+  UseBoostItem     : fire(itemId:string)             -- consumes a stored potion: "luck"|"coin"
+  SetSetting       : fire(key:string, val:any)        -- cosmetic prefs (music/sfx/lowfx/reducedmotion/floats/autohatch)
+  SetTutorialStep  : fire(step:number)                -- advance/complete onboarding (server validates gates)
+
+RemoteEvents (server -> client):
+  StateSync        : fire(snapshot)   -- full or diffed profile snapshot (Section F shape). On join + on change.
+  HatchResult      : fire(pets:{ {Type,Mut,Shiny,rarity} })  -- drives reveal animation
+  Notify           : fire(kind:string, payload:table)        -- "toast"/"welcomeback"/"error"/"questdone" etc.
+  BoostUpdate      : fire(boosts:{ {boostType,expiresAt} })
+  BigHatch         : fire(playerName:string, kind:string, petName:string)  -- broadcast Legendary/Secret/rebirth milestone
+  FXEvent          : fire(kind:string, pos:Vector3, extra:table)  -- generic server-triggered world FX (orb collect, etc.)
+
+RemoteFunctions (client -> server, request/response):
+  GetDropTable     : invoke(eggId:string) -> {rarity=effectivePercent}  -- for Index/odds transparency (applies caller luck)
+
+NOTE: Coin Crystal ALSO has a ClickDetector (world fallback) whose MouseClick is handled
+server-side directly (NOT via FireServer). Orb pickups use server-side Touched (debounced),
+not a remote. Egg pedestals have ProximityPrompt "Hatch" as fallback; primary path is HUD UI.
+
+================================================================================
+SECTION D — WORLD  (WorldBuilder creates these EXACT instances; idempotent rebuild)
+================================================================================
+The build Script (ServerScriptService or a tagged build module run once) MUST:
+  1. Destroy existing workspace.World folder if present, then rebuild (idempotent).
+  2. Create ReplicatedStorage.Remotes (Section C) and ReplicatedStorage.PetData/FXData if missing.
+
+workspace.World/ (Folder)  -- all generated geometry lives here
+  Spawn (SpawnLocation, in Zone 1)
+  Zones/ (Folder)
+    Zone1_Meadow/ (Folder)   ... Zone5_Skyhaven/ (Folder)  -- one per zone
+      Ground (Part/Model), ZoneColor uses Zones[i] tint
+      TravelPad (Part with ProximityPrompt "Travel", ActionText shows next-zone name)
+         -> server reads PetData.Zones gate on PromptTriggered; teleports player HRP to target zone's Arrival.
+      Arrival (Part, teleport target)
+      OrbField/ (Folder)  -- 24 "Orb" Parts (anchored, CanCollide off) respawn 4s after Touched
+      Pedestals/ (Folder)
+         EggPedestal_<eggId>  (Model) per egg in Zones[i].eggs
+            Attribute "EggId" = eggId
+            ProximityPrompt "Hatch" (fallback); HUD region-button is primary
+            EggMesh (Part/MeshPart) for visual + ViewportFrame icon source
+      Billboard_NextZone (Part + BillboardGui) -- shows next gate text + progress bar (client fills)
+  Hub/ (Folder)  -- shared interactables, placed in Zone 1 plaza
+    CoinCrystal (Model) with ClickDetector + named Part "Crystal" (squash anim target)
+    FusionMachine (Model)  -- visual focal point for fuse FX (named Part "MachineCore")
+    RebirthStatue (Model) with ClickDetector (opens rebirth confirm) + BillboardGui (rebirth count)
+    DailyChest (Model, ClickDetector) -> opens Daily panel
+    PlaytimePillar (Model, ClickDetector) -> claims/opens playtime reward
+    QuestBoard (Model, ClickDetector) -> opens Quests panel
+    IndexKiosk (Model, ClickDetector) -> opens Index panel
+    ShopKiosk (Model, ClickDetector) -> opens Robux Shop panel
+  PetFollowers/ (Folder)  -- runtime: equipped-pet follower models, max render handled client-side
+
+Per-player runtime container (server creates on join, NOT in World):
+  player.Pets (Folder)  -- each pet = Configuration instance (Section E)
+
+================================================================================
+SECTION E — PLAYER DATA  (leaderstats, attributes, pet storage)
+================================================================================
+E1. leaderstats (Folder under Player):
+    Coins   (IntValue)   -- current spendable coins
+    Rebirths(IntValue)
+
+E2. Player Attributes (server-set, replicate to client; client reads, never writes authoritative):
+    CPS              (number)  -- current coins/sec (final, after all mults)
+    CoinsEarned      (number)  -- LIFETIME earned (drives zone gates; never decreases on rebirth)
+    Zone             (number)  -- current zone index 1..5
+    ZonesUnlocked    (number)  -- bitmask of unlocked zones (bit i = zone i)
+    EquipSlots       (number)  -- current cap
+    Luck             (number)  -- effective luck readout for UI
+    IndexBonus       (number)  -- additive CPS multiplier fraction from index (e.g. 0.5 = +50%)
+    RebirthTokens    (number)
+    TutorialStep     (number)  -- 0..6 ; 6 = done
+    DataLoaded       (bool)    -- gate: server ignores intents until true
+
+E3. Pet storage: player.Pets/ Folder; each pet = Configuration instance, attributes:
+    Guid     (string, unique — HttpService:GenerateGUID(false))
+    Type     (string, key into PetData.Pets)
+    Mut      (string, one of MutOrder; default "None")
+    Equipped (bool)
+    Locked   (bool, default false)
+    Shiny    (bool, default false)
+  Pet display power computed live via PetData.power(); NOT stored.
+
+================================================================================
+SECTION F — StateSync snapshot shape  (server -> client; full on join, fields on change)
+================================================================================
+snapshot = {
+  coins=number, coinsEarned=number, rebirths=number, cps=number,
+  zone=number, zonesUnlocked={[i]=bool}, equipSlots=number, luck=number,
+  indexBonus=number, rebirthTokens=number, tutorialStep=number,
+  pets={ {guid,Type,Mut,Equipped,Locked,Shiny, power=number} },  -- power precomputed for UI
+  boosts={ {boostType,expiresAt} },                              -- active timed boosts
+  daily={ streak=number, claimableToday=bool, nextResetTs=number },
+  quests={ {id, desc, progress, target, done, claimed, reward} },  -- 3 active
+  playtime={ sessionSec=number, nextRewardSec=number, claimable=bool },
+  index={ seen={[type]=true}, poolsComplete={[pool]=bool}, full100=bool },
+  inventory={ count=number, softCap=number, hardCap=number },
+  gamepasses={ Coins2x=bool, Luck2x=bool, AutoHatch=bool, VIP=bool, EquipSlots2=bool, FastCoins=bool, AutoCollect=bool },
+  settings={ music=bool, sfx=bool, lowfx=bool, reducedmotion=bool, floats=bool, autohatch=bool },
+}
+Diffed sync: server may fire StateSync with a partial table; client merges by key.
+
+================================================================================
+SECTION G — PERSISTENCE  (DataStore "PetFusionV2", Version=2)
+================================================================================
+G1. Save table (one key per userId, key = "p_"..userId):
+  data = {
+    Version=2,
+    coins=number, coinsEarned=number, rebirths=number,
+    equipSlotsBonus=number,          -- from gamepasses/tokens beyond rebirth slots
+    zonesUnlocked=number,            -- bitmask
+    pets={ {Type,Mut,Equipped,Locked,Shiny} },  -- Guid regenerated on load
+    index={ [type]=true },
+    indexTiersClaimed={ [pool]=true, full100=bool },
+    daily={ streak=number, lastClaimTs=number, cycleDay=number },
+    quests={ dayKey=string, list={ {id,progress,claimed} } },
+    boosts={ {boostType, expiresAt} },
+    inventorySoftCap=number,         -- default 200, +100 per InvPlus100 product
+    rebirthTokens=number,
+    settings={ music=bool, sfx=bool, lowfx=bool, reducedmotion=bool, floats=bool, autohatch=bool },
+    tutorialStep=number,
+    firstJoin=bool,                  -- false after starter chest granted
+    lastLeaveTs=number,              -- for offline earnings
+    processedReceipts={ purchaseId,... },  -- last 50, for idempotent ProcessReceipt
+    lock={ jobId=string, ts=number },      -- session lock
+  }
+
+G2. Load: UpdateAsync with retry x5 (2s backoff). Session-lock via data.lock (steal if ts older
+    than 600s). If all retries fail -> kick player ("Data load failed, rejoin"), NEVER start empty.
+    On firstJoin==nil/true: grant Starter Chest (Config.StartCoins + clover_cat equipped +
+    1 luck potion 3x10m + New Player Boost 2x coins 600s), set firstJoin=false, tutorialStep=0.
+    V1->V2 migration: if Version<2 -> keep coins/rebirths/pets (map old Type/Mut/Equipped,
+    default Locked=false,Shiny=false), init all new fields, firstJoin=false (no starter chest
+    for returning players), tutorialStep=6 (done), set Version=2, save.
+
+G3. Save triggers: autosave every Config.AutosaveInterval (60s); PlayerRemoving; BindToClose
+    (30s budget, save all). All writes via UpdateAsync wrapped in pcall; never overwrite good
+    data with nil. Studio: if DataStore API errors, fall back to in-memory mock store + show
+    "MOCK SAVE" corner tag (degrade gracefully).
+
+G4. Offline earnings on rejoin: grant = CPS_at_leave * min(now-lastLeaveTs, cap) * rate
+    (rate 0.5 / cap 8h; VIP 0.65 / 12h). Show Notify("welcomeback",{coins=...}).
+
+G5. ProcessReceipt idempotent: check purchaseId in processedReceipts; grant only after a
+    successful save; keep last 50; return Enum.ProductPurchaseDecision.NotProcessedYet on save fail.
+
+================================================================================
+SECTION H — UI  (ClientDev: StarterGui ScreenGuis + EXACT mobile flows)
+================================================================================
+H0. ScreenGui stack (StarterGui, ResetOnSpawn=false):
+    HUD(DisplayOrder 1), Panels(5), Reveal(8), Tutorial(12), Toast(15).
+    One UIScale per gui: scale = clamp(viewportY/896, 0.75, 1.15), updated on ViewportSizeChanged.
+    Panels width (0.92,0) capped via UISizeConstraint Max=720px. All interactive buttons:
+    TextButton, AutoButtonColor, min 88x88 px (primary 64px tall), TextScaled OFF (fixed sizes
+    H1 28/H2 22/body 18/caption 14), spacing >=12px. Colors per UX token table.
+
+H1. HUD:
+    Top-left pills: Coins (count-up tween), CPS "/s", Rebirth (tap->rebirth confirm).
+    Top-right rail: Daily, Quests, Index, Shop, Settings (red-dot when actionable).
+    Bottom tab bar (72px, 4 tabs): [Eggs] [Pets] [Fuse] [Index]. "Pets" = home.
+    Equipped strip (above tab bar): equip-slot chips "N/M", empty=dashed "+".
+    "Next goal" chip under coins: e.g. "Next: Forest Zone 5,000 (62%)".
+    Crystal TapZone: invisible bottom-third TextButton, fires ClickCoin ONLY when within 18
+    studs of CoinCrystal (client distance check); shows +coin float at touch point.
+
+H2. Eggs panel: snap carousel of current-zone eggs; card = ViewportFrame egg icon, name, price
+    pill (green if affordable), "Odds" expander (per-rarity % from GetDropTable, live luck readout),
+    buttons HATCH x1 (always), x3 / x10 (always, cost N*egg), x50 (AutoHatch gamepass or MegaHatch
+    token), Auto-Hatch toggle (gamepass). Locked higher eggs show goal overlay, still purchasable
+    if affordable+zone unlocked.
+
+H3. Pets panel (inventory + THE FUSION FIX):
+    Grid 3 col phone / 4 col tablet. Cell 104x128: ViewportFrame icon, rarity border, mutation
+    corner ribbon, power "⚡N", "E"+check if equipped (sorted front), lock icon if Locked.
+    Sort dropdown (Power/Rarity/Newest) + filter chips (All/Equipped/rarities/Locked).
+    DEFAULT MODE: single TAP = equip/unequip (toast "Slots full N/M" if full). Long-press 0.35s
+    = Pet Detail bottom sheet (Equip, Lock, Delete-with-confirm, "Fuse matching").
+    FUSE MODE (toggle top-right "FUSE MODE"/"CANCEL"):
+      - Header "Select 3 to Fuse"; first tap locks the fuse group = that Type+Mut; all
+        non-matching cells dim/disable (teaches the rule). NO right-click anywhere.
+      - Tap eligible cell -> numbered selection ring (1/2/3) + lift 8px; tap again deselects.
+      - Sticky bottom FUSE TRAY: 3 slots + result preview "-> Golden {Type}" with next-tier
+        color and "⚡123 -> ⚡369".
+      - "Auto-Pick 3" button: selects 3 lowest-power matching dupes.
+      - "FUSE" button enabled ONLY at exactly 3 -> FuseRequest({g1,g2,g3}); stays in fuse mode.
+      - "Fuse All (xN)" button -> FuseAll(); server loops all complete triples, returns summary toast.
+      - Tier rail header: Base -> Golden(x3) -> Rainbow(x8) -> Void(x25) -> Celestial(x100),
+        highlighting current selection's tier.
+    SERVER VALIDATION (binding): FuseRequest re-checks 3 distinct owned guids, identical
+    Type AND Mut, none Locked-conflict, computes nextMut; destroys 3, creates 1 (next mut,
+    Shiny carries if all 3 shiny else false, power recomputed). Rejects with Notify("error").
+
+H4. Reveal: per Section 2 of FEEL spec — egg shake (3 escalating), crack, rarity-scaled burst
+    (flash+shake+slowmo only Rare+; Legendary/Secret beam + BigHatch broadcast), pet rises,
+    reveal card with rarity gradient. Multi-hatch: one shake/crack, fanned cards 0.12s stagger,
+    only best rarity triggers flash. Tap = fast-forward.
+
+H5. Index panel: grid of 33 base pets (silhouette until seen). Section per pool, progress bar.
+    Tap discovered -> detail (power, source egg, drop %, owned count). Claim buttons for pool/100%
+    rewards (ClaimIndexTier).
+
+H6. Rebirth confirm modal (from Rebirth pill or RebirthStatue): shows Rebirth N->N+1, KEEP
+    (pets/index), LOSE (coins->StartCoins), GAIN (+75% total, +1 slot, zone unlocks), requirement
+    progress bar (PetData.rebirthCost). REBIRTH button disabled until affordable. Success = white
+    flash + statue beam + camera orbit + coin count-down + mult pop (FEEL Section 8).
+
+H7. Quests + Daily panels (top-right icons): Quests = 3 rows (icon/desc/progress/reward/Claim).
+    Daily = 7-day streak strip, Claim once/day, countdown to reset. Playtime = floating pill
+    "Next reward mm:ss", tap to claim (ClaimPlaytime).
+
+H8. Settings panel: toggles Music/SFX/Low-Graphics/Reduced-Motion/Auto-Hatch/Coin-Floats;
+    vol sliders; Redeem Code (stub -> Notify); Reset Tutorial (sets TutorialStep=0); Credits.
+    Persisted via SetSetting -> profile.settings.
+
+H9. Tutorial (Tutorial gui, runs while TutorialStep<6): dimmer + spotlight hole on target
+    AbsolutePosition/Size; mascot "Fynn" speech bubble; blocks non-target input; 6s idle hint.
+    Steps (each advances on the taught action, server-validated via SetTutorialStep):
+      0 Welcome card -> Start (grant handled by starter chest).
+      1 Tap Coin Crystal / TapZone (require 5 taps).
+      2 Open Eggs -> Hatch x1 (gift 50 if short).
+      3 Open Pets -> tap to Equip (require 1 equip).
+      4 Hatch 2 more same -> enter Fuse mode -> select 3 -> FUSE (tutorial egg gives same Common).
+      5 Point at Rebirth statue (info only).
+      6 Point at Daily/Quests; set TutorialStep=6; grant 1,000 coins completion bonus.
+    Skippable (2-tap confirm). Total target < 90s.
+
+================================================================================
+SECTION I — SERVER LOOP / AUTHORITY  (ServerDev)
+================================================================================
+I1. ONE Heartbeat accumulator at 1s granularity ticks coins: every whole second,
+    Coins += CPS (recompute CPS only on state change, else use cached).
+    CPS = sum(equipped PetData.power) * rebirthMult(rebirths) * coinMultGamepasses
+          * coinBoostActive * (1 + IndexBonus).
+    Recompute on: equip/unequip, fuse, rebirth, hatch(no, only equip changes), gamepass grant,
+    boost start/expire, index reward.
+I2. Click: server validates 12/s token bucket; adds PetData.clickValue(CPS, rebirths) * coinMult.
+I3. Hatch: validate afford (count*cost), egg's zone unlocked, count in {1,3,10,50} (50 needs
+    AutoHatch gamepass or MegaHatch token consumed). Deduct, roll N pets via pickPet with
+    effectiveLuck + effective shiny chance, add to Pets (respect inv caps; block at hard cap),
+    fire HatchResult; if any Legendary/Secret -> BigHatch broadcast; mark index seen.
+I4. Fuse / FuseAll: as H3 validation. Mark index seen for resulting mut's base pet (already seen).
+I5. Rebirth: require Coins >= rebirthCost(rebirths). Set Coins=StartCoins, rebirths+=1,
+    rebirthTokens+=1, recompute EquipSlots, recompute zone unlock bitmask, FX broadcast on
+    every 10th. coinsEarned NOT reset.
+I6. Travel: validate zoneUnlocked(target, coinsEarned, rebirths); teleport HRP to Arrival;
+    set Zone attribute; on fail Notify shortfall.
+I7. Orbs: server Touched (debounced per orb 4s) grants Zones[zone].orbValue * coinMult; FXEvent.
+I8. Rate limits (token buckets): Click 12/s, Hatch 6/s, Fuse 4/s, Equip 10/s; reject + error toast.
+I9. All Robux: UserOwnsGamePassAsync cached per session + refresh on PromptGamePassPurchaseFinished;
+    ProcessReceipt idempotent (G5). No gamepass/product grants pets or guarantees Secret.
+
+================================================================================
+SECTION J — ReplicatedStorage.FXData + StarterPlayerScripts.FXClient  (ClientDev)
+================================================================================
+J1. FXData (ModuleScript) per FEEL Section 0: tables Rarity{color,Flash,Shake,Count,Sound,Rare},
+    MutAura{Style,Color}, Sound{key={id,vol,pitch}} (SoundId = "" + TODO comment if id unknown —
+    DO NOT invent ids that error), Music{hub,forest}. Two SoundGroups: "SFX","Music".
+J2. FXClient (LocalScript) primitives (FEEL Section 1): flash, shake, popText, sound, burst,
+    tweenScale, slowmo. Reused single instances; Debris cleanup; pooled (max 12 burst parts,
+    max 4 aura emitters, max 20 coin sprites). Reduced-FX setting scales counts to 30% and
+    skips flash/shake/slowmo. Followers: ONE RenderStepped loop iterates the ring (bob/sway/hop),
+    cap visible followers to 10, cull off-screen aura emitters.
+
+================================================================================
+SECTION K — PACING SANITY (target wall-clock; non-binding guidance for tuning)
+================================================================================
+  t=0    starter chest: 250 coins, clover_cat equipped (~7 CPS w/ NewPlayer 2x ~14), tutorial.
+  ~0:15  first Basic egg (50).  ~0:30 second pet equipped.  ~1:00 equip bar full.
+  ~3-5m  Forest egg (1,500) + Zone 2 (5,000 earned).  ~5m first fusion -> Golden.
+  ~10m   approaching Frost / Zone 3 path.  ~30-45m first Rebirth (1,000,000).
+  ~1hr   Zone 4 (Volcano, 1 rebirth + 10M), Void pet in progress.
+  Zone 5 Skyhaven needs 5 rebirths + 2B earned (multi-hour long tail).
+  Index 100% (33 pets) grants The Architect + +100% CPS — endgame flex.
+
+================================================================================
+SECTION L — BUILD ORDER (so 4 implementers can work in parallel)
+================================================================================
+  DataAuthor : Section B (PetData) + J1 (FXData)  — pure data, no dependencies. Do first.
+  WorldBuilder: Section C (Remotes folder) + D (World/Hub/Zones) idempotent build script.
+  ServerDev  : Sections E,F,G,I — requires PetData + Remotes names (both pinned above).
+  ClientDev  : Sections F (consume), H (UI), J2 (FXClient) — requires Remotes names + PetData.
+  All four depend ONLY on the names/signatures/shapes in this document — no further coordination.
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝ END ＝＝

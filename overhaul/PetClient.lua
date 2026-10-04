@@ -1,0 +1,1 @@
+PetClient LocalScript (StarterPlayerScripts) — full corrected source returned in the `source` field above.
