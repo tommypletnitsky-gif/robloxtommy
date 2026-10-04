@@ -475,6 +475,9 @@ local function setupLeaderstats(player)
 	local stage = Instance.new("IntValue")
 	stage.Name = "Stage"
 	stage.Parent = ls
+	local best = Instance.new("StringValue")
+	best.Name = "Best"
+	best.Parent = ls
 	local rebirths = Instance.new("IntValue")
 	rebirths.Name = "Rebirths"
 	rebirths.Parent = ls
@@ -482,10 +485,12 @@ local function setupLeaderstats(player)
 		money.Value = "$" .. Config.abbreviate(player:GetAttribute("Money") or 0)
 		stage.Value = player:GetAttribute("UnlockedStage") or 1
 		rebirths.Value = player:GetAttribute("Rebirths") or 0
+		best.Value = Config.meters(player:GetAttribute("BestDistance") or 0)
 	end
 	player:GetAttributeChangedSignal("Money"):Connect(refresh)
 	player:GetAttributeChangedSignal("UnlockedStage"):Connect(refresh)
 	player:GetAttributeChangedSignal("Rebirths"):Connect(refresh)
+	player:GetAttributeChangedSignal("BestDistance"):Connect(refresh)
 	refresh()
 end
 

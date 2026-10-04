@@ -72,36 +72,7 @@ end
 -- Celebration -------------------------------------------------------------------------------------
 local gui = UIKit.gui()
 local function celebrate(n)
-	local flash = make("Frame", { Parent = gui, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 240, 255), BackgroundTransparency = 0, ZIndex = 70 })
-	TweenService:Create(flash, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
-	game:GetService("Debris"):AddItem(flash, 1)
-	local title = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.4), Size = UDim2.fromOffset(640, 110), Text = "🌟 REBIRTH " .. n .. "! 🌟", TextColor3 = GOLD, StrokeThickness = 5, ZIndex = 72 })
-	local sub = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.52), Size = UDim2.fromOffset(560, 44), Text = "Money x" .. Config.rebirthMultiplier(n) .. " forever!", TextColor3 = Color3.fromRGB(150, 255, 150), StrokeThickness = 3, ZIndex = 72 })
-	UIKit.bounce(title)
-	UIKit.sound("Win", 0.9, 1.1)
-	-- confetti
-	local colors = { GOLD, PURPLE, Color3.fromRGB(255, 120, 190), Color3.fromRGB(90, 200, 255), Color3.fromRGB(130, 230, 110) }
-	for i = 1, 60 do
-		local c = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(math.random(), -0.05), Size = UDim2.fromOffset(math.random(10, 18), math.random(6, 10)), BackgroundColor3 = colors[i % #colors + 1], Rotation = math.random(0, 360), BorderSizePixel = 0, ZIndex = 71 })
-		local t = 1.6 + math.random() * 1.4
-		TweenService:Create(c, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Position = UDim2.fromScale(c.Position.X.Scale + (math.random() - 0.5) * 0.3, 1.1),
-			Rotation = c.Rotation + math.random(-540, 540),
-		}):Play()
-		game:GetService("Debris"):AddItem(c, t + 0.1)
-	end
-	task.delay(2.6, function()
-		for _, l in ipairs({ title, sub }) do
-			TweenService:Create(l, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
-			local st = l:FindFirstChildOfClass("UIStroke")
-			if st then
-				TweenService:Create(st, TweenInfo.new(0.5), { Transparency = 1 }):Play()
-			end
-		end
-		task.wait(0.6)
-		title:Destroy()
-		sub:Destroy()
-	end)
+	UIKit.celebrate("🌟 REBIRTH " .. n .. "! 🌟", "Money x" .. Config.rebirthMultiplier(n) .. " forever!", GOLD)
 end
 
 rebirthBtn.Instance.Activated:Connect(function()

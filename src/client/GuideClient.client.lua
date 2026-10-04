@@ -138,9 +138,21 @@ RunService.RenderStepped:Connect(function()
 	-- screen hint over a button
 	if kind == "button" and target and target.Parent then
 		local p, s = target.AbsolutePosition, target.AbsoluteSize
-		arrow.Position = UDim2.fromOffset(p.X + s.X / 2, p.Y + 10 - bob)
+		if p.Y < 260 then
+			-- button near the top: point at it from the left
+			arrow.Text = "➡"
+			arrow.AnchorPoint = Vector2.new(1, 0.5)
+			arrow.Position = UDim2.fromOffset(p.X + 6 - bob, p.Y + s.Y / 2)
+			bubble.AnchorPoint = Vector2.new(1, 0.5)
+			bubble.Position = UDim2.fromOffset(p.X - 64, p.Y + s.Y / 2)
+		else
+			arrow.Text = "⬇"
+			arrow.AnchorPoint = Vector2.new(0.5, 1)
+			arrow.Position = UDim2.fromOffset(p.X + s.X / 2, p.Y + 10 - bob)
+			bubble.AnchorPoint = Vector2.new(0.5, 1)
+			bubble.Position = UDim2.fromOffset(math.clamp(p.X + s.X / 2, 160, gui.AbsoluteSize.X - 160), p.Y - 52)
+		end
 		arrow.Visible = true
-		bubble.Position = UDim2.fromOffset(math.clamp(p.X + s.X / 2, 160, gui.AbsoluteSize.X - 160), p.Y - 52)
 	else
 		arrow.Visible = false
 	end
@@ -154,6 +166,7 @@ RunService.RenderStepped:Connect(function()
 		a0.WorldPosition, a1.WorldPosition = from + (to - from).Unit * 3, to
 		marker.Adornee = target
 		marker.StudsOffsetWorldSpace = Vector3.new(0, 8 + bob * 0.15, 0)
+		bubble.AnchorPoint = Vector2.new(0.5, 1)
 		bubble.Position = UDim2.new(0.5, 0, 0, 290)
 	end
 	bubble.Visible = kind ~= nil and (arrow.Visible or world) and true or false

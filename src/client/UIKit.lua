@@ -511,6 +511,37 @@ function UIKit.toast(text, color)
 	end)
 end
 
+-- Big moment: white flash, confetti, a bouncing title and subtitle (rebirth, stage unlock...).
+function UIKit.celebrate(title, sub, color, subColor)
+	local gui = UIKit.gui()
+	local flash = make("Frame", { Parent = gui, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 250, 240), BackgroundTransparency = 0.1, ZIndex = 70 })
+	TweenService:Create(flash, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+	game:GetService("Debris"):AddItem(flash, 1)
+	local t = UIKit.label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.38), Size = UDim2.fromOffset(700, 100), Text = title, TextColor3 = color or Color3.fromRGB(255, 200, 50), StrokeThickness = 5, ZIndex = 72 })
+	local st = UIKit.label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(600, 44), Text = sub or "", TextColor3 = subColor or Color3.fromRGB(150, 255, 150), StrokeThickness = 3, ZIndex = 72 })
+	bounce(t)
+	UIKit.sound("Win", 0.9, 1.1)
+	local colors = { Color3.fromRGB(255, 190, 40), Color3.fromRGB(165, 105, 245), Color3.fromRGB(255, 120, 190), Color3.fromRGB(90, 200, 255), Color3.fromRGB(130, 230, 110) }
+	for i = 1, 60 do
+		local c = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(math.random(), -0.05), Size = UDim2.fromOffset(math.random(10, 18), math.random(6, 10)), BackgroundColor3 = colors[i % #colors + 1], Rotation = math.random(0, 360), BorderSizePixel = 0, ZIndex = 71 })
+		local dur = 1.6 + math.random() * 1.4
+		TweenService:Create(c, TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.fromScale(c.Position.X.Scale + (math.random() - 0.5) * 0.3, 1.1), Rotation = c.Rotation + math.random(-540, 540) }):Play()
+		game:GetService("Debris"):AddItem(c, dur + 0.1)
+	end
+	task.delay(2.6, function()
+		for _, l in ipairs({ t, st }) do
+			TweenService:Create(l, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
+			local s2 = l:FindFirstChildOfClass("UIStroke")
+			if s2 then
+				TweenService:Create(s2, TweenInfo.new(0.5), { Transparency = 1 }):Play()
+			end
+		end
+		task.wait(0.6)
+		t:Destroy()
+		st:Destroy()
+	end)
+end
+
 function UIKit.result(ok, msg)
 	UIKit.toast(msg, ok and Color3.fromRGB(130, 255, 130) or Color3.fromRGB(255, 140, 140))
 	if ok then

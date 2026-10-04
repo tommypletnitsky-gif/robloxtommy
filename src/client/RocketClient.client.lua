@@ -232,9 +232,11 @@ end)
 
 unlockBtn.Instance.Activated:Connect(function()
 	local ok, msg = UnlockStage:InvokeServer()
-	UIKit.result(ok, msg)
 	if ok then
-		UIKit.sound("Win", 0.6)
+		local s = player:GetAttribute("UnlockedStage") or 1
+		UIKit.celebrate("🌍 STAGE " .. s .. " UNLOCKED!", Config.Stages[s].name .. " • " .. Config.multText(Config.moneyPerStud(s)) .. " money per meter", Color3.fromRGB(90, 200, 255))
+	else
+		UIKit.result(ok, msg)
 	end
 end)
 
