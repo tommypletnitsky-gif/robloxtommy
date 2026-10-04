@@ -10,6 +10,8 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local RocketModel = require(ReplicatedStorage.Shared.RocketModel)
 local Kit = require(ServerScriptService.BuildKit)
 local Scenery = require(ServerScriptService.Scenery)
+local Foliage = require(ServerScriptService.Foliage)
+local LobbyLayout = require(ServerScriptService.LobbyLayout)
 
 local part, ball, cyl, column, beam, sign = Kit.part, Kit.ball, Kit.cyl, Kit.column, Kit.beam, Kit.sign
 local darker, lighter = Kit.darker, Kit.lighter
@@ -30,8 +32,8 @@ local PINK = C(255, 110, 170)
 local GREEN = C(90, 190, 90)
 local FLOWERS = { C(255, 120, 180), YELLOW, WHITE, C(255, 90, 90), C(190, 120, 255) }
 
-local SPAWN = Vector3.new(-150, 0, 0)
-local PLAZA = Vector3.new(-80, 0, 0)
+local SPAWN = LobbyLayout.SPAWN
+local PLAZA = LobbyLayout.PLAZA
 local PAD_X = Config.LAUNCH_X - 8
 
 local function tag(inst, name)
@@ -48,57 +50,15 @@ local function disc(parent, diameter, center, top, color, props)
 	return cyl(parent, 0.3, diameter, CFrame.new(center.X, top - 0.15, center.Z) * UP, color, t)
 end
 
--- Trees + bushes come from Yasu's Stylized Tree Pack (scripts-free, stored in
--- ServerStorage.TreeModels, pivot at the base, attribute Height). Leaves get a bright tint.
-local LEAF_TINTS = {
-	C(255, 165, 200), -- pink blossom
-	C(255, 190, 215), -- light pink
-	C(255, 170, 80), -- autumn orange
-	C(250, 205, 90), -- golden yellow
-	C(235, 120, 90), -- red-orange
-	C(140, 185, 110), -- soft green
-	C(120, 175, 120), -- sage green
-}
-local BLOSSOM = C(255, 160, 200)
+-- Trees + bushes: Foliage (Yasu's Stylized Tree Pack), colorful "park" palette.
+local BLOSSOM = Foliage.PALETTES.blossom[1]
 
-local function plant(parent, kind, pos, rng, height, leafTint)
-	local folder = game:GetService("ServerStorage"):FindFirstChild("TreeModels")
-	local list = {}
-	if folder then
-		for _, m in ipairs(folder:GetChildren()) do
-			if m:GetAttribute("Kind") == kind then
-				table.insert(list, m)
-			end
-		end
-	end
-	if #list == 0 then
-		return false
-	end
-	local m = list[rng:NextInteger(1, #list)]:Clone()
-	m:ScaleTo(m:GetScale() * height / m:GetAttribute("Height"))
-	m:PivotTo(CFrame.new(pos - Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
-	local tint = leafTint or LEAF_TINTS[rng:NextInteger(1, #LEAF_TINTS)]
-	for _, d in ipairs(m:GetDescendants()) do
-		if d:IsA("SurfaceAppearance") then
-			pcall(function()
-				d.Color = d.AlphaMode == Enum.AlphaMode.Transparency and tint or C(150, 105, 75)
-			end)
-		end
-	end
-	m.Parent = parent
-	return true
+function Lobby.tree(parent, pos, rng, height, palette)
+	Foliage.tree(parent, pos, rng, height, palette or "park")
 end
 
-function Lobby.tree(parent, pos, rng, height, leafTint)
-	if not plant(parent, "Tree", pos, rng, height or rng:NextNumber(24, 34), leafTint) then
-		Scenery.Decor.roundTree(parent, pos, rng)
-	end
-end
-
-function Lobby.bush(parent, pos, rng, size)
-	if not plant(parent, "Bush", pos, rng, size or rng:NextNumber(4, 6.5)) then
-		Scenery.Decor.bush(parent, pos, rng)
-	end
+function Lobby.bush(parent, pos, rng, size, palette)
+	Foliage.bush(parent, pos, rng, size, palette or "park")
 end
 
 local function flowerBed(parent, pos, rng)
@@ -124,12 +84,11 @@ end
 
 -- Ground: lawn, spawn plaza, avenues, statue plaza, launch apron, hedges ------------------------
 local function ground(hub, rng)
-	part(hub, { Name = "Lawn", Size = Vector3.new(184, 0.3, 172), CFrame = CFrame.new(-95, 0.15, 0), Color = C(122, 172, 96), Material = M.Grass })
 
 	-- spawn plaza: concentric rings
-	disc(hub, 44, SPAWN, 0.45, STONE)
+	disc(hub, 44, SPAWN, 0.45, STONE, { Material = M.Marble })
 	disc(hub, 38, SPAWN, 0.5, BLUE)
-	disc(hub, 32, SPAWN, 0.55, CREAM)
+	disc(hub, 32, SPAWN, 0.55, CREAM, { Material = M.CeramicTiles })
 	for i = 0, 11 do
 		local a = i / 12 * math.pi * 2
 		part(hub, { Size = Vector3.new(1.2, 0.12, 9), CFrame = CFrame.new(SPAWN + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 10.5), Color = i % 2 == 0 and ORANGE or BLUE, CastShadow = false })
@@ -140,7 +99,7 @@ local function ground(hub, rng)
 	-- avenue spawn -> statue plaza, and statue plaza -> launch apron
 	local function avenue(x0, x1)
 		local len, mid = x1 - x0, (x0 + x1) / 2
-		part(hub, { Size = Vector3.new(len, 0.4, 18), CFrame = CFrame.new(mid, 0.4, 0), Color = STONE, CastShadow = false })
+		part(hub, { Size = Vector3.new(len, 0.4, 18), CFrame = CFrame.new(mid, 0.4, 0), Color = C(215, 205, 190), Material = M.Cobblestone, CastShadow = false })
 		for _, side in ipairs({ -1, 1 }) do
 			part(hub, { Size = Vector3.new(len, 0.45, 1.4), CFrame = CFrame.new(mid, 0.42, side * 8.3), Color = ORANGE, CastShadow = false })
 		end
@@ -152,9 +111,9 @@ local function ground(hub, rng)
 	avenue(-56, -38)
 
 	-- statue plaza: rings + star rays
-	disc(hub, 56, PLAZA, 0.45, STONE)
+	disc(hub, 56, PLAZA, 0.45, STONE, { Material = M.Marble })
 	disc(hub, 50, PLAZA, 0.5, ORANGE)
-	disc(hub, 46, PLAZA, 0.55, CREAM)
+	disc(hub, 46, PLAZA, 0.55, CREAM, { Material = M.CeramicTiles })
 	for i = 0, 7 do
 		local a = i / 8 * math.pi * 2
 		part(hub, { Size = Vector3.new(2, 0.12, 14), CFrame = CFrame.new(PLAZA + Vector3.new(0, 0.62, 0)) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 15), Color = BLUE, CastShadow = false })
@@ -162,12 +121,12 @@ local function ground(hub, rng)
 
 	-- side paths to the two buildings
 	for _, side in ipairs({ -1, 1 }) do
-		part(hub, { Size = Vector3.new(12, 0.4, 16), CFrame = CFrame.new(PLAZA.X, 0.4, side * 33), Color = STONE, CastShadow = false })
+		part(hub, { Size = Vector3.new(12, 0.4, 16), CFrame = CFrame.new(PLAZA.X, 0.4, side * 33), Color = C(215, 205, 190), Material = M.Cobblestone, CastShadow = false })
 	end
 
 	-- launch apron: dark concrete with hazard stripes along the edges
 	local ax0, ax1, az = -40, 4, 32
-	part(hub, { Name = "Apron", Size = Vector3.new(ax1 - ax0, 0.4, az * 2), CFrame = CFrame.new((ax0 + ax1) / 2, 0.4, 0), Color = C(88, 92, 110), CastShadow = false })
+	part(hub, { Name = "Apron", Size = Vector3.new(ax1 - ax0, 0.4, az * 2), CFrame = CFrame.new((ax0 + ax1) / 2, 0.4, 0), Color = C(150, 152, 165), Material = M.Concrete, CastShadow = false })
 	for x = ax0, ax1 - 4, 4 do
 		for _, side in ipairs({ -1, 1 }) do
 			part(hub, { Size = Vector3.new(4, 0.45, 1.6), CFrame = CFrame.new(x + 2, 0.43, side * (az - 0.8)), Color = (x / 4) % 2 == 0 and YELLOW or C(40, 40, 45), CastShadow = false })

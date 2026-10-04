@@ -4,6 +4,8 @@
   {"file": "src/vendor/ProfileStore.lua", "path": "ServerScriptService.Vendor.ProfileStore", "class": "ModuleScript"},
   {"file": "src/vendor/spr.lua", "path": "StarterPlayer.StarterPlayerScripts.ClientModules.spr", "class": "ModuleScript"},
   {"file": "src/server/PlayerData.lua", "path": "ServerScriptService.PlayerData", "class": "ModuleScript"},
+  {"file": "src/server/LobbyLayout.lua", "path": "ServerScriptService.LobbyLayout", "class": "ModuleScript"},
+  {"file": "src/server/Foliage.lua", "path": "ServerScriptService.Foliage", "class": "ModuleScript"},
   {"file": "src/server/BuildKit.lua", "path": "ServerScriptService.BuildKit", "class": "ModuleScript"},
   {"file": "src/server/TerrainBuilder.lua", "path": "ServerScriptService.TerrainBuilder", "class": "ModuleScript"},
   {"file": "src/server/Scenery.lua", "path": "ServerScriptService.Scenery", "class": "ModuleScript"},

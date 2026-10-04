@@ -2,6 +2,10 @@
 -- Run several slices (each call stays short) from execute_luau in Edit mode.
 local xFrom, xTo, clearFirst = ...
 local SSS = game:GetService("ServerScriptService")
+local oldLayout = SSS.LobbyLayout -- swap in a fresh copy so require() picks up edits
+local lay = oldLayout:Clone()
+oldLayout:Destroy()
+lay.Parent = SSS
 local m = SSS.TerrainBuilder:Clone() -- fresh require
 m.Parent = SSS.TerrainBuilder.Parent
 local TB = require(m)

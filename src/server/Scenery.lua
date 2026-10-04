@@ -7,6 +7,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Kit = require(ServerScriptService.BuildKit)
 local TerrainBuilder = require(ServerScriptService.TerrainBuilder)
+local Foliage = require(ServerScriptService.Foliage)
 
 local part, ball, cyl, column, beam, sign = Kit.part, Kit.ball, Kit.cyl, Kit.column, Kit.beam, Kit.sign
 local darker, lighter = Kit.darker, Kit.lighter
@@ -33,14 +34,9 @@ end
 -- Earth decorations ------------------------------------------------------------------------
 local D = {}
 
-function D.roundTree(f, p, rng, leaf)
-	leaf = leaf or C(90, 190, 70)
-	local h = rng:NextNumber(8, 13)
-	column(f, h + 1, 1.9, p - Vector3.new(0, 1, 0), WOOD, { Material = M.Wood })
-	local s = rng:NextNumber(8, 11)
-	ball(f, s, p + Vector3.new(0, h + 1.5, 0), leaf, { Material = M.Grass })
-	ball(f, s * 0.72, p + Vector3.new(rng:NextNumber(-3, 3), h - 0.5, rng:NextNumber(-3, 3)), lighter(leaf, 0.12), { Material = M.Grass })
-	ball(f, s * 0.6, p + Vector3.new(rng:NextNumber(-3, 3), h + 3.5, rng:NextNumber(-3, 3)), darker(leaf, 0.1), { Material = M.Grass })
+-- A real stylized tree (Foliage). palette: "meadow", "orchard", "jungle", "island", ... or a Color3.
+function D.roundTree(f, p, rng, palette, height)
+	Foliage.tree(f, p, rng, height or rng:NextNumber(16, 26), palette or "meadow")
 end
 
 function D.bush(f, p, rng, color)
@@ -310,10 +306,10 @@ end
 -- What each Earth stage is decorated with: { decor, count, maxHeight, extra args }
 local BIOMES = {
 	{ { "roundTree", 22 }, { "bush", 12 }, { "flowers", 18 }, { "rocks", 4 } },
-	{ { "barn", 2 }, { "windmill", 2 }, { "hay", 10 }, { "crops", 5 }, { "roundTree", 8, nil, C(130, 200, 60) }, { "flowers", 8 } },
+	{ { "barn", 2 }, { "windmill", 2 }, { "hay", 10 }, { "crops", 5 }, { "roundTree", 8, nil, "orchard" }, { "flowers", 8 } },
 	{ { "cactus", 22 }, { "rocks", 6, nil, C(220, 180, 120) }, { "pyramid", 2 }, { "tumbleweed", 8 } },
 	{ { "cactus", 10 }, { "rocks", 12, nil, C(200, 105, 70) }, { "rockArch", 2 } },
-	{ { "palm", 16 }, { "roundTree", 14, nil, C(50, 150, 60) }, { "bush", 16, nil, C(50, 150, 60) }, { "mushroom", 4 } },
+	{ { "palm", 16 }, { "roundTree", 14, nil, "jungle" }, { "bush", 16, nil, C(50, 150, 60) }, { "mushroom", 4 } },
 	{ { "deadTree", 14 }, { "mushroom", 12 }, { "lilypad", 26 }, { "bush", 8, nil, C(80, 110, 60) } },
 	{ { "pine", 28, nil, true }, { "snowman", 4 }, { "igloo", 2 }, { "rocks", 4, nil, C(200, 210, 225) } },
 	{ { "iceSpikes", 16 }, { "pine", 12, nil, true }, { "igloo", 2 } },
@@ -447,7 +443,7 @@ local function floatingIsland(f, p, rng)
 	ball(f, 26, p + Vector3.new(0, -9, 0), C(150, 105, 70), { Material = M.Ground })
 	ball(f, 16, p + Vector3.new(2, -20, 1), C(130, 90, 60), { Material = M.Ground })
 	ball(f, 8, p + Vector3.new(-1, -28, -1), C(115, 80, 55), { Material = M.Ground })
-	D.roundTree(f, p + Vector3.new(rng:NextNumber(-6, 6), 1.5, rng:NextNumber(-6, 6)), rng, C(90, 200, 70))
+	D.roundTree(f, p + Vector3.new(rng:NextNumber(-6, 6), 1.5, rng:NextNumber(-6, 6)), rng, "island", rng:NextNumber(13, 18))
 	D.flowers(f, p + Vector3.new(rng:NextNumber(-7, 7), 1.5, rng:NextNumber(-7, 7)), rng)
 	-- a little waterfall pouring off the edge
 	local edge = p + Vector3.new(0, 0, p.Z > 0 and -14.5 or 14.5)

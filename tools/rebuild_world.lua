@@ -10,6 +10,8 @@ local function fresh(m)
 end
 fresh(RS.Shared.Config)
 fresh(RS.Shared.RocketModel)
+fresh(SSS.LobbyLayout)
+fresh(SSS.Foliage)
 fresh(SSS.BuildKit)
 fresh(SSS.TerrainBuilder)
 fresh(SSS.Scenery)

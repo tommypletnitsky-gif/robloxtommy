@@ -4,6 +4,7 @@
 -- TerrainBuilder.height(x, z) is shared with WorldBuilder so scenery sits on the ground.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
+local LobbyLayout = require(game:GetService("ServerScriptService").LobbyLayout)
 
 local TerrainBuilder = {}
 
@@ -73,9 +74,9 @@ TerrainBuilder.VOLCANOES = VOLCANOES
 
 local plazaMinX, plazaMaxX = Config.HUB_CENTER.X - 92, Config.HUB_CENTER.X + 92
 
--- The lobby's concrete plaza (+ launch pad) sits here; no grass blades under it.
-function TerrainBuilder.underPlaza(x, z)
-	return x > plazaMinX - 4 and x < Config.LAUNCH_X + 6 and math.abs(z) < 90
+-- Paved spots in the lobby park: the terrain sits a little lower there and has no grass blades.
+local function underPaving(x, z)
+	return LobbyLayout.inPark(x, z) and LobbyLayout.isPaved(x, z)
 end
 
 -- Height of the ground (top surface) at (x, z), and whether water fills above it.
@@ -123,7 +124,7 @@ function TerrainBuilder.height(x, z)
 	if x >= Config.LAUNCH_X - 6 then
 		h -= 1.2 * (1 - smoothstep(19, 25, d))
 	end
-	if TerrainBuilder.underPlaza(x, z) then
+	if underPaving(x, z) then
 		h -= 1.2
 	end
 
@@ -158,8 +159,8 @@ function TerrainBuilder.material(x, z, h)
 	local s = stageIndex(x)
 	local land = LAND[s]
 	local mat = land.mat
-	if TerrainBuilder.underPlaza(x, z) then
-		return M.Ground
+	if LobbyLayout.inPark(x, z) then
+		return underPaving(x, z) and M.Ground or M.Grass -- swaying grass on the lawns
 	end
 	if x >= Config.LAUNCH_X - 4 and math.abs(z) < 21 and h < 0.1 and (mat == M.Grass or mat == M.LeafyGrass) then
 		return M.Ground -- under the runway: no grass blades poking through the road
