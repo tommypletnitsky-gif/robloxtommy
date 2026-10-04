@@ -79,6 +79,29 @@ local function refresh(player)
 	end
 	player:SetAttribute("PetMultiplier", Config.petMultiplier(kinds))
 	player:SetAttribute("PetKinds", table.concat(kinds, ","))
+
+	-- Pet Index: every kind you've ever owned (kept even if you delete the pet); a full egg set
+	-- (all 4 of its pets) gives +10% money forever (IndexSets, used by GameServer).
+	local index = {}
+	for kind in string.gmatch(player:GetAttribute("PetIndex") or "", "%w+") do
+		index[kind] = true
+	end
+	local changed = false
+	for _, kind in pairs(owned) do
+		if not index[kind] then
+			index[kind] = true
+			changed = true
+		end
+	end
+	if changed then
+		local list = {}
+		for kind in pairs(index) do
+			table.insert(list, kind)
+		end
+		table.sort(list)
+		player:SetAttribute("PetIndex", table.concat(list, ","))
+	end
+	player:SetAttribute("IndexSets", Config.indexSets(index))
 end
 
 local function bestFirst(a, b)

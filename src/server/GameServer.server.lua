@@ -44,6 +44,7 @@ local function moneyMultiplier(player)
 	local m = 1 + (player:GetAttribute("MoneyLevel") or 0) * Config.Upgrades.Money.perLevel
 	m *= Config.rebirthMultiplier(player:GetAttribute("Rebirths") or 0)
 	m *= player:GetAttribute("PetMultiplier") or 1 -- set by PetServer from the equipped pets
+	m *= 1 + (player:GetAttribute("IndexSets") or 0) * Config.INDEX_SET_BONUS -- completed Pet Index sets
 	return m
 end
 

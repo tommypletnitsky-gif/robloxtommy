@@ -418,9 +418,73 @@ end)
 -- Pets window ---------------------------------------------------------------------------------------
 local petsWindow, petsList = UIKit.window("Pets", PINK, UDim2.fromOffset(680, 500), petFolder and petFolder:FindFirstChild("Kitty") or nil)
 local topRow = UIKit.row(petsList, 0, 66)
-local summary = label({ Parent = topRow, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -220, 0, 28), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-local summary2 = label({ Parent = topRow, Position = UDim2.fromOffset(14, 36), Size = UDim2.new(1, -220, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 12 })
+local summary = label({ Parent = topRow, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -370, 0, 28), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+local summary2 = label({ Parent = topRow, Position = UDim2.fromOffset(14, 36), Size = UDim2.new(1, -370, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 12 })
 local equipBest = UIKit.button({ Parent = topRow, Text = "Equip Best", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(180, 50), ZIndex = 12 })
+local indexBtn = UIKit.button({ Parent = topRow, Text = "📖 Index", Color = Color3.fromRGB(110, 140, 240), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -200, 0.5, 0), Size = UDim2.fromOffset(140, 50), ZIndex = 12 })
+
+-- Pet Index: all 24 pets by egg; ones you've never had are black silhouettes. A full egg set
+-- gives +10% money forever (server: PetServer / GameServer).
+local indexWindow, indexList = UIKit.window("Pet Index", Color3.fromRGB(110, 140, 240), UDim2.fromOffset(700, 520))
+local indexHead = UIKit.row(indexList, 0, 56)
+local indexHeadText = label({ Parent = indexHead, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 1, -16), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+local indexCards = {} -- [kind] = { vp, name }
+local eggHeads = {} -- [egg.id] = { label, card }
+for i, egg in ipairs(Config.Eggs) do
+	local section = UIKit.card(indexList, { LayoutOrder = i, Size = UDim2.new(1, -12, 0, 214), ZIndex = 11, Tint = UIKit.lighter(egg.color, 0.7) })
+	local head = label({ Parent = section, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+	local row = make("Frame", { Parent = section, Position = UDim2.fromOffset(10, 44), Size = UDim2.new(1, -20, 0, 160), BackgroundTransparency = 1, ZIndex = 12 }, {
+		make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
+	})
+	for j, rarity in ipairs(RARITIES) do
+		local kind = egg.pets[rarity]
+		local color = Config.Rarities[rarity].color
+		local card = make("Frame", { Parent = row, LayoutOrder = j, Size = UDim2.fromOffset(140, 156), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(16), UIKit.stroke(3.5, color) })
+		local vp = viewport(card, petModel(kind), { Position = UDim2.fromOffset(10, 4), Size = UDim2.fromOffset(120, 100), ZIndex = 13 })
+		local name = label({ Parent = card, Position = UDim2.fromOffset(4, 104), Size = UDim2.new(1, -8, 0, 24), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
+		label({ Parent = card, Position = UDim2.fromOffset(4, 128), Size = UDim2.new(1, -8, 0, 20), Text = rarity, TextColor3 = color, StrokeThickness = 1.5, ZIndex = 13 })
+		indexCards[kind] = { vp = vp, name = name }
+	end
+	eggHeads[egg.id] = { label = head, egg = egg }
+end
+
+local function refreshIndex()
+	local have = {}
+	for kind in string.gmatch(player:GetAttribute("PetIndex") or "", "%w+") do
+		have[kind] = true
+	end
+	local found = 0
+	for kind, c in pairs(indexCards) do
+		local got = have[kind] == true
+		found += got and 1 or 0
+		c.vp.ImageColor3 = got and Color3.new(1, 1, 1) or Color3.new(0, 0, 0)
+		c.vp.ImageTransparency = got and 0 or 0.35
+		c.name.Text = got and Config.Pets[kind].name or "???"
+	end
+	for _, h in pairs(eggHeads) do
+		local n = 0
+		for _, kind in pairs(h.egg.pets) do
+			n += have[kind] and 1 or 0
+		end
+		local done = n == 4
+		h.label.Text = h.egg.name .. "   " .. n .. " / 4" .. (done and "   ✔ +10% money!" or "   (find all 4: +10% money)")
+		h.label.TextColor3 = done and Color3.fromRGB(40, 160, 70) or UIKit.INK
+	end
+	local total = 0
+	for _ in pairs(indexCards) do
+		total += 1
+	end
+	local sets = player:GetAttribute("IndexSets") or 0
+	indexHeadText.Text = "📖 Found " .. found .. " / " .. total .. " pets   •   Money bonus: +" .. math.floor(sets * Config.INDEX_SET_BONUS * 100 + 0.5) .. "%"
+end
+player:GetAttributeChangedSignal("PetIndex"):Connect(refreshIndex)
+player:GetAttributeChangedSignal("IndexSets"):Connect(refreshIndex)
+refreshIndex()
+indexBtn.Instance.Activated:Connect(function()
+	refreshIndex()
+	UIKit.toggle(indexWindow)
+end)
+
 equipBest.Instance.Activated:Connect(function()
 	UIKit.result(PetAction:InvokeServer("equipBest"))
 end)

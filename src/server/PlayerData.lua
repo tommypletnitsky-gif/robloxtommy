@@ -30,6 +30,7 @@ PlayerData.DEFAULTS = {
 	Pets = "", -- "uid:Kind;uid:Kind" (see Config.parsePets)
 	EquippedPets = "", -- "uid,uid"
 	NextPetId = 1,
+	PetIndex = "", -- every pet kind you've ever owned (Pet Index)
 	StatFlights = 0, -- quest stats
 	StatDistance = 0,
 	StatCoins = 0,

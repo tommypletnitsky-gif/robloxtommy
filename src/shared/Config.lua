@@ -231,6 +231,24 @@ for _, egg in ipairs(Config.Eggs) do
 	end
 end
 
+-- Pet Index: owning all 4 pets of an egg (ever) completes its set: +10% money each.
+Config.INDEX_SET_BONUS = 0.1
+function Config.indexSets(index) -- index = { [kind] = true }
+	local n = 0
+	for _, egg in ipairs(Config.Eggs) do
+		local all = true
+		for _, kind in pairs(egg.pets) do
+			if not index[kind] then
+				all = false
+			end
+		end
+		if all then
+			n += 1
+		end
+	end
+	return n
+end
+
 function Config.getEgg(id)
 	for _, e in ipairs(Config.Eggs) do
 		if e.id == id then
