@@ -373,9 +373,9 @@ end
 --   To land early, pull the aim all the way down and keep pulling (the ring fills up red first).
 local UserGameSettings = UserSettings():GetService("UserGameSettings")
 local STEER = {
-	mouse = 0.18, -- studs per pixel of mouse movement (x Roblox mouse sensitivity): ~2-3 cm of mouse = edge of the lane
-	touch = 150, -- studs per screen height dragged
-	keys = 48, -- studs per second while a key is held
+	mouse = 0.11, -- studs per pixel of mouse movement (x Roblox mouse sensitivity): ~4 cm of mouse = edge of the lane
+	touch = 110, -- studs per screen height dragged
+	keys = 34, -- studs per second while a key is held
 	diveCharge = 14, -- extra pull below the lowest height that starts a landing (studs, ~1 cm of mouse)
 	keyDive = 11, -- dive charge per second while holding a down key at the lowest height
 }
@@ -1049,9 +1049,9 @@ RunService.RenderStepped:Connect(function(dt)
 	local targetZ, targetY = aim.z, f.diving and -4 or aim.y
 	local steps = math.max(1, math.ceil(dt * 120))
 	local h = dt / steps
-	local w, zeta = 4.2, 0.85
+	local w, zeta = 3.6, 0.9 -- how quickly the rocket glides after your aim (calm, no overshoot)
 	for _ = 1, steps do
-		f.vz = math.clamp(f.vz + (w * w * (targetZ - f.simZ) - 2 * zeta * w * f.vz) * h, -40, 40)
+		f.vz = math.clamp(f.vz + (w * w * (targetZ - f.simZ) - 2 * zeta * w * f.vz) * h, -32, 32)
 		f.vy = math.clamp(f.vy + (w * w * (targetY - f.simY) - 2 * zeta * w * f.vy) * h, -50, 45)
 		f.simZ += f.vz * h
 		f.simY += f.vy * h
@@ -1120,9 +1120,9 @@ RunService.RenderStepped:Connect(function(dt)
 		})
 	end
 
-	-- Chase camera: straight behind and a little above, never rolls. It trails your sideways and
-	-- up/down moves on a soft spring (you see the rocket swing as you steer) and looks a bit toward
-	-- where you're going. Distance = your zoom (eased) + a stretch while boosting + the launch kick.
+	-- Chase camera: straight behind and a little above, never rolls. It follows only part of your
+	-- sideways / up-down moves and eases after them, so the rocket swings across the screen as you
+	-- steer while the view stays calm. Distance = your zoom (eased) + a stretch on boosts + launch kick.
 	if now > f.pullHold then
 		f.pull += (0 - f.pull) * (1 - math.exp(-dt * 1.4))
 	end
@@ -1136,18 +1136,20 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 		return x, v
 	end
-	f.camZ, f.camVZ = follow(f.camZ, f.camVZ, pos.Z, 7)
-	f.camY, f.camVY = follow(f.camY, f.camVY, pos.Y, 6)
-	local focus = Vector3.new(pos.X, f.camY + 2, f.camZ)
-	f.focus = focus
+	local CAM_FOLLOW_SIDE, CAM_FOLLOW_UP, CAM_EASE = 0.85, 0.92, 3.8 -- share of your moves it follows, ease speed
+	f.camZ, f.camVZ = follow(f.camZ, f.camVZ, pos.Z * CAM_FOLLOW_SIDE, CAM_EASE)
+	f.camY, f.camVY = follow(f.camY, f.camVY, pathY + (pos.Y - pathY) * CAM_FOLLOW_UP, CAM_EASE)
+	local base = Vector3.new(pos.X, f.camY + 2, f.camZ)
+	f.focus = pos + Vector3.new(0, 2, 0)
 	local el = math.atan(0.27) + lookPitch
 	local offset = Vector3.new(-math.cos(el) * math.cos(lookYaw), math.sin(el), math.cos(el) * math.sin(lookYaw)) * dist
-	local camPos = focus + offset
+	local camPos = base + offset
 	camPos = Vector3.new(camPos.X, math.max(camPos.Y, Config.pathY(camPos.X) + 2), camPos.Z)
 	local ahead = dist * 0.9 * math.max(0, 1 - math.abs(lookYaw))
-	local leadZ = f.outOfFuel and 0 or (aim.z - pos.Z) * 0.25
-	local leadY = f.outOfFuel and 0 or ((f.diving and -4 or aim.y) - (pos.Y - pathY)) * 0.1
-	local chase = CFrame.lookAt(camPos, focus + Vector3.new(ahead, leadY, leadZ))
+	-- look mostly straight ahead, turned just a little toward the rocket (and where you steer)
+	local lookZ = f.camZ + (pos.Z - f.camZ) * 0.45 + (f.outOfFuel and 0 or (aim.z - pos.Z) * 0.08)
+	local lookY = f.camY + 2 + (pos.Y - f.camY) * 0.5 + (f.outOfFuel and 0 or ((f.diving and -4 or aim.y) - (pos.Y - pathY)) * 0.04)
+	local chase = CFrame.lookAt(camPos, Vector3.new(pos.X + ahead, lookY, lookZ))
 	local fov = (f.outOfFuel and 66 or 70 + math.min(8, f.speed * speedMul * 0.025)) + f.boostCam * 6 + f.pull * 0.4
 	camera.FieldOfView += (fov - camera.FieldOfView) * (1 - math.exp(-dt * 4))
 	if f.camBlend < 1 then
