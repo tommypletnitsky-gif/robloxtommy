@@ -193,7 +193,9 @@ local function refreshUpgrades()
 		local level = player:GetAttribute(key .. "Level") or 0
 		if key == "Cannon" then
 			local power, time = Config.cannonBlast(level)
-			r.info.Text = string.format("Lv %d/%d  %s  •  blast x%.1f for %.1fs", level, u.maxLevel, Config.cannonTier(level), power, time)
+			local tier, nextTier = Config.cannonTierInfo(level)
+			r.info.Text = string.format("Lv %d/%d  %s  •  x%.1f for %.1fs", level, u.maxLevel, tier.name, power, time)
+				.. (nextTier and ("  •  new look at Lv " .. nextTier.from) or "")
 		else
 			r.info.Text = string.format("Level %d / %d   +%d%% %s", level, u.maxLevel, math.floor(level * u.perLevel * 100 + 0.5), WHAT[key])
 		end

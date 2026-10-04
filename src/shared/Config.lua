@@ -83,22 +83,31 @@ function Config.cannonBlast(level)
 	level = level or 0
 	return 2 + level * Config.Upgrades.Cannon.perLevel, 1.6 + level * 0.06 -- speed x, seconds
 end
--- The cannon's name by level (shown in the Upgrades window and on the cannon's sign).
+-- The cannon's look by level: a new cannon every 3 levels (models in ReplicatedStorage.CannonSkins).
 Config.CannonTiers = {
-	{ from = 0, name = "Wooden Cannon" },
-	{ from = 6, name = "Iron Cannon" },
-	{ from = 12, name = "Golden Cannon" },
-	{ from = 18, name = "Diamond Cannon" },
-	{ from = 24, name = "Galaxy Cannon" },
+	{ from = 0, name = "Wooden Cannon", skin = "Wooden" },
+	{ from = 3, name = "Stone Cannon", skin = "Stone" },
+	{ from = 6, name = "Iron Cannon", skin = "Iron" },
+	{ from = 9, name = "Pirate Cannon", skin = "Pirate" },
+	{ from = 12, name = "Golden Cannon", skin = "Golden" },
+	{ from = 15, name = "Candy Cannon", skin = "Candy" },
+	{ from = 18, name = "Ice Cannon", skin = "Ice" },
+	{ from = 21, name = "Lava Cannon", skin = "Lava" },
+	{ from = 24, name = "Diamond Cannon", skin = "Diamond" },
+	{ from = 27, name = "Galaxy Cannon", skin = "Galaxy" },
 }
-function Config.cannonTier(level)
-	local tier = Config.CannonTiers[1]
-	for _, t in ipairs(Config.CannonTiers) do
+-- tier table for a level, and the next tier (nil at the top)
+function Config.cannonTierInfo(level)
+	local tier, nextTier = Config.CannonTiers[1], nil
+	for i, t in ipairs(Config.CannonTiers) do
 		if (level or 0) >= t.from then
-			tier = t
+			tier, nextTier = t, Config.CannonTiers[i + 1]
 		end
 	end
-	return tier.name
+	return tier, nextTier
+end
+function Config.cannonTier(level)
+	return (Config.cannonTierInfo(level)).name
 end
 
 -- Trails behind your rocket (bought with money in the Rockets window).

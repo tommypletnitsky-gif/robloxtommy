@@ -501,23 +501,21 @@ end
 --   "load"   you climb in: the fuse starts sparking
 --   "fire"   BOOM: the barrel kicks back, a puff of smoke from the muzzle, then it rolls home
 --   "reset"  flight over: everything back in place, fuse out
-local cannon = { model = nil, home = {}, fuse = nil }
+local cannon = { model = nil, home = {}, fuse = nil, skin = nil, hub = nil }
+
+-- Your cannon's look follows your Cannon Power level (Config.CannonTiers -> ReplicatedStorage
+-- .CannonSkins). The shared cannon stays in the world (collisions) but is hidden on your screen and
+-- a copy of your skin stands on the same spot; a new tier swaps in with a puff of smoke.
+local function hubCannon()
+	local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
+	return hub and hub:FindFirstChild("Cannon")
+end
+
 local function cannonModel()
 	if cannon.model and cannon.model.Parent then
 		return cannon.model
 	end
-	local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
-	local m = hub and hub:FindFirstChild("Cannon")
-	cannon.model = m
-	cannon.home = {}
-	if m then
-		for _, p in ipairs(m:GetDescendants()) do
-			if p:IsA("BasePart") then
-				cannon.home[p] = p.CFrame
-			end
-		end
-	end
-	return m
+	return hubCannon()
 end
 
 local function cannonPart(name)
@@ -525,7 +523,72 @@ local function cannonPart(name)
 	return m and m:FindFirstChild(name, true)
 end
 
-local function muzzleSmoke(at, dir)
+local muzzleSmoke -- defined below
+local function refreshCannonSkin(announce)
+	local hub = hubCannon()
+	local skins = ReplicatedStorage:FindFirstChild("CannonSkins")
+	if not hub or not skins then
+		return
+	end
+	local tier = Config.cannonTierInfo(player:GetAttribute("CannonLevel") or 0)
+	local template = skins:FindFirstChild(tier.skin)
+	if not template then
+		return
+	end
+	if cannon.skin == tier.skin and cannon.hub == hub and cannon.model and cannon.model.Parent then
+		return
+	end
+	if cannon.model then
+		cannon.model:Destroy()
+	end
+	if cannon.fuse then
+		cannon.fuse:Destroy()
+		cannon.fuse = nil
+	end
+	for _, p in ipairs(hub:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.LocalTransparencyModifier = 1
+		end
+	end
+	local m = template:Clone()
+	m.Name = "MyCannon"
+	m:PivotTo(hub:GetPivot())
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+		end
+	end
+	m:SetAttribute("Muzzle", hub:GetPivot() * template:GetAttribute("MuzzleLocal"))
+	m:SetAttribute("Aim", hub:GetAttribute("Aim"))
+	m.Parent = workspace
+	cannon.model, cannon.skin, cannon.hub = m, tier.skin, hub
+	cannon.home = {}
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then
+			cannon.home[p] = p.CFrame
+		end
+	end
+	if announce then
+		local mid = m:GetBoundingBox().Position
+		muzzleSmoke(mid, Vector3.yAxis)
+		UIKit.toast("💥 Your cannon is now a " .. tier.name .. "!", Color3.fromRGB(255, 210, 90))
+		UIKit.sound("Win", 0.6, 1.2)
+	end
+end
+player:GetAttributeChangedSignal("CannonLevel"):Connect(function()
+	refreshCannonSkin(true)
+end)
+task.spawn(function()
+	while true do
+		refreshCannonSkin(false) -- also picks up a rebuilt world
+		task.wait(2)
+	end
+end)
+
+function muzzleSmoke(at, dir)
 	local p = Instance.new("Part")
 	p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch, p.Transparency = true, false, false, false, 1
 	p.Size = Vector3.one
@@ -553,8 +616,17 @@ local function animateCannon(phase)
 	end
 	local barrel = cannonPart("Barrel")
 	if phase == "load" then
-		local fusePart = cannonPart("Fuse") or barrel
-		if fusePart and not cannon.fuse then
+		local fusePart = cannonPart("Fuse")
+		local holder = fusePart
+		if not fusePart and barrel then
+			-- no fuse on this cannon: sparks from the back end of the barrel
+			holder = Instance.new("Attachment")
+			holder.Name = "FuseSpot"
+			holder.Parent = barrel
+			local pivot = m:GetPivot().Position
+			holder.WorldPosition = Vector3.new(pivot.X - 12, barrel.Position.Y + barrel.Size.Y * 0.35, pivot.Z)
+		end
+		if holder and not cannon.fuse then
 			local e = Instance.new("ParticleEmitter")
 			e.Name = "FuseSparks"
 			e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
@@ -564,8 +636,8 @@ local function animateCannon(phase)
 			e.Speed = NumberRange.new(4, 9)
 			e.SpreadAngle = Vector2.new(180, 180)
 			e.Rate = 60
-			e.Parent = fusePart
-			cannon.fuse = e
+			e.Parent = holder
+			cannon.fuse = holder:IsA("Attachment") and holder or e
 		end
 	elseif phase == "fire" then
 		if cannon.fuse then
@@ -730,6 +802,12 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		end
 		if countdown and countdown.body == body then
 			body.CFrame = countdown.base
+		end
+		-- pop out of the mouth of the cannon you see (each cannon look has its own muzzle height)
+		local mz = cannon.model and cannon.model:GetAttribute("Muzzle")
+		if mz then
+			local dir = cannon.model:GetAttribute("Aim") or Vector3.xAxis
+			body.CFrame = CFrame.lookAt(mz - dir, mz) * CFrame.Angles(0, math.pi / 2, 0)
 		end
 		countdown = nil
 		local camFrom = camera.CFrame
