@@ -38,3 +38,16 @@ fuel runs out. Distance = money. Money buys better rockets, upgrades, eggs and n
 | `src/client/RocketClient.client.lua` | StarterPlayerScripts.RocketClient — steering + HUD |
 
 All tuning (speeds, fuel, prices, stage costs) lives in `Config.lua`.
+
+## Makeover answers (2026-10-04, "it still doesn't look like a game")
+- Art: BRIGHT CARTOON SIMULATOR (Pet Sim 99 style): saturated colors, round shapes, sparkles.
+- Lobby: ROCKET LAUNCH BASE (launch tower, fuel tanks, hangar w/ shops, countdown screen).
+- Launch feel: camera shake + smoke, sounds + music, slow-mo landing + coin burst + big result screen.
+- In flight: MOUSE STEERING (rocket follows the cursor; finger drag on phone; keys as backup),
+  coins/gems to collect, boost rings, obstacles, other players' rockets visible.
+- UI: GLOSSY BUBBLY (thick outlines, gradients, bouncy buttons, cartoon font).
+- Rockets: TOOLBOX MODELS (strip every script on insert).
+- Extras: leaderboards = RICHEST + TOP ROBUX DONATORS (donate buttons, "support the game");
+  daily reward + free timed gifts; trails (+ skins).
+- Owner will PUBLISH so donations/DataStores work (until then: "coming soon" / server-only boards).
+- Order: everything at once. Devices: PC + phone.

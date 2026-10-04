@@ -8,7 +8,7 @@ Config.FLY_MIN_HEIGHT = 6 -- lowest you can fly above the path
 Config.FLY_MAX_HEIGHT = 70 -- highest you can fly above the path
 Config.STEER_SPEED = 30 -- studs/sec you move up/down/sideways
 
-Config.HUB_CENTER = Vector3.new(-70, 0, 0)
+Config.HUB_CENTER = Vector3.new(-95, 0, 0)
 Config.LAUNCH_X = 0 -- start line; stage 1 begins here
 
 Config.SKY_RISE = 600 -- how high the path climbs through the Sky zone
@@ -74,6 +74,70 @@ Config.Upgrades = {
 	Fuel = { name = "Fuel Tank", perLevel = 0.08, baseCost = 100, costGrowth = 1.45, maxLevel = 30 },
 	Speed = { name = "Engine", perLevel = 0.05, baseCost = 150, costGrowth = 1.45, maxLevel = 30 },
 	Money = { name = "Money Boost", perLevel = 0.10, baseCost = 200, costGrowth = 1.5, maxLevel = 30 },
+}
+
+-- Trails behind your rocket (bought with money in the Rockets window).
+Config.Trails = {
+	{ id = "None", name = "No Trail", price = 0, colors = { Color3.fromRGB(255, 255, 255) } },
+	{ id = "Smoke", name = "Puffy Smoke", price = 500, colors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(200, 200, 210) } },
+	{ id = "Fire", name = "Fire", price = 3000, colors = { Color3.fromRGB(255, 240, 80), Color3.fromRGB(255, 120, 20), Color3.fromRGB(200, 30, 10) }, glow = 1 },
+	{ id = "Ocean", name = "Ocean", price = 15000, colors = { Color3.fromRGB(120, 240, 255), Color3.fromRGB(30, 120, 255) }, glow = 0.6 },
+	{ id = "Candy", name = "Candy", price = 75000, colors = { Color3.fromRGB(255, 120, 200), Color3.fromRGB(255, 255, 255), Color3.fromRGB(120, 220, 255) }, glow = 0.4 },
+	{ id = "Toxic", name = "Toxic", price = 400000, colors = { Color3.fromRGB(180, 255, 60), Color3.fromRGB(40, 200, 40) }, glow = 1 },
+	{ id = "Galaxy", name = "Galaxy", price = 3000000, colors = { Color3.fromRGB(80, 40, 200), Color3.fromRGB(200, 80, 255), Color3.fromRGB(255, 255, 255) }, glow = 1 },
+	{ id = "Rainbow", name = "Rainbow", price = 25000000, colors = { Color3.fromRGB(255, 60, 60), Color3.fromRGB(255, 200, 40), Color3.fromRGB(80, 230, 80), Color3.fromRGB(60, 160, 255), Color3.fromRGB(200, 80, 255) }, glow = 1 },
+}
+
+function Config.getTrail(id)
+	for _, t in ipairs(Config.Trails) do
+		if t.id == id then
+			return t
+		end
+	end
+	return Config.Trails[1]
+end
+
+-- Things along the path. Coins/gems pay like flying `studs` extra studs in that stage.
+Config.Pickups = {
+	Coin = { studs = 20, perStage = 14 },
+	Gem = { studs = 120, perStage = 2 },
+	Ring = { perStage = 3, fuel = 1.5, boost = 1.6, boostTime = 1.5 }, -- +fuel seconds, speed x1.6
+	Obstacle = { perStage = 4, fuelLoss = 1, slow = 0.45, slowTime = 0.9 },
+}
+Config.PICKUP_RADIUS = 9 -- generous on purpose: it should feel easy to grab coins
+
+-- Free gifts: unlock after this many minutes of play in one session.
+Config.GiftMinutes = { 1, 3, 5, 8, 12, 16, 20, 25, 30, 40 }
+function Config.giftReward(stage, index)
+	return math.floor(Config.moneyPerStud(stage) * (120 + index * 60))
+end
+-- Daily login reward (streak day 1..7, then repeats at day 7 value).
+function Config.dailyReward(stage, day)
+	return math.floor(Config.moneyPerStud(stage) * 400 * math.min(day, 7))
+end
+
+-- Robux donations. Create Developer Products on the Creator Dashboard, then paste their ids here.
+-- id = 0 means "not set up yet" and the button shows as coming soon.
+Config.Donations = {
+	{ robux = 10, id = 0 },
+	{ robux = 50, id = 0 },
+	{ robux = 100, id = 0 },
+	{ robux = 500, id = 0 },
+	{ robux = 1000, id = 0 },
+}
+
+-- Sounds (Creator Store audio)
+Config.Sounds = {
+	Launch = "rbxassetid://12222065",
+	Engine = "rbxassetid://12222095",
+	Coin = "rbxassetid://1169806635",
+	Beep = "rbxassetid://117751546358455",
+	Boost = "rbxassetid://3406813517",
+	Click = "rbxassetid://100836780668038",
+	Win = "rbxassetid://1840076509",
+	Hit = "rbxasset://sounds/impact_explosion_03.mp3",
+	LobbyMusic = "rbxassetid://9047876673",
+	FlightMusic = "rbxassetid://82132213006755",
 }
 
 function Config.getRocket(id)

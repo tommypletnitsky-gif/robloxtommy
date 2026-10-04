@@ -1,5 +1,5 @@
--- Server: player stats, the rocket tool, flights (launch -> fuel -> glide -> payout), stage unlocks.
--- Player stats live in attributes so the client UI can read them directly.
+-- Server: player stats, the rocket tool, flights (launch -> fuel -> glide -> payout), pickups,
+-- stage unlocks and the shop. Player stats live in attributes so the client UI can read them directly.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -8,6 +8,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local RocketModel = require(ReplicatedStorage.Shared.RocketModel)
 local WorldBuilder = require(ServerScriptService.WorldBuilder)
+local PlayerData = require(ServerScriptService.PlayerData)
 
 if not workspace:FindFirstChild("World") then
 	WorldBuilder.build()
@@ -28,24 +29,13 @@ local function remote(className, name)
 	return r
 end
 local LaunchRemote = remote("RemoteEvent", "Launch") -- client -> server
-local FlightEvent = remote("RemoteEvent", "Flight") -- server -> client: ("start", info) / ("outOfFuel") / ("result", info)
+local FlightEvent = remote("RemoteEvent", "Flight") -- server -> client: countdown / start / pickup / outOfFuel / result
+local CollectRemote = remote("RemoteEvent", "Collect") -- client -> server: (pickupId)
 local UnlockStage = remote("RemoteFunction", "UnlockStage")
 local BuyRocket = remote("RemoteFunction", "BuyRocket") -- (rocketId) buys if needed, then equips
 local BuyUpgrade = remote("RemoteFunction", "BuyUpgrade") -- ("Fuel" | "Speed" | "Money")
-local Notify = remote("RemoteEvent", "Notify") -- server -> client: (text, color)
-
--- Player data -------------------------------------------------------------------------
-local DEFAULT_DATA = {
-	Money = 0,
-	BestDistance = 0,
-	UnlockedStage = 1,
-	Rocket = "Starter",
-	OwnedRockets = "Starter", -- comma separated rocket ids
-	FuelLevel = 0,
-	SpeedLevel = 0,
-	MoneyLevel = 0,
-	Rebirths = 0,
-}
+local BuyTrail = remote("RemoteFunction", "BuyTrail") -- (trailId) buys if needed, then equips
+remote("RemoteEvent", "Notify") -- server -> client: (text, color)
 
 local flights = {} -- [player] = flight state
 
@@ -53,6 +43,12 @@ local function moneyMultiplier(player)
 	local m = 1 + (player:GetAttribute("MoneyLevel") or 0) * Config.Upgrades.Money.perLevel
 	m *= 1 + (player:GetAttribute("Rebirths") or 0) * 0.5
 	return m
+end
+
+local function addMoney(player, amount)
+	amount = math.floor(amount)
+	player:SetAttribute("Money", (player:GetAttribute("Money") or 0) + amount)
+	player:SetAttribute("TotalEarned", (player:GetAttribute("TotalEarned") or 0) + amount)
 end
 
 local function rocketStats(player)
@@ -81,6 +77,20 @@ local function giveTool(player)
 	RocketModel.buildTool(def).Parent = backpack
 end
 
+-- Pickups (coins, gems, boost rings, obstacles) are built into Workspace.World.Pickups.
+local pickups = {} -- [id] = { kind, pos, stage }
+do
+	local folder = workspace.World:WaitForChild("Pickups", 10)
+	if folder then
+		for _, m in ipairs(folder:GetChildren()) do
+			local id = m:GetAttribute("Id")
+			if id then
+				pickups[id] = { kind = m:GetAttribute("Kind"), pos = m:GetAttribute("Pos") or m:GetPivot().Position, stage = m:GetAttribute("Stage") or 1 }
+			end
+		end
+	end
+end
+
 -- Flights -----------------------------------------------------------------------------
 local function hubCFrame()
 	local c = Config.HUB_CENTER
@@ -93,37 +103,59 @@ local function endFlight(player, reason)
 		return
 	end
 	f.ended = true
+	flights[player] = nil
 	local distance = math.max(0, math.floor(f.distance))
 	local money = math.floor(Config.moneyForDistance(distance) * moneyMultiplier(player))
-	player:SetAttribute("Money", (player:GetAttribute("Money") or 0) + money)
+	addMoney(player, money)
 	local newBest = distance > (player:GetAttribute("BestDistance") or 0)
 	if newBest then
 		player:SetAttribute("BestDistance", distance)
 	end
+	FlightEvent:FireClient(player, "result", {
+		distance = distance,
+		money = money,
+		bonus = f.bonus,
+		coins = f.coins,
+		reason = reason,
+		newBest = newBest,
+	})
 
-	local char = player.Character
-	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	if hum then
-		hum.Sit = false
-		if f.seat and f.seat:FindFirstChild("SeatWeld") then
-			f.seat.SeatWeld:Destroy()
+	-- Keep the rocket where it landed for a moment (landing celebration), then go home.
+	local body = f.model and f.model.PrimaryPart
+	if body and body.Parent then
+		body.Anchored = true
+		RocketModel.setThrust(f.model, false)
+	end
+	task.delay(reason == "jumped" and 0 or 2.6, function()
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum.Sit = false
+			if f.seat and f.seat:FindFirstChild("SeatWeld") then
+				f.seat.SeatWeld:Destroy()
+			end
 		end
-	end
-	if f.model then
-		f.model:Destroy()
-	end
-	flights[player] = nil
-	player:SetAttribute("Flying", false)
-	if char and char.Parent and hum and hum.Health > 0 then
-		task.defer(function()
-			char:PivotTo(hubCFrame())
-		end)
-	end
-	FlightEvent:FireClient(player, "result", { distance = distance, money = money, reason = reason, newBest = newBest })
+		if f.model then
+			f.model:Destroy()
+		end
+		-- Wait a moment after unseating: the client takes back physics ownership of its character
+		-- and would otherwise overwrite our teleport with its old position.
+		task.wait(0.2)
+		if player.Parent then
+			local home = hubCFrame()
+			for _ = 1, 3 do
+				if char and char.Parent and hum and hum.Health > 0 and (char:GetPivot().Position - home.Position).Magnitude > 20 then
+					char:PivotTo(home)
+				end
+				task.wait(0.25)
+			end
+			player:SetAttribute("Flying", false)
+		end
+	end)
 end
 
 local function startFlight(player)
-	if flights[player] then
+	if flights[player] or player:GetAttribute("Flying") then
 		return
 	end
 	local char = player.Character
@@ -139,19 +171,32 @@ local function startFlight(player)
 	local origin = CFrame.new(startX, Config.pathY(startX) + 4, 0)
 	local model = RocketModel.build(def, 1, true, origin)
 	model.Name = player.Name
+	RocketModel.addTrail(model, Config.getTrail(player:GetAttribute("Trail")))
 	local body = model.PrimaryPart
 	body.Anchored = true
 	model.Parent = flightsFolder
 
-	local f = { model = model, seat = model.Seat, speed = speed, fuel = fuel, distance = 0, startX = Config.LAUNCH_X, ended = false }
+	local f = {
+		model = model,
+		seat = model:FindFirstChild("Seat", true),
+		speed = speed,
+		fuel = fuel,
+		distance = 0,
+		startX = Config.LAUNCH_X,
+		ended = false,
+		collected = {},
+		bonus = 0,
+		coins = 0,
+	}
 	flights[player] = f
 	player:SetAttribute("Flying", true)
 
-	char:PivotTo(model.Seat.CFrame * CFrame.new(0, 3, 0))
-	model.Seat:Sit(hum)
+	char:PivotTo(f.seat.CFrame * CFrame.new(0, 3, 0))
+	f.seat:Sit(hum)
 
 	-- Physics: the client steers through these; the server watches the result.
 	local att = Instance.new("Attachment")
+	att.Name = "ThrustAttachment"
 	att.Parent = body
 	local lv = Instance.new("LinearVelocity")
 	lv.Name = "Thrust"
@@ -169,7 +214,7 @@ local function startFlight(player)
 	ao.CFrame = CFrame.new()
 	ao.Parent = body
 
-	FlightEvent:FireClient(player, "countdown", { seconds = 3 })
+	FlightEvent:FireClient(player, "countdown", { seconds = 3, rocket = model })
 	task.delay(3, function()
 		if flights[player] ~= f or f.ended then
 			return
@@ -182,14 +227,52 @@ local function startFlight(player)
 		body:SetNetworkOwner(player)
 		RocketModel.setThrust(model, true)
 		f.launchedAt = os.clock()
+		f.maxX = f.startX + 15
 		FlightEvent:FireClient(player, "start", { speed = speed, fuel = fuel, startX = f.startX, rocket = model })
 	end)
 end
 
 LaunchRemote.OnServerEvent:Connect(startFlight)
 
+-- Pickups: the client says "I hit this one", the server checks it's believable.
+CollectRemote.OnServerEvent:Connect(function(player, id)
+	local f = flights[player]
+	local p = typeof(id) == "number" and pickups[id]
+	if not f or f.ended or not f.launchedAt or not p or f.collected[id] then
+		return
+	end
+	local body = f.model and f.model.PrimaryPart
+	if not body then
+		return
+	end
+	-- The server sees the rocket a little behind where the client is, so allow some lag.
+	local d = p.pos - body.Position
+	if d.X < -20 or d.X > f.speed * 0.6 + 25 or math.abs(d.Y) > 30 or math.abs(d.Z) > 30 or p.pos.X > f.maxX + 20 then
+		return
+	end
+	f.collected[id] = true
+	local now = os.clock()
+	if p.kind == "Coin" or p.kind == "Gem" then
+		local amount = math.floor(Config.moneyPerStud(p.stage) * Config.Pickups[p.kind].studs * moneyMultiplier(player))
+		addMoney(player, amount)
+		f.bonus += amount
+		f.coins += 1
+		FlightEvent:FireClient(player, "pickup", { id = id, kind = p.kind, money = amount })
+	elseif p.kind == "Ring" then
+		local r = Config.Pickups.Ring
+		f.fuel += r.fuel
+		f.boostUntil = now + r.boostTime
+		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Ring", fuel = f.fuel })
+	elseif p.kind == "Obstacle" then
+		local o = Config.Pickups.Obstacle
+		f.fuel = math.max(now - f.launchedAt + 0.2, f.fuel - o.fuelLoss)
+		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Obstacle", fuel = f.fuel })
+	end
+end)
+
 -- Watch every active flight: distance, fuel, gates, cheating.
-RunService.Heartbeat:Connect(function()
+local GLIDE_TIME = 2.5
+RunService.Heartbeat:Connect(function(dt)
 	local now = os.clock()
 	for player, f in pairs(flights) do
 		if f.ended or not f.launchedAt then
@@ -203,10 +286,10 @@ RunService.Heartbeat:Connect(function()
 			continue
 		end
 		local elapsed = now - f.launchedAt
-		local x = body.Position.X
-		-- Can't go farther than the rocket could possibly have flown.
-		local maxX = f.startX + f.speed * 1.15 * elapsed + 15
-		x = math.min(x, maxX)
+		-- Can't go farther than the rocket could possibly have flown (boost rings allow a bit more).
+		local boosting = now < (f.boostUntil or 0)
+		f.maxX += f.speed * (boosting and Config.Pickups.Ring.boost * 1.1 or 1.15) * dt
+		local x = math.min(body.Position.X, f.maxX)
 		f.distance = math.max(f.distance, x - f.startX)
 
 		local unlocked = player:GetAttribute("UnlockedStage") or 1
@@ -220,7 +303,7 @@ RunService.Heartbeat:Connect(function()
 			f.outOfFuel = now
 			RocketModel.setThrust(f.model, false)
 			FlightEvent:FireClient(player, "outOfFuel")
-		elseif f.outOfFuel and now - f.outOfFuel >= 1.5 then
+		elseif f.outOfFuel and now - f.outOfFuel >= GLIDE_TIME then
 			endFlight(player, "fuel")
 		end
 	end
@@ -239,7 +322,7 @@ UnlockStage.OnServerInvoke = function(player)
 	local cost = Config.stageCost(nextStage)
 	local money = player:GetAttribute("Money") or 0
 	if money < cost then
-		return false, "You need " .. Config.abbreviate(cost - money) .. " more money!"
+		return false, "You need $" .. Config.abbreviate(cost - money) .. " more!"
 	end
 	player:SetAttribute("Money", money - cost)
 	player:SetAttribute("UnlockedStage", nextStage)
@@ -247,8 +330,8 @@ UnlockStage.OnServerInvoke = function(player)
 end
 
 -- Shop ----------------------------------------------------------------------------------
-local function owns(player, id)
-	return table.find(string.split(player:GetAttribute("OwnedRockets") or "", ","), id) ~= nil
+local function ownsIn(player, attr, id)
+	return table.find(string.split(player:GetAttribute(attr) or "", ","), id) ~= nil
 end
 
 local function spend(player, cost)
@@ -260,28 +343,43 @@ local function spend(player, cost)
 	return true
 end
 
-BuyRocket.OnServerInvoke = function(player, id)
-	if typeof(id) ~= "string" or flights[player] then
-		return false, "Can't do that while flying!"
-	end
-	local def
-	for _, r in ipairs(Config.Rockets) do
-		if r.id == id then
-			def = r
+local function findById(list, id)
+	for _, item in ipairs(list) do
+		if item.id == id then
+			return item
 		end
 	end
-	if not def then
-		return false, "Unknown rocket."
+end
+
+-- Buy (if not owned) then equip. Used for rockets and trails.
+local function buyOrEquip(player, list, ownedAttr, equipAttr, id)
+	if typeof(id) ~= "string" then
+		return false, "Unknown item."
 	end
-	if not owns(player, id) then
-		local ok, msg = spend(player, def.price)
+	if player:GetAttribute("Flying") then
+		return false, "Can't do that while flying!"
+	end
+	local item = findById(list, id)
+	if not item then
+		return false, "Unknown item."
+	end
+	if not ownsIn(player, ownedAttr, id) then
+		local ok, msg = spend(player, item.price)
 		if not ok then
 			return false, msg
 		end
-		player:SetAttribute("OwnedRockets", player:GetAttribute("OwnedRockets") .. "," .. id)
+		player:SetAttribute(ownedAttr, player:GetAttribute(ownedAttr) .. "," .. id)
 	end
-	player:SetAttribute("Rocket", id)
-	return true, def.name .. " equipped!"
+	player:SetAttribute(equipAttr, id)
+	return true, item.name .. " equipped!"
+end
+
+BuyRocket.OnServerInvoke = function(player, id)
+	return buyOrEquip(player, Config.Rockets, "OwnedRockets", "Rocket", id)
+end
+
+BuyTrail.OnServerInvoke = function(player, id)
+	return buyOrEquip(player, Config.Trails, "OwnedTrails", "Trail", id)
 end
 
 BuyUpgrade.OnServerInvoke = function(player, key)
@@ -314,7 +412,7 @@ local function setupLeaderstats(player)
 	stage.Name = "Stage"
 	stage.Parent = ls
 	local function refresh()
-		money.Value = Config.abbreviate(player:GetAttribute("Money") or 0)
+		money.Value = "$" .. Config.abbreviate(player:GetAttribute("Money") or 0)
 		stage.Value = player:GetAttribute("UnlockedStage") or 1
 	end
 	player:GetAttributeChangedSignal("Money"):Connect(refresh)
@@ -322,11 +420,10 @@ local function setupLeaderstats(player)
 	refresh()
 end
 
-Players.PlayerAdded:Connect(function(player)
-	for k, v in pairs(DEFAULT_DATA) do
-		player:SetAttribute(k, v)
-	end
+local function onPlayerAdded(player)
 	player:SetAttribute("Flying", false)
+	player:SetAttribute("JoinedAt", os.time())
+	PlayerData.load(player)
 	setupLeaderstats(player)
 	player.CharacterAdded:Connect(function()
 		task.defer(giveTool, player)
@@ -337,7 +434,12 @@ Players.PlayerAdded:Connect(function(player)
 	if player.Character then
 		giveTool(player)
 	end
-end)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, p in ipairs(Players:GetPlayers()) do
+	task.spawn(onPlayerAdded, p)
+end
 
 Players.PlayerRemoving:Connect(function(player)
 	local f = flights[player]
@@ -345,4 +447,5 @@ Players.PlayerRemoving:Connect(function(player)
 		f.model:Destroy()
 	end
 	flights[player] = nil
+	PlayerData.release(player)
 end)

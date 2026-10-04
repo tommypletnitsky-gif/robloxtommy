@@ -1,227 +1,153 @@
--- Client: HUD, launching, steering the rocket (W/S = up/down, A/D = left/right), camera, zone lighting.
+-- Client: HUD, launching, flying (rocket follows your mouse / finger; WASD as backup), camera,
+-- pickups (coins, gems, rings, obstacles), launch + landing effects, music, zone lighting.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local ContextActionService = game:GetService("ContextActionService")
+local UserInputService = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
 local Lighting = game:GetService("Lighting")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LaunchRemote = remotes:WaitForChild("Launch")
 local FlightEvent = remotes:WaitForChild("Flight")
+local CollectRemote = remotes:WaitForChild("Collect")
 local UnlockStage = remotes:WaitForChild("UnlockStage")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
-local UserInputService = game:GetService("UserInputService")
+local make, label = UIKit.make, UIKit.label
+local abbreviate, meters = Config.abbreviate, Config.meters
+local gui = UIKit.gui()
 
-local FONT = Enum.Font.FredokaOne
-local abbreviate = Config.abbreviate
-
--- UI helpers ----------------------------------------------------------------------------
-local gui = Instance.new("ScreenGui")
-gui.Name = "RocketHUD"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.Parent = player:WaitForChild("PlayerGui")
-
-local function make(className, props, children)
-	local o = Instance.new(className)
-	for k, v in pairs(props) do
-		o[k] = v
-	end
-	for _, c in ipairs(children or {}) do
-		c.Parent = o
-	end
-	return o
+-- Top-left: money + best pills ------------------------------------------------------------
+local function pill(y, color, icon)
+	local f = make("Frame", { Parent = gui, Position = UDim2.fromOffset(14, y), Size = UDim2.fromOffset(230, 54), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(27), UIKit.stroke(3.5), UIKit.gloss(color), make("UIScale", {}) })
+	make("Frame", { Parent = f, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.fromScale(0.08, 0.1), Size = UDim2.fromScale(0.84, 0.3) }, { UIKit.corner(10) })
+	local circle = make("Frame", { Parent = f, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -8, 0.5, 0), Size = UDim2.fromOffset(62, 62), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(31), UIKit.stroke(3.5) })
+	label({ Parent = circle, Size = UDim2.fromScale(1, 1), Text = icon })
+	local text = label({ Parent = f, Position = UDim2.fromOffset(62, 6), Size = UDim2.new(1, -74, 1, -12), TextXAlignment = Enum.TextXAlignment.Left, Text = "", StrokeThickness = 3 })
+	return f, text
 end
+local moneyPill, moneyText = pill(70, Color3.fromRGB(80, 210, 90), "💰")
+local bestPill, bestText = pill(134, Color3.fromRGB(255, 180, 40), "🏆")
 
-local function corner(r)
-	return make("UICorner", { CornerRadius = UDim.new(0, r or 12) })
-end
-
-local function stroke(t, c)
-	return make("UIStroke", { Thickness = t or 2, Color = c or Color3.new(0, 0, 0), ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual })
-end
-
-local function label(props)
-	local base = { BackgroundTransparency = 1, Font = FONT, TextColor3 = Color3.new(1, 1, 1), TextScaled = true }
-	for k, v in pairs(props) do
-		base[k] = v
-	end
-	return make("TextLabel", base, { stroke(2) })
-end
-
--- Left: money + best ----------------------------------------------------------------------
-local statsFrame = make("Frame", {
+-- Right: stage card --------------------------------------------------------------------------
+local stageCard = make("Frame", {
 	Parent = gui,
-	AnchorPoint = Vector2.new(0, 0.5),
-	Position = UDim2.new(0, 14, 0.42, 0),
-	Size = UDim2.fromOffset(210, 96),
-	BackgroundColor3 = Color3.fromRGB(25, 25, 40),
-	BackgroundTransparency = 0.25,
-}, { corner(14), stroke(3, Color3.fromRGB(255, 200, 60)) })
-local moneyLabel = label({ Parent = statsFrame, Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -24, 0, 44), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(120, 255, 120), Text = "$0" })
-local bestLabel = label({ Parent = statsFrame, Position = UDim2.fromOffset(12, 56), Size = UDim2.new(1, -24, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, Text = "Best: 0m" })
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -14, 0, 70),
+	Size = UDim2.fromOffset(250, 176),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+}, { UIKit.corner(22), UIKit.stroke(4), make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(220, 232, 255)) }) })
+local stageTitle = label({ Parent = stageCard, Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -24, 0, 32), Text = "Stage 1", TextColor3 = Color3.fromRGB(70, 140, 255), StrokeThickness = 0 })
+local stageName = label({ Parent = stageCard, Position = UDim2.fromOffset(12, 40), Size = UDim2.new(1, -24, 0, 22), Text = "", TextColor3 = Color3.fromRGB(90, 90, 120), StrokeThickness = 0 })
+local barBack = make("Frame", { Parent = stageCard, Position = UDim2.fromOffset(16, 70), Size = UDim2.new(1, -32, 0, 24), BackgroundColor3 = Color3.fromRGB(215, 222, 240) }, { UIKit.corner(12), UIKit.stroke(3) })
+local barFill = make("Frame", { Parent = barBack, Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(12), UIKit.gloss(Color3.fromRGB(90, 180, 255)) })
+local barText = label({ Parent = barBack, Size = UDim2.fromScale(1, 1), Text = "", ZIndex = 2, StrokeThickness = 2 })
+local unlockBtn = UIKit.button({ Parent = stageCard, Text = "UNLOCK", Color = Color3.fromRGB(80, 200, 90), Position = UDim2.fromOffset(16, 104), Size = UDim2.new(1, -32, 0, 58) })
 
--- Right: stage progress + unlock ----------------------------------------------------------
-local stageFrame = make("Frame", {
-	Parent = gui,
-	AnchorPoint = Vector2.new(1, 0.5),
-	Position = UDim2.new(1, -14, 0.42, 0),
-	Size = UDim2.fromOffset(250, 170),
-	BackgroundColor3 = Color3.fromRGB(25, 25, 40),
-	BackgroundTransparency = 0.25,
-}, { corner(14), stroke(3, Color3.fromRGB(120, 200, 255)) })
-local stageTitle = label({ Parent = stageFrame, Position = UDim2.fromOffset(10, 8), Size = UDim2.new(1, -20, 0, 30), Text = "Stage 1" })
-local stageName = label({ Parent = stageFrame, Position = UDim2.fromOffset(10, 38), Size = UDim2.new(1, -20, 0, 22), TextColor3 = Color3.fromRGB(200, 220, 255), Text = "" })
-local barBack = make("Frame", { Parent = stageFrame, Position = UDim2.fromOffset(14, 70), Size = UDim2.new(1, -28, 0, 18), BackgroundColor3 = Color3.fromRGB(50, 50, 70) }, { corner(9) })
-local barFill = make("Frame", { Parent = barBack, Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(120, 200, 255) }, { corner(9) })
-local barText = label({ Parent = barBack, Size = UDim2.fromScale(1, 1), Text = "", ZIndex = 2 })
-local unlockButton = make("TextButton", {
-	Parent = stageFrame,
-	Position = UDim2.fromOffset(14, 100),
-	Size = UDim2.new(1, -28, 0, 56),
-	BackgroundColor3 = Color3.fromRGB(80, 200, 90),
-	Font = FONT,
-	TextScaled = true,
-	TextColor3 = Color3.new(1, 1, 1),
-	Text = "UNLOCK",
-	AutoButtonColor = true,
-}, { corner(12), stroke(2), make("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6) }) })
+-- Bottom bar: LAUNCH (ShopClient adds ROCKETS / UPGRADES around it) + EGGS ------------------
+local bottomBar = UIKit.bottomBar()
+local launchBtn = UIKit.button({ Parent = bottomBar, LayoutOrder = 2, Text = "LAUNCH!", Color = Color3.fromRGB(255, 130, 30), Size = UDim2.fromOffset(230, 92), Radius = 24, TextStroke = 4 })
+local launchPulse = make("UIScale", { Parent = launchBtn.Instance })
+task.spawn(function()
+	while true do
+		TweenService:Create(launchPulse, TweenInfo.new(0.7, Enum.EasingStyle.Sine), { Scale = 1.05 }):Play()
+		task.wait(0.7)
+		TweenService:Create(launchPulse, TweenInfo.new(0.7, Enum.EasingStyle.Sine), { Scale = 1 }):Play()
+		task.wait(0.7)
+	end
+end)
+local eggsBtn = UIKit.button({ Parent = bottomBar, LayoutOrder = 4, Icon = "🥚", Text = "EGGS", Color = Color3.fromRGB(80, 200, 120), Size = UDim2.fromOffset(96, 100) })
+eggsBtn.Instance.Activated:Connect(function()
+	UIKit.toast("🥚 Eggs & pets are coming soon!", Color3.fromRGB(255, 230, 120))
+end)
 
--- Bottom: launch button -------------------------------------------------------------------
--- Chunky icon buttons along the bottom, LAUNCH in the middle.
-local bottomBar = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -18), Size = UDim2.fromOffset(620, 104), BackgroundTransparency = 1 }, {
-	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Bottom, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }),
+-- Flight HUD ----------------------------------------------------------------------------------
+local flightHud = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 60), Size = UDim2.fromOffset(420, 150), BackgroundTransparency = 1, Visible = false })
+local distanceLabel = label({ Parent = flightHud, Size = UDim2.new(1, 0, 0, 70), Text = "0m", StrokeThickness = 4 })
+local zoneLabel = label({ Parent = flightHud, Position = UDim2.fromOffset(0, 70), Size = UDim2.new(1, 0, 0, 28), Text = "", TextColor3 = Color3.fromRGB(255, 230, 120) })
+local fuelBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(40, 106), Size = UDim2.new(1, -80, 0, 30), BackgroundColor3 = Color3.fromRGB(60, 60, 80) }, { UIKit.corner(15), UIKit.stroke(3.5) })
+local fuelFill = make("Frame", { Parent = fuelBack, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(15), UIKit.gloss(Color3.fromRGB(255, 160, 30)) })
+label({ Parent = fuelBack, Size = UDim2.fromScale(1, 1), Text = "⛽ FUEL", ZIndex = 2 })
+local flightMoney = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 212), Size = UDim2.fromOffset(300, 30), Text = "", TextColor3 = Color3.fromRGB(130, 255, 130), Visible = false })
+local hintLabel = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -24), Size = UDim2.fromOffset(620, 30), Text = "", Visible = false })
+
+-- Reticle that the rocket steers toward
+local reticle = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(46, 46), BackgroundTransparency = 1, Visible = false, ZIndex = 5 }, {
+	UIKit.corner(23),
+	make("UIStroke", { Thickness = 4, Color = Color3.new(1, 1, 1) }),
 })
+make("Frame", { Parent = reticle, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(10, 10), BackgroundColor3 = Color3.fromRGB(255, 120, 40), ZIndex = 6 }, { UIKit.corner(5), UIKit.stroke(2) })
 
-local function iconButton(order, icon, text, color)
-	local b = make("TextButton", { Parent = bottomBar, LayoutOrder = order, Size = UDim2.fromOffset(92, 96), BackgroundColor3 = color, Text = "", AutoButtonColor = true }, { corner(18), stroke(3) })
-	label({ Parent = b, Position = UDim2.fromOffset(6, 4), Size = UDim2.new(1, -12, 0, 58), Text = icon })
-	label({ Parent = b, Position = UDim2.new(0, 4, 1, -30), Size = UDim2.new(1, -8, 0, 24), Text = text })
-	local scale = make("UIScale", { Parent = b })
-	b.MouseEnter:Connect(function()
-		TweenService:Create(scale, TweenInfo.new(0.12), { Scale = 1.08 }):Play()
-	end)
-	b.MouseLeave:Connect(function()
-		TweenService:Create(scale, TweenInfo.new(0.12), { Scale = 1 }):Play()
-	end)
-	return b
+-- Speed lines streaking from the middle of the screen
+local linesFrame = make("Frame", { Parent = gui, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, ZIndex = 2 })
+local linePool = {}
+for i = 1, 36 do
+	linePool[i] = make("Frame", { Parent = linesFrame, AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Visible = false, ZIndex = 2 })
+end
+local lineIndex = 0
+local function spawnSpeedLine(intensity)
+	lineIndex = lineIndex % #linePool + 1
+	local l = linePool[lineIndex]
+	local a = math.random() * math.pi * 2
+	local r0 = 0.32 + math.random() * 0.12
+	l.Rotation = math.deg(a)
+	l.Size = UDim2.fromOffset(math.random(60, 140), 3)
+	l.Position = UDim2.fromScale(0.5 + math.cos(a) * r0, 0.5 + math.sin(a) * r0)
+	l.BackgroundTransparency = 1 - 0.55 * intensity
+	l.Visible = true
+	TweenService:Create(l, TweenInfo.new(0.25, Enum.EasingStyle.Linear), { Position = UDim2.fromScale(0.5 + math.cos(a) * (r0 + 0.35), 0.5 + math.sin(a) * (r0 + 0.35)), BackgroundTransparency = 1 }):Play()
 end
 
-local rocketsButton = iconButton(1, "🚀", "ROCKETS", Color3.fromRGB(70, 140, 255))
-local launchButton = make("TextButton", {
-	Parent = bottomBar,
-	LayoutOrder = 2,
-	Size = UDim2.fromOffset(220, 84),
-	BackgroundColor3 = Color3.fromRGB(255, 130, 30),
-	Font = FONT,
-	TextScaled = true,
-	TextColor3 = Color3.new(1, 1, 1),
-	Text = "LAUNCH!",
-}, { corner(20), stroke(3), make("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12) }) })
-local upgradesButton = iconButton(3, "⬆️", "UPGRADES", Color3.fromRGB(160, 80, 230))
-local eggsButton = iconButton(4, "🥚", "EGGS", Color3.fromRGB(80, 190, 110))
+-- Big center text (countdown) and result card
+local bigLabel = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.38), Size = UDim2.fromOffset(500, 150), Text = "", Visible = false, StrokeThickness = 6, ZIndex = 20 })
+make("UIScale", { Parent = bigLabel })
+local flash = make("Frame", { Parent = gui, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 60, 60), BackgroundTransparency = 1, ZIndex = 1 })
 
--- Top: flight HUD ---------------------------------------------------------------------------
-local flightFrame = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 64), Size = UDim2.fromOffset(360, 130), BackgroundTransparency = 1, Visible = false })
-local distanceLabel = label({ Parent = flightFrame, Size = UDim2.new(1, 0, 0, 60), Text = "0m" })
-local flightStageLabel = label({ Parent = flightFrame, Position = UDim2.fromOffset(0, 60), Size = UDim2.new(1, 0, 0, 26), TextColor3 = Color3.fromRGB(200, 220, 255), Text = "" })
-local fuelBack = make("Frame", { Parent = flightFrame, Position = UDim2.fromOffset(30, 94), Size = UDim2.new(1, -60, 0, 22), BackgroundColor3 = Color3.fromRGB(40, 40, 55) }, { corner(11), stroke(2) })
-local fuelFill = make("Frame", { Parent = fuelBack, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 170, 40) }, { corner(11) })
-label({ Parent = fuelBack, Size = UDim2.fromScale(1, 1), Text = "FUEL", ZIndex = 2 })
-local helpLabel = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -20), Size = UDim2.fromOffset(520, 28), Text = "W / S = up / down     A / D = left / right", Visible = false })
-
--- Steering input: keyboard, gamepad stick, or the on-screen arrows (phones/tablets).
-local touchHeld = { up = false, down = false, left = false, right = false }
-local arrowPad = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -20, 1, -20), Size = UDim2.fromOffset(210, 210), BackgroundTransparency = 1, Visible = false })
-for dir, spec in pairs({ up = { 70, 0, "^" }, down = { 70, 140, "v" }, left = { 0, 70, "<" }, right = { 140, 70, ">" } }) do
-	local b = make("TextButton", {
-		Parent = arrowPad,
-		Position = UDim2.fromOffset(spec[1], spec[2]),
-		Size = UDim2.fromOffset(70, 70),
-		BackgroundColor3 = Color3.fromRGB(30, 30, 45),
-		BackgroundTransparency = 0.3,
-		Font = FONT,
-		TextScaled = true,
-		TextColor3 = Color3.new(1, 1, 1),
-		Text = spec[3],
-	}, { corner(35), stroke(2) })
-	b.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			touchHeld[dir] = true
-		end
-	end)
-	b.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			touchHeld[dir] = false
-		end
-	end)
-end
-
-local function keyDown(...)
-	for _, k in ipairs({ ... }) do
-		if UserInputService:IsKeyDown(k) then
-			return true
-		end
-	end
-	return false
-end
-
--- Returns (side, up): side -1 = left, +1 = right; up +1 = climb, -1 = dive.
-local function getSteer()
-	if UserInputService:GetFocusedTextBox() then
-		return 0, 0
-	end
-	local K = Enum.KeyCode
-	local side = (keyDown(K.D, K.Right) and 1 or 0) - (keyDown(K.A, K.Left) and 1 or 0)
-	local up = (keyDown(K.W, K.Up, K.Space) and 1 or 0) - (keyDown(K.S, K.Down, K.LeftShift) and 1 or 0)
-	side += (touchHeld.right and 1 or 0) - (touchHeld.left and 1 or 0)
-	up += (touchHeld.up and 1 or 0) - (touchHeld.down and 1 or 0)
-	for _, input in ipairs(UserInputService:GetGamepadState(Enum.UserInputType.Gamepad1)) do
-		if input.KeyCode == K.Thumbstick1 and input.Position.Magnitude > 0.2 then
-			side += input.Position.X
-			up += input.Position.Y
-		end
-	end
-	return math.clamp(side, -1, 1), math.clamp(up, -1, 1)
-end
-
--- Center: countdown, banners, results -----------------------------------------------------
-local bigLabel = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.4), Size = UDim2.fromOffset(500, 120), Text = "", Visible = false })
-local resultFrame = make("Frame", {
+local resultCard = make("Frame", {
 	Parent = gui,
 	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.42),
-	Size = UDim2.fromOffset(380, 190),
-	BackgroundColor3 = Color3.fromRGB(25, 25, 40),
-	BackgroundTransparency = 0.1,
+	Position = UDim2.fromScale(0.5, 0.44),
+	Size = UDim2.fromOffset(420, 300),
+	BackgroundColor3 = Color3.new(1, 1, 1),
 	Visible = false,
-}, { corner(18), stroke(4, Color3.fromRGB(255, 200, 60)) })
-local resultTitle = label({ Parent = resultFrame, Position = UDim2.fromOffset(16, 12), Size = UDim2.new(1, -32, 0, 44), Text = "" })
-local resultDistance = label({ Parent = resultFrame, Position = UDim2.fromOffset(16, 62), Size = UDim2.new(1, -32, 0, 40), Text = "" })
-local resultMoney = label({ Parent = resultFrame, Position = UDim2.fromOffset(16, 106), Size = UDim2.new(1, -32, 0, 40), TextColor3 = Color3.fromRGB(120, 255, 120), Text = "" })
-local resultHint = label({ Parent = resultFrame, Position = UDim2.fromOffset(16, 152), Size = UDim2.new(1, -32, 0, 24), TextColor3 = Color3.fromRGB(255, 220, 150), Text = "" })
+	ZIndex = 20,
+}, { UIKit.corner(28), UIKit.stroke(5), make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(215, 228, 255)) }), make("UIScale", {}) })
+local ribbon = make("Frame", { Parent = resultCard, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromOffset(330, 66), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 22 }, { UIKit.corner(20), UIKit.stroke(4), UIKit.gloss(Color3.fromRGB(255, 190, 40)) })
+local ribbonText = label({ Parent = ribbon, Position = UDim2.fromScale(0.05, 0.1), Size = UDim2.fromScale(0.9, 0.8), Text = "", ZIndex = 23, StrokeThickness = 3.5 })
+local resDistance = label({ Parent = resultCard, Position = UDim2.fromOffset(20, 50), Size = UDim2.new(1, -40, 0, 60), Text = "", TextColor3 = Color3.fromRGB(70, 140, 255), ZIndex = 21, StrokeThickness = 3 })
+local resMoney = label({ Parent = resultCard, Position = UDim2.fromOffset(20, 118), Size = UDim2.new(1, -40, 0, 54), Text = "", TextColor3 = Color3.fromRGB(80, 210, 90), ZIndex = 21, StrokeThickness = 3 })
+local resCoins = label({ Parent = resultCard, Position = UDim2.fromOffset(20, 176), Size = UDim2.new(1, -40, 0, 32), Text = "", TextColor3 = Color3.fromRGB(255, 190, 40), ZIndex = 21 })
+local resHint = label({ Parent = resultCard, Position = UDim2.fromOffset(20, 222), Size = UDim2.new(1, -40, 0, 56), Text = "", TextColor3 = Color3.fromRGB(90, 90, 120), ZIndex = 21, StrokeThickness = 0 })
 
-local toast = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 200), Size = UDim2.fromOffset(600, 40), Text = "", Visible = false })
-local toastToken = 0
-local function showToast(text, color)
-	toastToken += 1
-	local my = toastToken
-	toast.Text = text
-	toast.TextColor3 = color or Color3.new(1, 1, 1)
-	toast.Visible = true
-	task.delay(3, function()
-		if toastToken == my then
-			toast.Visible = false
+-- Stats / stage card ----------------------------------------------------------------------------
+local shownMoney = 0
+local moneyTween
+local function refreshMoney()
+	local target = player:GetAttribute("Money") or 0
+	if moneyTween then
+		moneyTween:Disconnect()
+	end
+	local from, t0 = shownMoney, os.clock()
+	moneyTween = RunService.RenderStepped:Connect(function()
+		local a = math.min(1, (os.clock() - t0) / 0.6)
+		shownMoney = from + (target - from) * (1 - (1 - a) ^ 3)
+		moneyText.Text = "$" .. abbreviate(shownMoney)
+		if a >= 1 then
+			moneyTween:Disconnect()
+			moneyTween = nil
 		end
 	end)
+	if target > from then
+		UIKit.bounce(moneyPill)
+	end
 end
-remotes:WaitForChild("Notify").OnClientEvent:Connect(showToast)
 
--- Stats / stage panel -----------------------------------------------------------------------
 local function refreshGates()
 	local world = workspace:FindFirstChild("World")
 	if not world then
@@ -243,245 +169,75 @@ local function refreshGates()
 	end
 end
 
-local function refreshStats()
+local function refreshStage()
 	local money = player:GetAttribute("Money") or 0
 	local best = player:GetAttribute("BestDistance") or 0
 	local unlocked = player:GetAttribute("UnlockedStage") or 1
-	moneyLabel.Text = "$" .. abbreviate(money)
-	bestLabel.Text = "Best: " .. Config.meters(best)
-
-	stageTitle.Text = "Stage " .. unlocked .. " / " .. Config.NUM_STAGES
+	bestText.Text = meters(best)
+	stageTitle.Text = "STAGE " .. unlocked .. " / " .. Config.NUM_STAGES
 	stageName.Text = Config.Stages[unlocked].name
 	if unlocked >= Config.NUM_STAGES then
 		barFill.Size = UDim2.fromScale(1, 1)
 		barText.Text = "ALL STAGES OPEN!"
-		unlockButton.Visible = false
+		unlockBtn.Instance.Visible = false
 		return
 	end
 	local goal = Config.stageEndX(unlocked) - Config.LAUNCH_X
-	local stageStart = goal - Config.STAGE_LENGTH
-	local progress = math.clamp((best - stageStart) / Config.STAGE_LENGTH, 0, 1)
-	barFill.Size = UDim2.fromScale(progress, 1)
-	barText.Text = Config.meters(math.min(best, goal)) .. " / " .. Config.meters(goal)
-	unlockButton.Visible = true
+	local progress = math.clamp((best - (goal - Config.STAGE_LENGTH)) / Config.STAGE_LENGTH, 0, 1)
+	TweenService:Create(barFill, TweenInfo.new(0.4), { Size = UDim2.fromScale(math.max(progress, 0.04), 1) }):Play()
+	barText.Text = meters(math.min(best, goal)) .. " / " .. meters(goal)
 	local cost = Config.stageCost(unlocked + 1)
 	if best < goal - 5 then
-		unlockButton.Text = "Reach " .. Config.meters(goal) .. " to unlock Stage " .. (unlocked + 1)
-		unlockButton.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
+		unlockBtn.setText("Reach " .. meters(goal) .. "!")
+		unlockBtn.setColor(Color3.fromRGB(150, 155, 180))
 	elseif money < cost then
-		unlockButton.Text = "Unlock Stage " .. (unlocked + 1) .. ": $" .. abbreviate(cost)
-		unlockButton.BackgroundColor3 = Color3.fromRGB(150, 110, 60)
+		unlockBtn.setText("Stage " .. (unlocked + 1) .. ": $" .. abbreviate(cost))
+		unlockBtn.setColor(Color3.fromRGB(230, 120, 80))
 	else
-		unlockButton.Text = "UNLOCK Stage " .. (unlocked + 1) .. ": $" .. abbreviate(cost)
-		unlockButton.BackgroundColor3 = Color3.fromRGB(80, 200, 90)
+		unlockBtn.setText("UNLOCK $" .. abbreviate(cost))
+		unlockBtn.setColor(Color3.fromRGB(80, 200, 90))
 	end
 end
 
-for _, attr in ipairs({ "Money", "BestDistance", "UnlockedStage" }) do
-	player:GetAttributeChangedSignal(attr):Connect(refreshStats)
-end
-player:GetAttributeChangedSignal("UnlockedStage"):Connect(refreshGates)
+player:GetAttributeChangedSignal("Money"):Connect(function()
+	refreshMoney()
+	refreshStage()
+end)
+player:GetAttributeChangedSignal("BestDistance"):Connect(refreshStage)
+player:GetAttributeChangedSignal("UnlockedStage"):Connect(function()
+	refreshStage()
+	refreshGates()
+end)
 task.spawn(function()
 	repeat
 		task.wait(0.2)
-	until player:GetAttribute("UnlockedStage")
-	refreshStats()
+	until player:GetAttribute("DataLoaded")
+	shownMoney = player:GetAttribute("Money") or 0
+	moneyText.Text = "$" .. abbreviate(shownMoney)
+	refreshStage()
 	refreshGates()
 end)
 
-unlockButton.Activated:Connect(function()
+unlockBtn.Instance.Activated:Connect(function()
 	local ok, msg = UnlockStage:InvokeServer()
-	showToast(msg, ok and Color3.fromRGB(120, 255, 120) or Color3.fromRGB(255, 140, 140))
+	UIKit.result(ok, msg)
+	if ok then
+		UIKit.sound("Win", 0.6)
+	end
 end)
 
--- Shop windows ------------------------------------------------------------------------------
-local RocketModel = require(ReplicatedStorage.Shared.RocketModel)
-local BuyRocket = remotes:WaitForChild("BuyRocket")
-local BuyUpgrade = remotes:WaitForChild("BuyUpgrade")
-
-local windows = {}
-local function makeWindow(title, accent)
-	local w = make("Frame", {
-		Parent = gui,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.47),
-		Size = UDim2.fromOffset(560, 430),
-		BackgroundColor3 = Color3.fromRGB(28, 28, 44),
-		Visible = false,
-	}, { corner(20), stroke(4, accent), make("UISizeConstraint", { MaxSize = Vector2.new(560, 430) }) })
-	local header = make("Frame", { Parent = w, Size = UDim2.new(1, 0, 0, 56), BackgroundColor3 = accent }, { corner(20) })
-	label({ Parent = header, Position = UDim2.fromOffset(20, 8), Size = UDim2.new(1, -90, 1, -16), TextXAlignment = Enum.TextXAlignment.Left, Text = title })
-	local close = make("TextButton", { Parent = header, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(42, 42), BackgroundColor3 = Color3.fromRGB(230, 70, 70), Font = FONT, TextScaled = true, TextColor3 = Color3.new(1, 1, 1), Text = "X" }, { corner(12), stroke(2) })
-	close.Activated:Connect(function()
-		w.Visible = false
-	end)
-	local list = make("ScrollingFrame", {
-		Parent = w,
-		Position = UDim2.fromOffset(14, 66),
-		Size = UDim2.new(1, -28, 1, -80),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		ScrollBarThickness = 8,
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		CanvasSize = UDim2.new(),
-	}, { make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }) })
-	table.insert(windows, w)
-	return w, list
-end
-
-local function toggleWindow(w)
-	local open = not w.Visible
-	for _, other in ipairs(windows) do
-		other.Visible = false
-	end
-	w.Visible = open
-	if open then
-		local s = w:FindFirstChildOfClass("UIScale") or make("UIScale", { Parent = w })
-		s.Scale = 0.85
-		TweenService:Create(s, TweenInfo.new(0.2, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-	end
-end
-
-local function row(list, order, height)
-	return make("Frame", { Parent = list, LayoutOrder = order, Size = UDim2.new(1, -10, 0, height), BackgroundColor3 = Color3.fromRGB(44, 44, 66) }, { corner(14) })
-end
-
-local function actionButton(parent)
-	return make("TextButton", {
-		Parent = parent,
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(130, 52),
-		Font = FONT,
-		TextScaled = true,
-		TextColor3 = Color3.new(1, 1, 1),
-		Text = "",
-	}, { corner(12), stroke(2), make("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }) })
-end
-
-local function result(ok, msg)
-	showToast(msg, ok and Color3.fromRGB(120, 255, 120) or Color3.fromRGB(255, 140, 140))
-end
-
-local function upgradeMult(key)
-	return 1 + (player:GetAttribute(key .. "Level") or 0) * Config.Upgrades[key].perLevel
-end
-
-local function rangeOf(def)
-	return def.speed * upgradeMult("Speed") * def.fuel * upgradeMult("Fuel")
-end
-
--- Rockets window: a 3D preview of each rocket, its stats, and Buy / Equip.
-local rocketsWindow, rocketsList = makeWindow("🚀 Rockets", Color3.fromRGB(70, 140, 255))
-local rocketRows = {}
-for i, def in ipairs(Config.Rockets) do
-	local r = row(rocketsList, i, 96)
-	local vp = make("ViewportFrame", { Parent = r, Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(80, 80), BackgroundColor3 = Color3.fromRGB(30, 30, 48), Ambient = Color3.fromRGB(180, 180, 190), LightColor = Color3.new(1, 1, 1) }, { corner(12) })
-	local model = RocketModel.build(def, 1, false, CFrame.Angles(0, 0, math.rad(35)))
-	model.Parent = vp
-	local cam = Instance.new("Camera")
-	cam.CFrame = CFrame.lookAt(Vector3.new(4, 3, 13), Vector3.new(0.5, 0, 0))
-	cam.FieldOfView = 45
-	cam.Parent = vp
-	vp.CurrentCamera = cam
-	label({ Parent = r, Position = UDim2.fromOffset(100, 12), Size = UDim2.new(1, -250, 0, 32), TextXAlignment = Enum.TextXAlignment.Left, Text = def.name })
-	local stats = label({ Parent = r, Position = UDim2.fromOffset(100, 50), Size = UDim2.new(1, -250, 0, 24), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(190, 200, 230), Text = "" })
-	local button = actionButton(r)
-	button.Activated:Connect(function()
-		result(BuyRocket:InvokeServer(def.id))
-	end)
-	rocketRows[def.id] = { stats = stats, button = button, def = def }
-end
-
-local function refreshRockets()
-	local owned = string.split(player:GetAttribute("OwnedRockets") or "Starter", ",")
-	local equipped = player:GetAttribute("Rocket")
-	local money = player:GetAttribute("Money") or 0
-	for id, info in pairs(rocketRows) do
-		local def = info.def
-		info.stats.Text = string.format("Speed %d  |  Fuel %ss  |  ~%s", def.speed, tostring(def.fuel), Config.meters(rangeOf(def)))
-		if id == equipped then
-			info.button.Text = "EQUIPPED"
-			info.button.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
-		elseif table.find(owned, id) then
-			info.button.Text = "EQUIP"
-			info.button.BackgroundColor3 = Color3.fromRGB(70, 140, 255)
-		else
-			info.button.Text = "$" .. abbreviate(def.price)
-			info.button.BackgroundColor3 = money >= def.price and Color3.fromRGB(80, 200, 90) or Color3.fromRGB(150, 70, 70)
-		end
-	end
-end
-
--- Upgrades window: Fuel Tank / Engine / Money Boost.
-local upgradesWindow, upgradesList = makeWindow("⬆️ Upgrades", Color3.fromRGB(160, 80, 230))
-local rangeRow = row(upgradesList, 0, 50)
-local rangeLabel = label({ Parent = rangeRow, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 1, -16), TextColor3 = Color3.fromRGB(255, 220, 90), Text = "" })
-local upgradeRows = {}
-for i, key in ipairs({ "Fuel", "Speed", "Money" }) do
-	local u = Config.Upgrades[key]
-	local r = row(upgradesList, i, 96)
-	label({ Parent = r, Position = UDim2.fromOffset(10, 18), Size = UDim2.fromOffset(60, 60), Text = ({ Fuel = "⛽", Speed = "🔥", Money = "💰" })[key] })
-	label({ Parent = r, Position = UDim2.fromOffset(80, 12), Size = UDim2.new(1, -230, 0, 32), TextXAlignment = Enum.TextXAlignment.Left, Text = u.name })
-	local info = label({ Parent = r, Position = UDim2.fromOffset(80, 50), Size = UDim2.new(1, -230, 0, 24), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(190, 200, 230), Text = "" })
-	local button = actionButton(r)
-	button.Activated:Connect(function()
-		result(BuyUpgrade:InvokeServer(key))
-	end)
-	upgradeRows[key] = { info = info, button = button }
-end
-
-local function refreshUpgrades()
-	local money = player:GetAttribute("Money") or 0
-	local def = Config.getRocket(player:GetAttribute("Rocket"))
-	rangeLabel.Text = def.name .. " range: ~" .. Config.meters(rangeOf(def))
-	for key, r in pairs(upgradeRows) do
-		local u = Config.Upgrades[key]
-		local level = player:GetAttribute(key .. "Level") or 0
-		local what = ({ Fuel = "fuel", Speed = "speed", Money = "money" })[key]
-		r.info.Text = string.format("Lv %d/%d  |  +%d%% %s", level, u.maxLevel, math.floor(level * u.perLevel * 100 + 0.5), what)
-		if level >= u.maxLevel then
-			r.button.Text = "MAX"
-			r.button.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
-		else
-			local cost = Config.upgradeCost(key, level)
-			r.button.Text = "$" .. abbreviate(cost)
-			r.button.BackgroundColor3 = money >= cost and Color3.fromRGB(80, 200, 90) or Color3.fromRGB(150, 70, 70)
-		end
-	end
-end
-
-for _, attr in ipairs({ "Money", "Rocket", "OwnedRockets", "FuelLevel", "SpeedLevel", "MoneyLevel" }) do
-	player:GetAttributeChangedSignal(attr):Connect(function()
-		refreshRockets()
-		refreshUpgrades()
-	end)
-end
-refreshRockets()
-refreshUpgrades()
-
-rocketsButton.Activated:Connect(function()
-	toggleWindow(rocketsWindow)
-end)
-upgradesButton.Activated:Connect(function()
-	toggleWindow(upgradesWindow)
-end)
-eggsButton.Activated:Connect(function()
-	showToast("🥚 Eggs are coming soon!", Color3.fromRGB(255, 230, 120))
-end)
+remotes:WaitForChild("Notify").OnClientEvent:Connect(UIKit.toast)
 
 -- Launching ---------------------------------------------------------------------------------
 local function requestLaunch()
 	if player:GetAttribute("Flying") then
 		return
 	end
-	resultFrame.Visible = false
-	for _, w in ipairs(windows) do
-		w.Visible = false
-	end
+	resultCard.Visible = false
+	UIKit.closeAll()
 	LaunchRemote:FireServer()
 end
-launchButton.Activated:Connect(requestLaunch)
+launchBtn.Instance.Activated:Connect(requestLaunch)
 
 local function hookTool(tool)
 	if tool:IsA("Tool") and tool.Name == "Rocket" and not tool:GetAttribute("Hooked") then
@@ -496,20 +252,112 @@ if player.Character then
 	player.Character.ChildAdded:Connect(hookTool)
 end
 
+local lobbyUi = { moneyPill, bestPill, stageCard, bottomBar, UIKit.sideBar() }
 player:GetAttributeChangedSignal("Flying"):Connect(function()
 	local flying = player:GetAttribute("Flying")
-	bottomBar.Visible = not flying
-	statsFrame.Visible = not flying
-	stageFrame.Visible = not flying
+	for _, f in ipairs(lobbyUi) do
+		f.Visible = not flying
+	end
+	if flying then
+		UIKit.closeAll()
+	end
 end)
 
--- Flight ------------------------------------------------------------------------------------
-local flight = nil -- { body, thrust, aim, speed, fuel, startX, launchedAt, offY, offZ, outOfFuel, stage }
+-- Music ---------------------------------------------------------------------------------------
+local music = {}
+for _, name in ipairs({ "LobbyMusic", "FlightMusic" }) do
+	local s = Instance.new("Sound")
+	s.Name = name
+	s.SoundId = Config.Sounds[name]
+	s.Looped = true
+	s.Volume = 0
+	s.Parent = SoundService
+	s:Play()
+	music[name] = s
+end
+local function playMusic(name)
+	for n, s in pairs(music) do
+		TweenService:Create(s, TweenInfo.new(1.2), { Volume = n == name and 0.3 or 0 }):Play()
+	end
+end
+playMusic("LobbyMusic")
+
+-- Camera shake ----------------------------------------------------------------------------------
+local shake = 0
+local function addShake(amount)
+	shake = math.max(shake, amount)
+end
+
+-- Pickups (coins, gems, rings, obstacles) ---------------------------------------------------
+local pickupList = {}
+local function loadPickups()
+	local folder = workspace:WaitForChild("World"):WaitForChild("Pickups", 20)
+	if not folder then
+		return
+	end
+	for _, m in ipairs(folder:GetChildren()) do
+		local parts = {}
+		for _, d in ipairs(m:GetDescendants()) do
+			if d:IsA("BasePart") then
+				table.insert(parts, { part = d, t = d.Transparency })
+			end
+		end
+		local pos = m:GetAttribute("Pos") or m:GetPivot().Position
+		table.insert(pickupList, { model = m, id = m:GetAttribute("Id"), kind = m:GetAttribute("Kind"), pos = pos, base = CFrame.new(pos), parts = parts, alive = true, phase = math.random() * 6 })
+	end
+	table.sort(pickupList, function(a, b)
+		return a.pos.X < b.pos.X
+	end)
+end
+task.spawn(loadPickups)
+
+local function setPickupVisible(p, visible)
+	p.alive = visible
+	for _, e in ipairs(p.parts) do
+		e.part.Transparency = visible and e.t or 1
+	end
+end
+
+local function resetPickups()
+	for _, p in ipairs(pickupList) do
+		if not p.alive then
+			setPickupVisible(p, true)
+		end
+	end
+end
+
+-- Index of the first pickup with pos.X >= x (binary search).
+local function firstAtOrAfter(x)
+	local lo, hi = 1, #pickupList + 1
+	while lo < hi do
+		local mid = (lo + hi) // 2
+		if pickupList[mid].pos.X < x then
+			lo = mid + 1
+		else
+			hi = mid
+		end
+	end
+	return lo
+end
+
+local function popText(text, color)
+	local l = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5 + (math.random() - 0.5) * 0.1, 0.45), Size = UDim2.fromOffset(220, 44), Text = text, TextColor3 = color, ZIndex = 15, StrokeThickness = 3 })
+	UIKit.bounce(l)
+	TweenService:Create(l, TweenInfo.new(0.9, Enum.EasingStyle.Quad), { Position = l.Position - UDim2.fromOffset(0, 90), TextTransparency = 1 }):Play()
+	local st = l:FindFirstChildOfClass("UIStroke")
+	TweenService:Create(st, TweenInfo.new(0.9), { Transparency = 1 }):Play()
+	task.delay(1, function()
+		l:Destroy()
+	end)
+end
+
+-- Flight ---------------------------------------------------------------------------------------
+local flight = nil
+local combo = 0
 
 local function noJump()
 	return Enum.ContextActionResult.Sink
 end
-
 local function setJumpBlocked(blocked)
 	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	if blocked then
@@ -522,27 +370,135 @@ local function setJumpBlocked(blocked)
 	end
 end
 
-local function stopFlight()
-	flight = nil
-	flightFrame.Visible = false
-	helpLabel.Visible = false
-	arrowPad.Visible = false
+-- Steering input: mouse / finger position (default) or keys.
+local pointer = nil -- Vector2 screen position, or nil before the first move
+local useKeys = false
+local GuiService = game:GetService("GuiService")
+local pointerIsMouse = true
+-- Screen position in the same space as our IgnoreGuiInset ScreenGui.
+local function touchPoint(input)
+	local inset = GuiService:GetGuiInset()
+	return Vector2.new(input.Position.X, input.Position.Y) + inset
+end
+UserInputService.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		pointer = UserInputService:GetMouseLocation()
+		pointerIsMouse = true
+		useKeys = false
+	elseif input.UserInputType == Enum.UserInputType.Touch then
+		pointer = touchPoint(input)
+		pointerIsMouse = false
+		useKeys = false
+	end
+end)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if input.UserInputType == Enum.UserInputType.Touch then
+		pointer = touchPoint(input)
+		pointerIsMouse = false
+		useKeys = false
+	elseif not processed and input.UserInputType == Enum.UserInputType.Keyboard then
+		local K = Enum.KeyCode
+		if table.find({ K.W, K.A, K.S, K.D, K.Up, K.Down, K.Left, K.Right }, input.KeyCode) then
+			useKeys = true
+		end
+	end
+end)
+
+local function keySteer()
+	local function down(...)
+		for _, k in ipairs({ ... }) do
+			if UserInputService:IsKeyDown(k) then
+				return true
+			end
+		end
+		return false
+	end
+	local K = Enum.KeyCode
+	local side = (down(K.D, K.Right) and 1 or 0) - (down(K.A, K.Left) and 1 or 0)
+	local up = (down(K.W, K.Up, K.Space) and 1 or 0) - (down(K.S, K.Down, K.LeftShift) and 1 or 0)
+	return side, up
+end
+
+local launchFx -- smoke at the pad during countdown
+
+local function makeLaunchSmoke(at)
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.Transparency = 1
+	p.Size = Vector3.new(16, 1, 16)
+	p.CFrame = CFrame.new(at)
+	p.Parent = workspace
+	local e = Instance.new("ParticleEmitter")
+	e.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	e.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(210, 210, 220))
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 4), NumberSequenceKeypoint.new(1, 14) })
+	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
+	e.Lifetime = NumberRange.new(1.5, 2.5)
+	e.Speed = NumberRange.new(6, 14)
+	e.SpreadAngle = Vector2.new(80, 80)
+	e.Rate = 30
+	e.Parent = p
+	return p, e
+end
+
+local function stopFlightFx()
+	flightHud.Visible = false
+	flightMoney.Visible = false
+	hintLabel.Visible = false
+	reticle.Visible = false
+	linesFrame.Visible = false
+	UserInputService.MouseIconEnabled = true
 	setJumpBlocked(false)
-	camera.CameraType = Enum.CameraType.Custom
+	if flight and flight.engine then
+		flight.engine:Destroy()
+	end
+end
+
+local function coinBurst(count)
+	local target = moneyPill.AbsolutePosition + moneyPill.AbsoluteSize / 2
+	for i = 1, count do
+		local c = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(40, 40), Text = "💰", ZIndex = 25, StrokeThickness = 0 })
+		local spread = UDim2.fromOffset(math.random(-160, 160), math.random(-120, 80))
+		local t1 = TweenService:Create(c, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Position = c.Position + spread })
+		t1:Play()
+		task.delay(0.35 + i * 0.03, function()
+			local t2 = TweenService:Create(c, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.fromOffset(target.X, target.Y), Size = UDim2.fromOffset(20, 20) })
+			t2:Play()
+			t2.Completed:Wait()
+			c:Destroy()
+			UIKit.sound("Coin", 0.25, 1 + i * 0.03)
+		end)
+	end
 end
 
 FlightEvent.OnClientEvent:Connect(function(kind, info)
 	if kind == "countdown" then
 		setJumpBlocked(true)
-		resultFrame.Visible = false
+		resultCard.Visible = false
+		resetPickups()
+		combo = 0
+		local body = info.rocket and info.rocket.PrimaryPart
+		camera.CameraType = Enum.CameraType.Scriptable
+		if body then
+			camera.CFrame = CFrame.lookAt(body.Position + Vector3.new(-18, 7, 20), body.Position + Vector3.new(2, 2, 0))
+			launchFx = makeLaunchSmoke(body.Position - Vector3.new(0, 3, 0))
+		end
+		playMusic("FlightMusic")
 		bigLabel.Visible = true
 		for i = info.seconds, 1, -1 do
 			bigLabel.Text = tostring(i)
-			bigLabel.TextColor3 = Color3.fromRGB(255, 220, 80)
+			bigLabel.TextColor3 = ({ Color3.fromRGB(120, 255, 120), Color3.fromRGB(255, 220, 80), Color3.fromRGB(255, 110, 80) })[i] or Color3.new(1, 1, 1)
+			UIKit.bounce(bigLabel)
+			UIKit.sound("Beep", 0.5, 1 + (3 - i) * 0.1)
+			addShake(0.15 * (4 - i))
 			task.wait(1)
 		end
-		bigLabel.Text = "GO!"
-		task.delay(0.8, function()
+		bigLabel.Text = "LIFTOFF!"
+		bigLabel.TextColor3 = Color3.fromRGB(255, 200, 60)
+		UIKit.bounce(bigLabel)
+		task.delay(0.9, function()
 			bigLabel.Visible = false
 		end)
 	elseif kind == "start" then
@@ -550,6 +506,21 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		if not body then
 			return
 		end
+		UIKit.sound("Launch", 0.7)
+		addShake(1.2)
+		if launchFx then
+			local e = launchFx:FindFirstChildOfClass("ParticleEmitter")
+			e:Emit(60)
+			e.Rate = 0
+			game:GetService("Debris"):AddItem(launchFx, 4)
+			launchFx = nil
+		end
+		local engine = Instance.new("Sound")
+		engine.SoundId = Config.Sounds.Engine
+		engine.Looped = true
+		engine.Volume = 0.35
+		engine.Parent = body
+		engine:Play()
 		flight = {
 			body = body,
 			thrust = body:WaitForChild("Thrust"),
@@ -558,99 +529,324 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			fuel = info.fuel,
 			startX = info.startX,
 			launchedAt = os.clock(),
-			offY = 10,
+			offY = 12,
 			offZ = 0,
 			stage = 0,
+			engine = engine,
+			boostUntil = 0,
+			slowUntil = 0,
+			bonus = 0,
+			scan = 1,
 		}
-		flightFrame.Visible = true
-		helpLabel.Visible = not UserInputService.TouchEnabled
-		arrowPad.Visible = UserInputService.TouchEnabled
-		camera.CameraType = Enum.CameraType.Scriptable
+		flightHud.Visible = true
+		linesFrame.Visible = true
+		if UserInputService.TouchEnabled then
+			hintLabel.Text = "Drag your finger to steer!"
+		else
+			hintLabel.Text = "Move your mouse to steer!  (or WASD)"
+			UserInputService.MouseIconEnabled = false
+		end
+		hintLabel.Visible = true
+		task.delay(3, function()
+			hintLabel.Visible = false
+		end)
+	elseif kind == "pickup" then
+		if flight and info.fuel then
+			flight.fuel = info.fuel
+		end
+		if info.money and flight then
+			flight.bonus += info.money
+			flightMoney.Text = "+$" .. abbreviate(flight.bonus) .. " bonus"
+			flightMoney.Visible = true
+			popText("+$" .. abbreviate(info.money), info.kind == "Gem" and Color3.fromRGB(120, 230, 255) or Color3.fromRGB(255, 220, 60))
+		end
 	elseif kind == "outOfFuel" then
 		if flight then
 			flight.outOfFuel = os.clock()
+			if flight.engine then
+				TweenService:Create(flight.engine, TweenInfo.new(0.5), { Volume = 0 }):Play()
+			end
+			bigLabel.Text = "OUT OF FUEL!"
+			bigLabel.TextColor3 = Color3.fromRGB(255, 140, 80)
+			bigLabel.Visible = true
+			UIKit.bounce(bigLabel)
+			task.delay(1.2, function()
+				if bigLabel.Text == "OUT OF FUEL!" then
+					bigLabel.Visible = false
+				end
+			end)
 		end
 	elseif kind == "result" then
-		stopFlight()
-		resultTitle.Text = info.newBest and "NEW BEST!" or "Flight over!"
-		resultTitle.TextColor3 = info.newBest and Color3.fromRGB(255, 220, 60) or Color3.new(1, 1, 1)
-		resultDistance.Text = "You flew " .. Config.meters(info.distance)
-		resultMoney.Text = "+$" .. abbreviate(info.money)
-		resultHint.Text = ({
-			fuel = "Out of fuel! Upgrade your rocket to go farther.",
+		stopFlightFx()
+		if flight then
+			flight.landed = true
+		end
+		bigLabel.Visible = false
+		ribbonText.Text = info.newBest and "NEW BEST!" or "FLIGHT OVER"
+		ribbon.Visible = true
+		resDistance.Text = "🚀 " .. meters(info.distance)
+		resMoney.Text = "+$" .. abbreviate(info.money)
+		resCoins.Text = (info.bonus or 0) > 0 and ("💰 " .. info.coins .. (info.coins == 1 and " coin: +$" or " coins: +$") .. abbreviate(info.bonus)) or ""
+		resHint.Text = ({
+			fuel = "Out of fuel! Upgrade your Fuel Tank to fly farther.",
 			gate = "Stage locked! Unlock the next stage to keep going.",
 			jumped = "You fell off your rocket!",
 			finish = "You reached the end of the galaxy!",
 		})[info.reason] or ""
-		resultFrame.Visible = true
-		task.delay(4, function()
-			if not flight then
-				resultFrame.Visible = false
+		resultCard.Visible = true
+		local s = resultCard:FindFirstChildOfClass("UIScale")
+		s.Scale = 0.3
+		TweenService:Create(s, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		UIKit.sound("Win", 0.6)
+		task.delay(0.5, function()
+			coinBurst(info.newBest and 16 or 10)
+		end)
+		task.delay(5, function()
+			if not player:GetAttribute("Flying") then
+				resultCard.Visible = false
 			end
 		end)
 	end
 end)
 
+resultCard.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		resultCard.Visible = false
+	end
+end)
+
+player:GetAttributeChangedSignal("Flying"):Connect(function()
+	if not player:GetAttribute("Flying") then
+		flight = nil
+		stopFlightFx()
+		camera.CameraType = Enum.CameraType.Custom
+		camera.FieldOfView = 70
+		playMusic("LobbyMusic")
+	end
+end)
+
+local function hitTest(p, rp)
+	local d = p.pos - rp
+	if p.kind == "Ring" then
+		return math.abs(d.X) < 3.5 and Vector2.new(d.Y, d.Z).Magnitude < 7.5
+	elseif p.kind == "Obstacle" then
+		return d.Magnitude < 6
+	end
+	return d.Magnitude < Config.PICKUP_RADIUS
+end
+
+local function collect(p)
+	setPickupVisible(p, false)
+	CollectRemote:FireServer(p.id)
+	local f = flight
+	if p.kind == "Coin" or p.kind == "Gem" then
+		combo += 1
+		UIKit.sound("Coin", 0.45, math.min(1.6, 1 + combo * 0.04))
+	elseif p.kind == "Ring" then
+		f.boostUntil = os.clock() + Config.Pickups.Ring.boostTime
+		UIKit.sound("Boost", 0.6)
+		popText("BOOST! +FUEL", Color3.fromRGB(255, 180, 40))
+		addShake(0.4)
+	elseif p.kind == "Obstacle" then
+		f.slowUntil = os.clock() + Config.Pickups.Obstacle.slowTime
+		combo = 0
+		UIKit.sound("Hit", 0.5)
+		popText("OUCH! -FUEL", Color3.fromRGB(255, 90, 90))
+		addShake(1)
+		flash.BackgroundTransparency = 0.55
+		TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+	end
+end
+
+local lineTimer = 0
 RunService.RenderStepped:Connect(function(dt)
-	if not flight then
+	local now = os.clock()
+	-- spin coins / gems / rings near the camera (cheap: only a window around the camera)
+	if #pickupList > 0 then
+		local cx = camera.CFrame.Position.X
+		local i = firstAtOrAfter(cx - 60)
+		while i <= #pickupList and pickupList[i].pos.X < cx + 320 do
+			local p = pickupList[i]
+			if p.alive then
+				if p.kind == "Coin" then
+					p.model:PivotTo(CFrame.new(p.pos) * CFrame.Angles(0, now * 3 + p.phase, 0))
+				elseif p.kind == "Gem" then
+					p.model:PivotTo(CFrame.new(p.pos + Vector3.new(0, math.sin(now * 2 + p.phase) * 0.6, 0)) * CFrame.Angles(math.rad(45), now * 2, math.rad(45)))
+				elseif p.kind == "Ring" then
+					p.model:PivotTo(CFrame.new(p.pos) * CFrame.Angles(now * 1.2 + p.phase, 0, 0))
+				elseif p.kind == "Obstacle" then
+					p.model:PivotTo(p.base + Vector3.new(0, math.sin(now * 2.5 + p.phase) * 1.2, 0))
+				end
+			end
+			i += 1
+		end
+	end
+
+	-- camera shake decay
+	local shakeOffset = CFrame.new()
+	if shake > 0.01 then
+		shakeOffset = CFrame.new((math.random() - 0.5) * shake, (math.random() - 0.5) * shake, 0) * CFrame.Angles(0, 0, (math.random() - 0.5) * shake * 0.03)
+		shake *= math.exp(-dt * 5)
+	end
+
+	local f = flight
+	if not f then
+		if shake > 0.01 and camera.CameraType == Enum.CameraType.Scriptable then
+			camera.CFrame *= shakeOffset
+		end
 		return
 	end
-	local f = flight
 	if not f.body.Parent then
-		stopFlight()
 		return
 	end
 	local pos = f.body.Position
-	local side, up = getSteer()
-	local steer = Config.STEER_SPEED * dt
-	f.offY = math.clamp(f.offY + up * steer, Config.FLY_MIN_HEIGHT, Config.FLY_MAX_HEIGHT)
-	f.offZ = math.clamp(f.offZ + side * steer, -Config.PATH_HALF_WIDTH, Config.PATH_HALF_WIDTH)
+
+	-- Landed (server anchored the rocket): slow orbit around it until we're sent home.
+	if f.landed then
+		local a = now * 0.5
+		camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(pos + Vector3.new(math.cos(a) * 18, 8, math.sin(a) * 18), pos), math.min(1, dt * 3))
+		return
+	end
+
+	-- The flight camera sits behind the path (not behind the rocket), so the rocket visibly
+	-- moves around the screen and flies to wherever you point.
+	local CAM_BACK, CAM_UP = 44, 36
+	local camBase = Vector3.new(pos.X - CAM_BACK, Config.pathY(pos.X) + CAM_UP, 0)
+
+	-- Steering target from the pointer (or keys)
+	if useKeys or not pointer then
+		local side, up = keySteer()
+		f.offY = math.clamp(f.offY + up * Config.STEER_SPEED * dt, Config.FLY_MIN_HEIGHT, Config.FLY_MAX_HEIGHT)
+		f.offZ = math.clamp(f.offZ + side * Config.STEER_SPEED * dt, -Config.PATH_HALF_WIDTH, Config.PATH_HALF_WIDTH)
+		reticle.Visible = false
+	else
+		if pointerIsMouse then
+			pointer = UserInputService:GetMouseLocation()
+		end
+		-- where the pointer's ray crosses the rocket's flight plane
+		local ray = camera:ViewportPointToRay(pointer.X, pointer.Y)
+		local targetY, targetZ = f.offY, f.offZ
+		if ray.Direction.X > 0.05 then
+			local hit = ray.Origin + ray.Direction * ((pos.X - ray.Origin.X) / ray.Direction.X)
+			targetY = math.clamp(hit.Y - Config.pathY(pos.X), Config.FLY_MIN_HEIGHT, Config.FLY_MAX_HEIGHT)
+			targetZ = math.clamp(hit.Z, -Config.PATH_HALF_WIDTH, Config.PATH_HALF_WIDTH)
+		end
+		if now - f.launchedAt < 0.8 then
+			targetY = math.max(targetY, 22) -- lift off the pad first
+		end
+		local k = math.min(1, dt * 5)
+		f.offY += (targetY - f.offY) * k
+		f.offZ += (targetZ - f.offZ) * k
+		reticle.Position = UDim2.fromOffset(pointer.X, pointer.Y)
+		reticle.Visible = not f.outOfFuel
+	end
+
+	local speedMul = 1
+	if now < f.boostUntil then
+		speedMul = Config.Pickups.Ring.boost
+	elseif now < f.slowUntil then
+		speedMul = Config.Pickups.Obstacle.slow
+	end
 
 	local vel
 	if f.outOfFuel then
-		local t = os.clock() - f.outOfFuel
-		local fall = pos.Y > Config.pathY(pos.X) + 2.5 and (-18 - t * 20) or 0 -- land on the path, don't sink through it
-		vel = Vector3.new(f.speed * math.max(0.15, 0.6 - t * 0.3), fall, 0)
+		-- slow-motion glide down to the path
+		local t = now - f.outOfFuel
+		local fall = pos.Y > Config.pathY(pos.X) + 2.5 and (-8 - t * 6) or 0
+		vel = Vector3.new(f.speed * math.max(0.08, 0.3 - t * 0.1), fall, -pos.Z * 0.5)
 	else
+		local speed = f.speed * speedMul
 		local slope = Config.pathY(pos.X + 1) - Config.pathY(pos.X)
 		local targetY = Config.pathY(pos.X) + f.offY
-		vel = Vector3.new(f.speed, slope * f.speed + (targetY - pos.Y) * 4, (f.offZ - pos.Z) * 4)
+		vel = Vector3.new(speed, slope * speed + (targetY - pos.Y) * 5, (f.offZ - pos.Z) * 5)
 	end
 	f.thrust.VectorVelocity = vel
-	f.aim.CFrame = CFrame.lookAt(Vector3.zero, vel.Unit) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(side * 0.5, 0, 0)
+	local roll = math.clamp((f.offZ - pos.Z) * 0.04, -0.6, 0.6)
+	f.aim.CFrame = CFrame.lookAt(Vector3.zero, vel.Unit) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(roll, 0, 0)
 
-	-- Camera: behind and a little above the rocket.
-	local camPos = pos + Vector3.new(-26, 9, 0)
-	camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(camPos, pos + Vector3.new(20, 2, 0)), math.min(1, dt * 8))
+	-- Camera: steady chase view over the path; FOV widens a little with speed.
+	-- Slow-mo (out of fuel) swings in close beside the rocket.
+	if f.outOfFuel then
+		local camTarget = CFrame.lookAt(pos + Vector3.new(-10, 5, 14), pos + Vector3.new(4, 0, 0))
+		camera.FieldOfView += (60 - camera.FieldOfView) * math.min(1, dt * 2)
+		camera.CFrame = camera.CFrame:Lerp(camTarget, math.min(1, dt * 2)) * shakeOffset
+	else
+		local fov = 70 + math.min(12, f.speed * speedMul * 0.04)
+		camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 3)
+		local look = Vector3.new(pos.X + 30, Config.pathY(pos.X + 30) + CAM_UP - 4, 0)
+		camera.CFrame = CFrame.lookAt(camBase, look) * shakeOffset
+	end
+
+	-- Speed lines
+	if not f.outOfFuel then
+		lineTimer += dt
+		local interval = speedMul > 1 and 0.015 or 0.04
+		while lineTimer > interval do
+			lineTimer -= interval
+			spawnSpeedLine(speedMul > 1 and 1 or 0.6)
+		end
+	end
+	if f.engine then
+		f.engine.PlaybackSpeed = 0.9 + speedMul * 0.2
+	end
+
+	-- Pickups near the rocket
+	if not f.outOfFuel and #pickupList > 0 then
+		local i = firstAtOrAfter(pos.X - 8)
+		while i <= #pickupList and pickupList[i].pos.X <= pos.X + 8 do
+			local p = pickupList[i]
+			if p.alive and hitTest(p, pos) then
+				collect(p)
+			end
+			i += 1
+		end
+	end
 
 	-- HUD
-	local dist = math.max(0, pos.X - f.startX)
-	distanceLabel.Text = Config.meters(dist)
-	local fuelLeft = f.outOfFuel and 0 or math.clamp(1 - (os.clock() - f.launchedAt) / f.fuel, 0, 1)
+	distanceLabel.Text = meters(math.max(0, pos.X - f.startX))
+	local fuelLeft = f.outOfFuel and 0 or math.clamp(1 - (now - f.launchedAt) / f.fuel, 0, 1)
 	fuelFill.Size = UDim2.fromScale(fuelLeft, 1)
 	local stage = Config.stageAt(pos.X)
 	if stage ~= f.stage then
 		f.stage = stage
-		flightStageLabel.Text = "Stage " .. stage .. " - " .. Config.Stages[stage].name
+		zoneLabel.Text = "Stage " .. stage .. " - " .. Config.Stages[stage].name
 		if stage > 1 then
-			showToast("STAGE " .. stage .. ": " .. Config.Stages[stage].name, Color3.fromRGB(255, 220, 80))
+			UIKit.toast("STAGE " .. stage .. ": " .. Config.Stages[stage].name, Color3.fromRGB(255, 220, 80))
 		end
 	end
 end)
 
--- Zone lighting: Earth -> Sky -> Space ----------------------------------------------------------
+-- Name tags over other players' rockets ---------------------------------------------------
+local flights = workspace:WaitForChild("Flights")
+flights.ChildAdded:Connect(function(m)
+	if m.Name == player.Name then
+		return
+	end
+	local body = m:WaitForChild("Body", 5)
+	if not body then
+		return
+	end
+	local bb = make("BillboardGui", { Parent = body, Size = UDim2.fromOffset(160, 36), StudsOffset = Vector3.new(0, 6, 0), AlwaysOnTop = true, MaxDistance = 300 })
+	label({ Parent = bb, Size = UDim2.fromScale(1, 1), Text = m.Name, TextColor3 = Color3.fromRGB(255, 230, 120) })
+end)
+
+-- Zone lighting: Earth -> Sky -> Space, plus a bright cartoon color grade ---------------------
 local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere", Lighting)
+local grade = Lighting:FindFirstChild("CartoonGrade") or Instance.new("ColorCorrectionEffect")
+grade.Name = "CartoonGrade"
+grade.Saturation = 0.25
+grade.Contrast = 0.08
+grade.Brightness = 0.02
+grade.Parent = Lighting
 local ZONES = {
-	Earth = { lighting = { ClockTime = 14, Brightness = 2, Ambient = Color3.fromRGB(70, 70, 70), OutdoorAmbient = Color3.fromRGB(128, 128, 128) }, atmo = { Density = 0.3, Haze = 0, Color = Color3.fromRGB(199, 199, 199) } },
-	Sky = { lighting = { ClockTime = 16.5, Brightness = 2.5, Ambient = Color3.fromRGB(110, 110, 130), OutdoorAmbient = Color3.fromRGB(160, 160, 190) }, atmo = { Density = 0.35, Haze = 1.5, Color = Color3.fromRGB(200, 225, 255) } },
-	Space = { lighting = { ClockTime = 0, Brightness = 1, Ambient = Color3.fromRGB(120, 110, 150), OutdoorAmbient = Color3.fromRGB(140, 130, 170) }, atmo = { Density = 0, Haze = 0, Color = Color3.fromRGB(0, 0, 0) } },
+	Earth = { lighting = { ClockTime = 14, Brightness = 2.2, Ambient = Color3.fromRGB(90, 90, 100), OutdoorAmbient = Color3.fromRGB(150, 150, 160) }, atmo = { Density = 0.25, Haze = 0, Color = Color3.fromRGB(210, 225, 255) } },
+	Sky = { lighting = { ClockTime = 16.5, Brightness = 2.6, Ambient = Color3.fromRGB(120, 120, 140), OutdoorAmbient = Color3.fromRGB(170, 170, 200) }, atmo = { Density = 0.32, Haze = 1.2, Color = Color3.fromRGB(210, 230, 255) } },
+	Space = { lighting = { ClockTime = 0, Brightness = 1, Ambient = Color3.fromRGB(130, 120, 160), OutdoorAmbient = Color3.fromRGB(150, 140, 180) }, atmo = { Density = 0, Haze = 0, Color = Color3.fromRGB(0, 0, 0) } },
 }
 local currentZone = nil
 RunService.Heartbeat:Connect(function()
-	local zone = Config.Stages[Config.stageAt(camera.CFrame.Position.X)].zone
-	if camera.CFrame.Position.X < Config.LAUNCH_X then
-		zone = "Earth"
-	end
+	local x = camera.CFrame.Position.X
+	local zone = x < Config.LAUNCH_X and "Earth" or Config.Stages[Config.stageAt(x)].zone
 	if zone ~= currentZone then
 		currentZone = zone
 		local info = TweenInfo.new(2)
