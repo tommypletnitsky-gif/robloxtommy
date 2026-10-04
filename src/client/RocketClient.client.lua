@@ -257,6 +257,9 @@ pcall(function()
 end)
 
 local lobbyUi = { moneyPill, bestPill, stageCard, bottomBar, UIKit.sideBar() }
+for _, f in ipairs({ moneyPill, bestPill, stageCard }) do
+	UIKit.hudScale(f)
+end
 player:GetAttributeChangedSignal("Flying"):Connect(function()
 	local flying = player:GetAttribute("Flying")
 	for _, f in ipairs(lobbyUi) do
@@ -279,11 +282,17 @@ for _, name in ipairs({ "LobbyMusic", "FlightMusic" }) do
 	s:Play()
 	music[name] = s
 end
+local currentMusic = nil
 local function playMusic(name)
+	currentMusic = name
+	local on = player:GetAttribute("MusicOn") ~= false
 	for n, s in pairs(music) do
-		TweenService:Create(s, TweenInfo.new(1.2), { Volume = n == name and 0.3 or 0 }):Play()
+		TweenService:Create(s, TweenInfo.new(1.2), { Volume = (n == name and on) and 0.3 or 0 }):Play()
 	end
 end
+player:GetAttributeChangedSignal("MusicOn"):Connect(function()
+	playMusic(currentMusic)
+end)
 playMusic("LobbyMusic")
 
 -- Camera shake ----------------------------------------------------------------------------------

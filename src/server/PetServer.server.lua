@@ -156,6 +156,7 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 		end
 	end
 	player:SetAttribute("NextPetId", nextId)
+	player:SetAttribute("StatEggs", (player:GetAttribute("StatEggs") or 0) + count)
 	setPets(player, pets)
 
 	-- fill empty pet slots with the new pets (best first) so hatching feels instant

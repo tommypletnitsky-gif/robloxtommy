@@ -131,6 +131,38 @@ function Config.getTrail(id)
 	return Config.Trails[1]
 end
 
+-- Quests: chains of goals; finish a goal, claim the money, the next (bigger) goal appears.
+-- stat = which player attribute counts the progress. Claimed tiers are saved in "QuestTiers".
+Config.Quests = {
+	{ id = "flights", stat = "StatFlights", icon = "Rocket", text = "Launch %s times", goals = { 1, 5, 15, 40, 100, 250, 600 } },
+	{ id = "best", stat = "BestDistance", icon = "Trophy", text = "Fly %sm in one flight", goals = { 300, 500, 1000, 2000, 3500, 5000, 8000, 12000, 15000 } },
+	{ id = "distance", stat = "StatDistance", icon = "Bolt", text = "Fly %sm in total", goals = { 1000, 5000, 20000, 75000, 250000, 1000000, 4000000 } },
+	{ id = "coins", stat = "StatCoins", icon = "Coin", text = "Collect %s coins in flight", goals = { 10, 50, 200, 750, 2500, 8000 } },
+	{ id = "rings", stat = "StatRings", icon = "Bolt", text = "Fly through %s boost rings", goals = { 3, 15, 60, 200, 600 } },
+	{ id = "eggs", stat = "StatEggs", icon = "Gift", text = "Hatch %s eggs", goals = { 1, 5, 20, 60, 150, 400 } },
+	{ id = "stage", stat = "UnlockedStage", icon = "Calendar", text = "Unlock Stage %s", goals = { 2, 3, 5, 8, 11, 15, 20, 25, 30 } },
+	{ id = "cannon", stat = "CannonLevel", icon = "MoneyBag", text = "Upgrade Cannon Power to %s", goals = { 1, 3, 6, 12, 18, 24, 30 } },
+}
+function Config.questReward(stage, tier)
+	return math.floor(Config.moneyPerStud(stage or 1) * 150 * 1.65 ^ (tier - 1))
+end
+function Config.parseQuestTiers(s)
+	local t = {}
+	for id, n in string.gmatch(s or "", "(%w+):(%d+)") do
+		t[id] = tonumber(n)
+	end
+	return t
+end
+
+-- Codes (typed in Settings). Each works once per player. reward = money in Stage-1 dollars,
+-- multiplied by how much your unlocked stage pays.
+Config.Codes = {
+	ROCKET = 500,
+	BLASTOFF = 1000,
+	TOTHEMOON = 2500,
+	CANNON = 1500,
+}
+
 -- Rebirth: unlock far enough, then start over (money, stages, rockets and upgrades reset; pets and
 -- trails stay) for a permanent money bonus and an extra pet slot.
 Config.REBIRTH_BONUS = 0.5 -- +50% money per rebirth (added up: 2 rebirths = x2)

@@ -30,6 +30,15 @@ PlayerData.DEFAULTS = {
 	Pets = "", -- "uid:Kind;uid:Kind" (see Config.parsePets)
 	EquippedPets = "", -- "uid,uid"
 	NextPetId = 1,
+	StatFlights = 0, -- quest stats
+	StatDistance = 0,
+	StatCoins = 0,
+	StatRings = 0,
+	StatEggs = 0,
+	QuestTiers = "", -- "flights:2,best:1" = goals claimed per quest chain
+	Codes = "", -- redeemed codes
+	MusicOn = true,
+	SoundOn = true,
 	Migrated = false,
 }
 

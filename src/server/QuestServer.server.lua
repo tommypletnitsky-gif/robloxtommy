@@ -1,0 +1,96 @@
+-- Quests (claim the money for a finished goal), codes, and saved settings.
+--   ClaimQuest(questId)  -> ok, message
+--   RedeemCode(text)     -> ok, message
+--   SetSetting(name, on) -> (MusicOn / SoundOn, saved with your progress)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local PlayerData = require(ServerScriptService.PlayerData)
+
+local remotes = ReplicatedStorage:FindFirstChild("Remotes") or Instance.new("Folder")
+remotes.Name = "Remotes"
+remotes.Parent = ReplicatedStorage
+local function remote(className, name)
+	local r = remotes:FindFirstChild(name) or Instance.new(className)
+	r.Name = name
+	r.Parent = remotes
+	return r
+end
+local ClaimQuest = remote("RemoteFunction", "ClaimQuest")
+local RedeemCode = remote("RemoteFunction", "RedeemCode")
+local SetSetting = remote("RemoteEvent", "SetSetting")
+
+local function addMoney(player, amount)
+	amount = math.floor(amount)
+	player:SetAttribute("Money", (player:GetAttribute("Money") or 0) + amount)
+	player:SetAttribute("TotalEarned", (player:GetAttribute("TotalEarned") or 0) + amount)
+end
+
+local function questById(id)
+	for _, q in ipairs(Config.Quests) do
+		if q.id == id then
+			return q
+		end
+	end
+end
+
+local busy = {}
+ClaimQuest.OnServerInvoke = function(player, id)
+	local q = typeof(id) == "string" and questById(id)
+	if not q or busy[player] or not player:GetAttribute("DataLoaded") then
+		return false, "Unknown quest."
+	end
+	local tiers = Config.parseQuestTiers(player:GetAttribute("QuestTiers"))
+	local done = tiers[q.id] or 0
+	local goal = q.goals[done + 1]
+	if not goal then
+		return false, "All done!"
+	end
+	if (player:GetAttribute(q.stat) or 0) < goal then
+		return false, "Not finished yet!"
+	end
+	busy[player] = true
+	tiers[q.id] = done + 1
+	local parts = {}
+	for qid, n in pairs(tiers) do
+		table.insert(parts, qid .. ":" .. n)
+	end
+	player:SetAttribute("QuestTiers", table.concat(parts, ","))
+	local reward = Config.questReward(player:GetAttribute("UnlockedStage") or 1, done + 1)
+	addMoney(player, reward)
+	busy[player] = nil
+	return true, "Quest complete! +$" .. Config.abbreviate(reward)
+end
+
+RedeemCode.OnServerInvoke = function(player, text)
+	if typeof(text) ~= "string" or #text > 30 or not player:GetAttribute("DataLoaded") then
+		return false, "That code doesn't work."
+	end
+	local code = string.upper((text:gsub("%s", "")))
+	local base = Config.Codes[code]
+	if not base then
+		return false, "That code doesn't work."
+	end
+	local used = string.split(player:GetAttribute("Codes") or "", ",")
+	if table.find(used, code) then
+		return false, "You already used that code!"
+	end
+	table.insert(used, code)
+	player:SetAttribute("Codes", table.concat(used, ","))
+	local reward = math.floor(base * Config.moneyPerStud(player:GetAttribute("UnlockedStage") or 1))
+	addMoney(player, reward)
+	PlayerData.save(player)
+	return true, "Code " .. code .. ": +$" .. Config.abbreviate(reward) .. "!"
+end
+
+SetSetting.OnServerEvent:Connect(function(player, name, on)
+	if (name == "MusicOn" or name == "SoundOn") and typeof(on) == "boolean" then
+		player:SetAttribute(name, on)
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	busy[player] = nil
+end)

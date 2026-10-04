@@ -130,6 +130,9 @@ local function endFlight(player, reason)
 	local distance = math.max(0, math.floor(f.distance))
 	local money = math.floor(Config.moneyForDistance(distance) * moneyMultiplier(player))
 	addMoney(player, money)
+	-- quest stats
+	player:SetAttribute("StatFlights", (player:GetAttribute("StatFlights") or 0) + 1)
+	player:SetAttribute("StatDistance", (player:GetAttribute("StatDistance") or 0) + distance)
 	local newBest = distance > (player:GetAttribute("BestDistance") or 0)
 	if newBest then
 		player:SetAttribute("BestDistance", distance)
@@ -282,11 +285,13 @@ CollectRemote.OnServerEvent:Connect(function(player, id)
 		addMoney(player, amount)
 		f.bonus += amount
 		f.coins += 1
+		player:SetAttribute("StatCoins", (player:GetAttribute("StatCoins") or 0) + 1)
 		FlightEvent:FireClient(player, "pickup", { id = id, kind = p.kind, money = amount })
 	elseif p.kind == "Ring" then
 		local r = Config.Pickups.Ring
 		f.fuel += r.fuel
 		f.boostUntil = now + r.boostTime
+		player:SetAttribute("StatRings", (player:GetAttribute("StatRings") or 0) + 1)
 		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Ring", fuel = f.fuel })
 	elseif p.kind == "Obstacle" then
 		local o = Config.Pickups.Obstacle

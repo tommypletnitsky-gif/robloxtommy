@@ -21,5 +21,7 @@
   {"file": "src/client/LobbyClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.LobbyClient", "class": "LocalScript"},
   {"file": "src/server/PetServer.server.lua", "path": "ServerScriptService.PetServer", "class": "Script"},
   {"file": "src/client/PetClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.PetClient", "class": "LocalScript"},
-  {"file": "src/client/RebirthClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.RebirthClient", "class": "LocalScript"}
+  {"file": "src/client/RebirthClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.RebirthClient", "class": "LocalScript"},
+  {"file": "src/server/QuestServer.server.lua", "path": "ServerScriptService.QuestServer", "class": "Script"},
+  {"file": "src/client/QuestClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.QuestClient", "class": "LocalScript"}
 ]

@@ -89,7 +89,7 @@ end
 local soundCache = {}
 function UIKit.sound(name, volume, pitch)
 	local id = Config.Sounds[name]
-	if not id then
+	if not id or player:GetAttribute("SoundOn") == false then
 		return
 	end
 	local s = soundCache[name]
@@ -242,6 +242,9 @@ function UIKit.button(opts)
 	-- soft shine on the top half and a thin highlight line
 	make("Frame", { Parent = face, Name = "Shine", BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.new(0.06, 0, 0.07, 0), Size = UDim2.new(0.88, 0, 0.3, 0), ZIndex = z + 1 }, { UIKit.corner(radius - 4) })
 	local text, iconApi
+	if opts.Icon3D and not iconTemplate(opts.Icon3D) then
+		opts.Icon3D = nil -- 3D icon missing: fall back to the emoji
+	end
 	if (opts.Icon3D or opts.Icon) and opts.IconSide then
 		-- wide button: big icon on the left, text on the right
 		local iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = UDim2.fromScale(0.0, -0.25), Size = UDim2.fromScale(0.4, 1.4), ZIndex = z + 2 })
@@ -435,20 +438,46 @@ end
 
 -- Shared bars (created on first use so scripts can load in any order) -------------------
 local bars = {}
+-- HUD pieces shrink on small (phone) screens: add UIKit.hudScale(frame) to any HUD container.
+-- (Only size changes, so anchors / positions keep them in their corners.)
+local hudScales = {}
+local function hudFactor()
+	local v = workspace.CurrentCamera.ViewportSize
+	if v.X < 300 or v.Y < 200 then
+		return 1 -- not measured yet right after joining
+	end
+	return math.clamp(math.min(v.Y / 640, v.X / 1000), 0.55, 1)
+end
+function UIKit.hudScale(frame)
+	local s = frame:FindFirstChild("HudScale") or make("UIScale", { Name = "HudScale", Parent = frame })
+	s.Scale = hudFactor()
+	table.insert(hudScales, s)
+	return s
+end
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	local f = hudFactor()
+	for _, s in ipairs(hudScales) do
+		s.Scale = f
+	end
+end)
+
 function UIKit.bottomBar()
 	if not bars.bottom then
 		bars.bottom = make("Frame", { Parent = UIKit.gui(), Name = "BottomBar", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -16), Size = UDim2.fromOffset(700, 110), BackgroundTransparency = 1 }, {
 			make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Bottom, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
+		UIKit.hudScale(bars.bottom)
 	end
 	return bars.bottom
 end
 
 function UIKit.sideBar()
 	if not bars.side then
-		bars.side = make("Frame", { Parent = UIKit.gui(), Name = "SideBar", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.6, 0), Size = UDim2.fromOffset(92, 330), BackgroundTransparency = 1 }, {
-			make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
+		-- under the money pills, buttons in a 2-wide grid so it never runs off the bottom
+		bars.side = make("Frame", { Parent = UIKit.gui(), Name = "SideBar", Position = UDim2.fromOffset(14, 200), Size = UDim2.fromOffset(196, 220), BackgroundTransparency = 1 }, {
+			make("UIGridLayout", { CellSize = UDim2.fromOffset(92, 98), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
+		UIKit.hudScale(bars.side)
 	end
 	return bars.side
 end
