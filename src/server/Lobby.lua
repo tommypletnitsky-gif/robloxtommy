@@ -1,7 +1,7 @@
 -- The starting area: a cartoon space-center park.
 --   spawn plaza -> flower avenue + entrance arch -> shuttle statue fountain -> launch apron
 --   Rocket Shop hangar (north) and Upgrade Lab dome (south) open onto the statue plaza.
--- Animated bits are tagged for LobbyClient: LobbySpin / LobbyBob / LobbyBlink / MiniPad.
+-- Animated bits are tagged for LobbyClient: LobbySpin / LobbyBlink / MiniPad.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local CollectionService = game:GetService("CollectionService")
@@ -79,21 +79,6 @@ local function bench(parent, pos, facing)
 	end
 end
 
-local function balloons(parent, pos, rng)
-	local m = Instance.new("Model")
-	m.Name = "Balloons"
-	m.Parent = parent
-	local anchor = pos + Vector3.new(0, 0.5, 0)
-	part(m, { Size = Vector3.new(1, 1, 1), CFrame = CFrame.new(anchor), Color = C(60, 60, 80) })
-	for i = 1, 3 do
-		local top = pos + Vector3.new(rng:NextNumber(-1.5, 1.5), rng:NextNumber(11, 15), rng:NextNumber(-1.5, 1.5))
-		ball(m, 3.2, top, FLOWERS[(i % #FLOWERS) + 1], { Reflectance = 0.1 })
-		beam(m, anchor, top - Vector3.new(0, 1.6, 0), 0.1, WHITE, { CastShadow = false })
-	end
-	m:SetAttribute("Phase", rng:NextNumber(0, 6))
-	tag(m, "LobbyBob")
-end
-
 -- Ground: lawn, spawn plaza, avenues, statue plaza, launch apron, hedges ------------------------
 local function ground(hub, rng)
 	part(hub, { Name = "Lawn", Size = Vector3.new(184, 0.3, 172), CFrame = CFrame.new(-95, 0.15, 0), Color = C(105, 200, 85), Material = M.Grass })
@@ -160,7 +145,7 @@ local function ground(hub, rng)
 	end
 end
 
--- Spawn: invisible SpawnLocation on the glowing pad, balloons, title arch ------------------------
+-- Spawn: invisible SpawnLocation on the glowing pad, title arch ---------------------------------
 local function spawnArea(hub, rng)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Spawn"
@@ -170,10 +155,6 @@ local function spawnArea(hub, rng)
 	spawn.Transparency = 1
 	spawn.Duration = 0
 	spawn.Parent = hub
-	for i = 0, 3 do
-		local a = i / 4 * math.pi * 2 + math.pi / 4
-		balloons(hub, SPAWN + Vector3.new(math.cos(a) * 20, 0, math.sin(a) * 20), rng)
-	end
 
 	-- entrance arch over the avenue
 	local ax = -118
@@ -250,12 +231,12 @@ local function statuePlaza(hub, rng)
 		lamp(hub, PLAZA + Vector3.new(math.cos(a) * 27, 0.6, math.sin(a) * 27), FLOWERS[(i % #FLOWERS) + 1])
 	end
 	-- flower beds + lamps along the avenue
-	for _, x in ipairs({ -128, -122, -112, -106 }) do -- (gap at -118 for the arch pillars)
+	for _, x in ipairs({ -112, -106 }) do -- just a couple, past the arch
 		for _, side in ipairs({ -1, 1 }) do
 			flowerBed(hub, Vector3.new(x, 0.3, side * 11.5), rng)
 		end
 	end
-	for _, x in ipairs({ -125, -109, -52, -42 }) do
+	for _, x in ipairs({ -52, -42 }) do
 		for _, side in ipairs({ -1, 1 }) do
 			lamp(hub, Vector3.new(x, 0.3, side * 10.5), side == 1 and ORANGE or BLUE)
 		end
@@ -517,7 +498,7 @@ local function launchArea(hub, rng)
 	scr.Name = "ScreenText"
 
 	-- toy rocket pads: LobbyClient fires little rockets from these every few seconds
-	for _, p in ipairs({ Vector3.new(-30, 0, -44), Vector3.new(-150, 0, 50), Vector3.new(-150, 0, -50) }) do
+	for _, p in ipairs({ Vector3.new(-30, 0, -44), Vector3.new(-52, 0, 36) }) do
 		disc(hub, 7, p, 0.5, C(60, 60, 75))
 		tag(disc(hub, 4, p, 0.6, ORANGE, { Material = M.Neon }), "MiniPad")
 	end

@@ -198,37 +198,30 @@ end
 refreshRockets()
 refreshUpgrades()
 
--- Bottom bar buttons + lobby buildings -------------------------------------------------------
-local bar = UIKit.bottomBar()
-local rocketsBtn = UIKit.button({ Parent = bar, LayoutOrder = 1, Icon = "🚀", Text = "ROCKETS", Color = BLUE, Size = UDim2.fromOffset(96, 100) })
-local upgradesBtn = UIKit.button({ Parent = bar, LayoutOrder = 3, Icon = "⬆️", Text = "UPGRADES", Color = Color3.fromRGB(170, 80, 240), Size = UDim2.fromOffset(96, 100) })
-local upgradeBadge = UIKit.badge(upgradesBtn.Instance)
-rocketsBtn.Instance.Activated:Connect(function()
-	UIKit.toggle(rocketsWindow)
-end)
-upgradesBtn.Instance.Activated:Connect(function()
-	UIKit.toggle(upgradesWindow)
-end)
-
--- "!" on Upgrades when you can afford one
-local function refreshBadge()
-	local money = player:GetAttribute("Money") or 0
-	local can = false
-	for key, u in pairs(Config.Upgrades) do
-		local level = player:GetAttribute(key .. "Level") or 0
-		if level < u.maxLevel and money >= Config.upgradeCost(key, level) then
-			can = true
-		end
-	end
-	upgradeBadge.Visible = can
-end
-player:GetAttributeChangedSignal("Money"):Connect(refreshBadge)
-refreshBadge()
-
+-- Rockets / Upgrades open only at the lobby buildings (walk in, press E) ----------------------
+-- and close again by themselves when you walk away.
 local windowsByName = { Rockets = rocketsWindow, Upgrades = upgradesWindow }
+local openedAt = nil -- the prompt's part while one of these windows is open
+
 ProximityPromptService.PromptTriggered:Connect(function(prompt)
 	local w = windowsByName[prompt:GetAttribute("OpenWindow") or ""]
 	if w and not w.Visible then
 		UIKit.toggle(w)
+		openedAt = prompt.Parent
+	end
+end)
+
+RunService.Heartbeat:Connect(function()
+	if not openedAt then
+		return
+	end
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	local stillOpen = rocketsWindow.Visible or upgradesWindow.Visible
+	if not stillOpen then
+		openedAt = nil
+	elseif root and openedAt.Parent and (root.Position - openedAt.Position).Magnitude > 24 then
+		rocketsWindow.Visible = false
+		upgradesWindow.Visible = false
+		openedAt = nil
 	end
 end)
