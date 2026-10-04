@@ -42,6 +42,7 @@ local flights = {} -- [player] = flight state
 local function moneyMultiplier(player)
 	local m = 1 + (player:GetAttribute("MoneyLevel") or 0) * Config.Upgrades.Money.perLevel
 	m *= 1 + (player:GetAttribute("Rebirths") or 0) * 0.5
+	m *= player:GetAttribute("PetMultiplier") or 1 -- set by PetServer from the equipped pets
 	return m
 end
 

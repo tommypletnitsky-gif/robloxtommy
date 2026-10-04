@@ -98,6 +98,109 @@ function Config.getTrail(id)
 	return Config.Trails[1]
 end
 
+-- Eggs + pets. Each egg stands in the lobby's Egg Garden and opens once you've unlocked its stage.
+-- A pet's `mult` is its money multiplier; equipped pets add up: total = 1 + sum(mult - 1).
+-- Pet models live in ReplicatedStorage.PetModels / EggModels (place-only, generated meshes).
+Config.MAX_EQUIPPED = 3
+Config.MAX_PETS = 60
+Config.Rarities = {
+	Common = { order = 1, color = Color3.fromRGB(170, 175, 190) },
+	Rare = { order = 2, color = Color3.fromRGB(70, 150, 255) },
+	Epic = { order = 3, color = Color3.fromRGB(180, 80, 255) },
+	Legendary = { order = 4, color = Color3.fromRGB(255, 190, 40) },
+}
+-- chance (%) of each rarity inside every egg
+Config.RARITY_CHANCE = { Common = 60, Rare = 30, Epic = 8.5, Legendary = 1.5 }
+-- multiplier = 1 + egg.bonus * RARITY_POWER[rarity]
+Config.RARITY_POWER = { Common = 1, Rare = 2, Epic = 4, Legendary = 10 }
+
+Config.Eggs = {
+	{ id = "Meadow", name = "Meadow Egg", stage = 1, price = 300, bonus = 0.1, color = Color3.fromRGB(140, 220, 110),
+		pets = { Common = "Puppy", Rare = "Kitty", Epic = "Bunny", Legendary = "RocketCorgi" } },
+	{ id = "Jungle", name = "Jungle Egg", stage = 5, price = 2500, bonus = 0.25, color = Color3.fromRGB(60, 170, 90),
+		pets = { Common = "Monkey", Rare = "Parrot", Epic = "TigerCub", Legendary = "GoldenJaguar" } },
+	{ id = "Frost", name = "Frost Egg", stage = 8, price = 12000, bonus = 0.5, color = Color3.fromRGB(150, 215, 255),
+		pets = { Common = "Penguin", Rare = "PolarBear", Epic = "SnowFox", Legendary = "IceDragon" } },
+	{ id = "Cloud", name = "Cloud Egg", stage = 13, price = 175000, bonus = 1.2, color = Color3.fromRGB(255, 200, 235),
+		pets = { Common = "CloudSheep", Rare = "Owl", Epic = "Pegasus", Legendary = "ThunderBird" } },
+	{ id = "Moon", name = "Moon Egg", stage = 22, price = 21000000, bonus = 4, color = Color3.fromRGB(200, 205, 220),
+		pets = { Common = "MoonBunny", Rare = "Alien", Epic = "RoboDog", Legendary = "UFOCat" } },
+	{ id = "Galaxy", name = "Galaxy Egg", stage = 27, price = 290000000, bonus = 10, color = Color3.fromRGB(140, 80, 230),
+		pets = { Common = "StarPuppy", Rare = "CometFox", Epic = "NebulaDragon", Legendary = "GalaxyUnicorn" } },
+}
+
+Config.PET_NAMES = {
+	Puppy = "Puppy", Kitty = "Kitty", Bunny = "Bunny", RocketCorgi = "Rocket Corgi",
+	Monkey = "Monkey", Parrot = "Parrot", TigerCub = "Tiger Cub", GoldenJaguar = "Golden Jaguar",
+	Penguin = "Penguin", PolarBear = "Polar Bear", SnowFox = "Snow Fox", IceDragon = "Ice Dragon",
+	CloudSheep = "Cloud Sheep", Owl = "Owl", Pegasus = "Pegasus", ThunderBird = "Thunder Bird",
+	MoonBunny = "Moon Bunny", Alien = "Alien", RoboDog = "Robo Dog", UFOCat = "UFO Cat",
+	StarPuppy = "Star Puppy", CometFox = "Comet Fox", NebulaDragon = "Nebula Dragon", GalaxyUnicorn = "Galaxy Unicorn",
+}
+
+-- Pets[kind] = { id, name, egg, rarity, mult } (built from the eggs above)
+Config.Pets = {}
+for _, egg in ipairs(Config.Eggs) do
+	for rarity, kind in pairs(egg.pets) do
+		Config.Pets[kind] = {
+			id = kind,
+			name = Config.PET_NAMES[kind] or kind,
+			egg = egg.id,
+			rarity = rarity,
+			mult = math.floor((1 + egg.bonus * Config.RARITY_POWER[rarity]) * 100 + 0.5) / 100,
+		}
+	end
+end
+
+function Config.getEgg(id)
+	for _, e in ipairs(Config.Eggs) do
+		if e.id == id then
+			return e
+		end
+	end
+end
+
+-- Saved pet list format (player attribute "Pets"): "uid:Kind;uid:Kind". Equipped: "uid,uid".
+function Config.parsePets(s)
+	local list = {}
+	for entry in string.gmatch(s or "", "[^;]+") do
+		local uid, kind = entry:match("^(%d+):(%w+)$")
+		if uid and Config.Pets[kind] then
+			table.insert(list, { uid = tonumber(uid), kind = kind })
+		end
+	end
+	return list
+end
+
+function Config.parseEquipped(s)
+	local set = {}
+	for uid in string.gmatch(s or "", "%d+") do
+		set[tonumber(uid)] = true
+	end
+	return set
+end
+
+-- Total money multiplier from a list of pet kinds.
+function Config.petMultiplier(kinds)
+	local m = 1
+	for _, kind in ipairs(kinds) do
+		local p = Config.Pets[kind]
+		if p then
+			m += p.mult - 1
+		end
+	end
+	return m
+end
+
+-- "x1.25" style text for a multiplier
+function Config.multText(m)
+	if m >= 100 then
+		return "x" .. Config.abbreviate(m)
+	end
+	local s = string.format("%.2f", m):gsub("0+$", ""):gsub("%.$", "")
+	return "x" .. s
+end
+
 -- Things along the path. Coins/gems pay like flying `studs` extra studs in that stage.
 Config.Pickups = {
 	Coin = { studs = 20, perStage = 14 },

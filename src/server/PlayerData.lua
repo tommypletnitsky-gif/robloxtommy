@@ -26,6 +26,9 @@ PlayerData.DEFAULTS = {
 	Donated = 0,
 	DailyStreak = 0,
 	LastDaily = 0,
+	Pets = "", -- "uid:Kind;uid:Kind" (see Config.parsePets)
+	EquippedPets = "", -- "uid,uid"
+	NextPetId = 1,
 	Migrated = false,
 }
 

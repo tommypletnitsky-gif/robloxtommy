@@ -24,7 +24,7 @@ fuel runs out. Distance = money. Money buys better rockets, upgrades, eggs and n
    money, stage unlocking, HUD.
 2. Shop: buy rockets, upgrades (Fuel / Speed / Money). DONE
 3. Obstacles + boost rings.
-4. Eggs + pets (money multiplier), egg per stage.
+4. DONE - Eggs + pets (money multiplier). See "Eggs + pets" below.
 5. Rebirth + saving (DataStore).
 6. Polish: sounds, effects, balance.
 
@@ -67,3 +67,16 @@ All tuning (speeds, fuel, prices, stage costs) lives in `Config.lua`.
 - New arch gates with striped pillars + stage banner; round distance signs every 100m.
 - Per-world lighting moods on the client (desert, canyon, swamp mist, volcano evening, tundra,
   golden sunset, thunderstorm, aurora night, edge-of-space dusk).
+
+## Eggs + pets (2026-10-04, "now make the eggs and pets")
+- Egg Garden beside the spawn: 6 eggs on pedestals (E to open), each needs its stage unlocked:
+  Meadow (stage 1, $300), Jungle (5), Frost (8), Cloud (13), Moon (22), Galaxy (27).
+- 4 pets per egg: Common 60% / Rare 30% / Epic 8.5% / Legendary 1.5%. 24 pets in total.
+- Pet = money multiplier: 1 + egg bonus x rarity power (Meadow x1.1 .. x2, Galaxy x11 .. x101).
+  Equipped pets add up (total = 1 + sum(mult - 1)); 3 equipped, 60 max. Applied in GameServer payouts.
+- Hatch 1 or 3; "roll" show: egg wobbles while pet names flicker, flash, reveal (rarity, boost, NEW!).
+  Legendary hatches are announced to the whole server.
+- PETS button: inventory, click to equip/unequip, Equip Best, delete (click twice).
+- Equipped pets follow you (hop when walking, fly beside the rocket). Drawn on each client.
+- Models: generated meshes (cute chibi style) in ReplicatedStorage.PetModels / EggModels (place-only).
+- Server checks everything: stage, money, inventory space, standing at the egg.

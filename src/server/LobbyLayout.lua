@@ -8,12 +8,24 @@ LobbyLayout.SPAWN = Vector3.new(-150, 0, 0)
 LobbyLayout.ROCKET_SHOP = { pos = Vector3.new(-95, 0, -46), facing = Vector3.new(0, 0, 1) }
 LobbyLayout.UPGRADE_LAB = { pos = Vector3.new(-95, 0, 46), facing = Vector3.new(0, 0, -1) }
 
+-- Egg Garden: a round plaza beside the spawn with one stand per egg in an arc around its back.
+LobbyLayout.EGG_GARDEN = { center = Vector3.new(-150, 0, 50), radius = 21, standRadius = 16 }
+
+-- Where egg stand i (of n) stands, and the way its front faces (toward the garden's center).
+function LobbyLayout.eggStand(i, n)
+	local g = LobbyLayout.EGG_GARDEN
+	local a = math.rad(-10 + (i - 1) * (200 / math.max(1, n - 1))) -- wide arc, open toward the spawn
+	local pos = g.center + Vector3.new(math.cos(a), 0, math.sin(a)) * g.standRadius
+	return pos, (g.center - pos).Unit
+end
+
 -- Park area (flat lawn).
 LobbyLayout.PARK = { -186, -86, 6, 86 }
 
 LobbyLayout.PAVED_CIRCLES = {
 	{ -150, 0, 17 }, -- spawn plaza
 	{ -8, 0, 24 }, -- launch pad
+	{ -150, 50, 21 }, -- Egg Garden
 }
 
 LobbyLayout.PAVED_BOXES = {
@@ -21,6 +33,7 @@ LobbyLayout.PAVED_BOXES = {
 	{ -102.2, -34, -87.8, -7 }, -- path to the Rocket Shop
 	{ -114, -35, -76, -25 }, -- Rocket Shop porch
 	{ -102.2, 7, -87.8, 27 }, -- path to the Upgrade shop
+	{ -156.2, 15, -143.8, 31 }, -- path to the Egg Garden
 }
 
 -- Building footprints (decor stays out of these).

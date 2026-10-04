@@ -18,5 +18,7 @@
   {"file": "src/client/RocketClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.RocketClient", "class": "LocalScript"},
   {"file": "src/client/ShopClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.ShopClient", "class": "LocalScript"},
   {"file": "src/client/ExtrasClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.ExtrasClient", "class": "LocalScript"},
-  {"file": "src/client/LobbyClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.LobbyClient", "class": "LocalScript"}
+  {"file": "src/client/LobbyClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.LobbyClient", "class": "LocalScript"},
+  {"file": "src/server/PetServer.server.lua", "path": "ServerScriptService.PetServer", "class": "Script"},
+  {"file": "src/client/PetClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.PetClient", "class": "LocalScript"}
 ]

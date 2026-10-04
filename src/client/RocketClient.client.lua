@@ -52,7 +52,7 @@ local barFill = make("Frame", { Parent = barBack, Size = UDim2.fromScale(0, 1), 
 local barText = label({ Parent = barBack, Size = UDim2.fromScale(1, 1), Text = "", ZIndex = 2, StrokeThickness = 2 })
 local unlockBtn = UIKit.button({ Parent = stageCard, Text = "UNLOCK", Color = Color3.fromRGB(80, 200, 90), Position = UDim2.fromOffset(16, 104), Size = UDim2.new(1, -32, 0, 58) })
 
--- Bottom bar: LAUNCH (ShopClient adds ROCKETS / UPGRADES around it) + EGGS ------------------
+-- Bottom bar: LAUNCH (PetClient adds PETS beside it) ------------------------------------------
 local bottomBar = UIKit.bottomBar()
 local launchBtn = UIKit.button({ Parent = bottomBar, LayoutOrder = 2, Text = "LAUNCH!", Color = Color3.fromRGB(255, 130, 30), Size = UDim2.fromOffset(230, 92), Radius = 24, TextStroke = 4 })
 local launchPulse = make("UIScale", { Parent = launchBtn.Instance })
@@ -63,10 +63,6 @@ task.spawn(function()
 		TweenService:Create(launchPulse, TweenInfo.new(0.7, Enum.EasingStyle.Sine), { Scale = 1 }):Play()
 		task.wait(0.7)
 	end
-end)
-local eggsBtn = UIKit.button({ Parent = bottomBar, LayoutOrder = 4, Icon = "🥚", Text = "EGGS", Color = Color3.fromRGB(80, 200, 120), Size = UDim2.fromOffset(96, 100) })
-eggsBtn.Instance.Activated:Connect(function()
-	UIKit.toast("🥚 Eggs & pets are coming soon!", Color3.fromRGB(255, 230, 120))
 end)
 
 -- Flight HUD ----------------------------------------------------------------------------------

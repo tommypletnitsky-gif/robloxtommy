@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 local MaterialService = game:GetService("MaterialService")
+local CollectionService = game:GetService("CollectionService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Kit = require(ServerScriptService.BuildKit)
@@ -201,6 +202,100 @@ local function launchArea(hub)
 	end
 end
 
+-- Egg Garden ---------------------------------------------------------------------------------------
+-- A round plaza beside the spawn with one stand per egg (Config.Eggs) in an arc: pedestal, the egg
+-- (ReplicatedStorage.EggModels, spun + bobbed by LobbyClient), a name/price board (PetClient marks
+-- locked eggs per player) and an E prompt with attribute Egg = id (PetClient opens the egg window).
+local function fallbackEgg(color)
+	local m = Instance.new("Model")
+	local p = part(m, { Name = "Shell", Size = Vector3.new(3.6, 4.6, 3.6), CFrame = CFrame.new(0, 2.3, 0), Color = color })
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	m.WorldPivot = CFrame.new()
+	return m
+end
+
+local function eggGarden(hub)
+	local g = LobbyLayout.EGG_GARDEN
+	local cx, cz = g.center.X, g.center.Z
+	local m = Instance.new("Model")
+	m.Name = "EggGarden"
+	m.Parent = hub
+	local tileMat, tileVar = surface("LobbyPathTiles", M.Cobblestone)
+	path(m, -155, 15, -145, 31, false)
+	disc(m, g.radius, cx, cz, EDGE_TOP + 0.04, BORDER)
+	disc(m, g.radius - 1.4, cx, cz, PAVE_TOP + 0.04, TILE, tileMat, tileVar)
+	disc(m, 5, cx, cz, PAVE_TOP + 0.08, BORDER)
+	disc(m, 3.8, cx, cz, PAVE_TOP + 0.12, TILE, tileMat, tileVar)
+
+	local eggModels = ReplicatedStorage:FindFirstChild("EggModels")
+	for i, egg in ipairs(Config.Eggs) do
+		local pos = LobbyLayout.eggStand(i, #Config.Eggs)
+		local stand = Instance.new("Model")
+		stand.Name = "Egg_" .. egg.id
+		stand:SetAttribute("Egg", egg.id)
+		stand.Parent = m
+		cyl(stand, 1.2, 7, CFrame.new(pos + Vector3.new(0, PAVE_TOP + 0.6, 0)) * UP, BORDER)
+		cyl(stand, 1, 6, CFrame.new(pos + Vector3.new(0, PAVE_TOP + 1.7, 0)) * UP, TILE)
+		cyl(stand, 0.4, 6.4, CFrame.new(pos + Vector3.new(0, PAVE_TOP + 2.3, 0)) * UP, egg.color)
+		local top = PAVE_TOP + 2.5
+
+		local template = eggModels and eggModels:FindFirstChild(egg.id)
+		local e = template and template:Clone() or fallbackEgg(egg.color)
+		e.Name = "Egg"
+		e:PivotTo(CFrame.new(pos + Vector3.new(0, top, 0)))
+		for _, p in ipairs(e:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.Anchored = true
+				p.CanCollide = false
+			end
+		end
+		e:SetAttribute("SpinSpeed", 0.7)
+		e:SetAttribute("Bob", 0.35)
+		e.Parent = stand
+		CollectionService:AddTag(e, "LobbySpin")
+
+		-- name / price board floating above the egg
+		local anchor = part(stand, { Name = "Board", Size = Vector3.one, CFrame = CFrame.new(pos + Vector3.new(0, top + 7, 0)), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.fromScale(8, 3.5) -- in studs, so far-away boards shrink and don't overlap
+		bb.MaxDistance = 80
+		bb.LightInfluence = 0
+		bb.Parent = anchor
+		local function line(name, y, h, text, color)
+			local l = Instance.new("TextLabel")
+			l.Name = name
+			l.BackgroundTransparency = 1
+			l.Position = UDim2.fromScale(0, y)
+			l.Size = UDim2.fromScale(1, h)
+			l.Font = Enum.Font.FredokaOne
+			l.TextScaled = true
+			l.Text = text
+			l.TextColor3 = color
+			local st = Instance.new("UIStroke")
+			st.Thickness = 2.5
+			st.Color = Color3.fromRGB(30, 30, 50)
+			st.Parent = l
+			l.Parent = bb
+			return l
+		end
+		line("Title", 0, 0.42, egg.name, WHITE)
+		line("Price", 0.42, 0.32, "$" .. Config.abbreviate(egg.price), C(130, 255, 130))
+		line("Lock", 0.74, 0.26, "Stage " .. egg.stage, C(255, 220, 120))
+
+		local hit = part(stand, { Name = "PromptPart", Size = Vector3.new(5, 6, 5), CFrame = CFrame.new(pos + Vector3.new(0, 3.5, 0)), Transparency = 1, CanCollide = false, CanTouch = false })
+		local p = Instance.new("ProximityPrompt")
+		p.ActionText = "Open"
+		p.ObjectText = egg.name
+		p.KeyboardKeyCode = Enum.KeyCode.E
+		p.MaxActivationDistance = 11
+		p.RequiresLineOfSight = false
+		p:SetAttribute("Egg", egg.id)
+		p.Parent = hit
+	end
+end
+
 -- Decoration --------------------------------------------------------------------------------------
 local PROPS = ServerStorage:FindFirstChild("LobbyProps")
 
@@ -242,9 +337,8 @@ end
 -- { prop, x, z, yaw, leaf color }
 local TREES = {
 	{ "Oak", -172, -34, 20, LEAF.green },
-	{ "OakBig", -174, 36, 200, LEAF.gold },
+	{ "OakBig", -178, 26, 200, LEAF.gold },
 	{ "Pine", -136, -42, 0 },
-	{ "Pine", -134, 44, 70 },
 	{ "Oak", -130, -76, 90, LEAF.pink },
 	{ "Oak", -130, 78, 0, LEAF.orange },
 	{ "OakBig", -60, -50, 45, LEAF.green },
@@ -258,7 +352,7 @@ local TREES = {
 -- grass-topped simulator hills along the back edges, each with a tree on top
 local HILLS = {
 	{ "Hill1", -176, -70, 0, 1.0, { "Oak", LEAF.gold } },
-	{ "Hill3", -176, 70, 90, 0.9, { "Pine" } },
+	{ "Hill3", -180, 76, 90, 0.9, { "Pine" } },
 	{ "Hill2", -88, -86, 30, 0.95, { "Oak", LEAF.orange } },
 	{ "Hill4", -88, 86, 200, 1.0, { "OakBig", LEAF.green } },
 	{ "Hill1", -150, -86, 140, 0.7 },
@@ -269,7 +363,6 @@ local ROCKS = {
 	{ "RockA", -182, -50, 30 },
 	{ "RockB", -182, 52, 100 },
 	{ "RockC", -146, -62, 0 },
-	{ "RockC", -148, 62, 45 },
 	{ "RockA", -46, -36, 200 },
 	{ "RockB", -44, 38, 10 },
 	{ "RockC", -68, -30, 0 },
@@ -311,9 +404,9 @@ local function decor(hub)
 			prop(d, i % 2 == 0 and "FlowerYellow" or "FlowerRed", fx, -11.8, rng:NextNumber(0, 360))
 		end
 	end
-	-- flower ring around the spawn plaza (open toward the path)
-	for i = 1, 9 do
-		local a = math.rad(40 + (i - 1) * 35)
+	-- flower ring around the spawn plaza (open toward the main path and the Egg Garden path)
+	for i, deg in ipairs({ 40, 128, 160, 192, 224, 256, 288, 320 }) do
+		local a = math.rad(deg)
 		prop(d, ({ "FlowerRed", "FlowerYellow", "FlowerGreen" })[i % 3 + 1], SPAWN.X + math.cos(a) * 20.5, SPAWN.Z + math.sin(a) * 20.5, rng:NextNumber(0, 360))
 	end
 
@@ -371,6 +464,7 @@ function Lobby.build(hub)
 		placeShop(hub, info)
 	end
 	launchArea(hub)
+	eggGarden(hub)
 	decor(hub)
 end
 
