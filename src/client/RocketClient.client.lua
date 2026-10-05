@@ -1616,6 +1616,7 @@ RunService.RenderStepped:Connect(function(dt)
 	if boostNow ~= f.boostOn then
 		f.boostOn = boostNow
 		BoostRemote:FireServer(boostNow)
+		player:SetAttribute("BoostFx", boostNow) -- (client-only: FlightFxClient's sonic boom)
 		if boostNow then
 			UIKit.sound("Boost", 0.5, 1.25)
 			f.pull = math.max(f.pull, 4)

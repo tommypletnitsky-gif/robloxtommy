@@ -34,5 +34,6 @@
   {"file": "src/client/FlightReport.lua", "path": "StarterPlayer.StarterPlayerScripts.ClientModules.FlightReport", "class": "ModuleScript"},
   {"file": "src/client/WorldLookClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.WorldLookClient", "class": "LocalScript"},
   {"file": "src/server/SpinServer.server.lua", "path": "ServerScriptService.SpinServer", "class": "Script"},
-  {"file": "src/client/SpinClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.SpinClient", "class": "LocalScript"}
+  {"file": "src/client/SpinClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.SpinClient", "class": "LocalScript"},
+  {"file": "src/client/FlightFxClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.FlightFxClient", "class": "LocalScript"}
 ]
