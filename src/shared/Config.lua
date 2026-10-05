@@ -322,12 +322,12 @@ end
 -- Owning one sets the player attribute "Pass_<key>" (GamepassServer); in Studio you can test with
 -- the chat command  /pass all  (or /pass VIP).
 Config.Gamepasses = {
-	{ key = "DoubleMoney", id = 0, name = "2x Money", icon = "MoneyBag", robux = 199, color = Color3.fromRGB(80, 200, 90), desc = "Earn double money from every flight, coin and reward!" },
-	{ key = "VIP", id = 0, name = "VIP", icon = "Crown", robux = 249, color = Color3.fromRGB(255, 190, 40), desc = "+25% money, +1 pet slot, gold VIP tag over your head and in chat." },
-	{ key = "RainbowPets", id = 0, name = "Rainbow Pets", icon = "Rainbow", robux = 299, color = Color3.fromRGB(235, 90, 200), desc = "Your pets turn rainbow: their money boost is x1.5!" },
-	{ key = "LuckyEggs", id = 0, name = "Lucky Eggs", icon = "Clover", robux = 149, color = Color3.fromRGB(60, 190, 110), desc = "Epic and Legendary pets are 3x more likely when you hatch." },
-	{ key = "PetSlots", id = 0, name = "+3 Pet Slots", icon = "Paw", robux = 179, color = Color3.fromRGB(110, 140, 240), desc = "Equip 3 more pets at once." },
-	{ key = "MegaFuel", id = 0, name = "Mega Fuel", icon = "FuelCan", robux = 129, color = Color3.fromRGB(255, 150, 40), desc = "+50% fuel on every rocket: fly much farther!" },
+	{ key = "DoubleMoney", id = 2006181522, name = "2x Money", icon = "MoneyBag", robux = 149, color = Color3.fromRGB(80, 200, 90), desc = "Earn double money from every flight, coin and reward!" },
+	{ key = "VIP", id = 2008281539, name = "VIP", icon = "Crown", robux = 199, color = Color3.fromRGB(255, 190, 40), desc = "+25% money, +1 pet slot, gold VIP tag over your head and in chat." },
+	{ key = "RainbowPets", id = 2006865453, name = "Rainbow Pets", icon = "Rainbow", robux = 179, color = Color3.fromRGB(235, 90, 200), desc = "Your pets turn rainbow: their money boost is x1.5!" },
+	{ key = "LuckyEggs", id = 2005683456, name = "Lucky Eggs", icon = "Clover", robux = 99, color = Color3.fromRGB(60, 190, 110), desc = "Epic and Legendary pets are 3x more likely when you hatch." },
+	{ key = "PetSlots", id = 2006871467, name = "+3 Pet Slots", icon = "Paw", robux = 129, color = Color3.fromRGB(110, 140, 240), desc = "Equip 3 more pets at once." },
+	{ key = "MegaFuel", id = 2005743470, name = "Mega Fuel", icon = "FuelCan", robux = 49, color = Color3.fromRGB(255, 150, 40), desc = "+50% fuel on every rocket: fly much farther!" },
 }
 Config.PASS = {
 	DoubleMoney = 2, -- money x

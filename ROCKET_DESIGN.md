@@ -120,3 +120,8 @@ STORE button (bottom bar) -> 6 passes, ids in Config.Gamepasses (0 = "coming soo
 Rainbow Pets (pet boost x1.5 + rainbow sparkles), Lucky Eggs (Epic/Legendary x3),
 +3 Pet Slots, Mega Fuel (+50% fuel). GamepassServer checks ownership on join and after purchase.
 Test in Studio with chat: /pass all, /pass VIP, /pass none.
+On sale since 2026-10-05 (Creator Dashboard -> Monetization -> Passes; price set per pass under Sales):
+2x Money 149 (2006181522), VIP 199 (2008281539), Rainbow Pets 179 (2006865453),
+Lucky Eggs 99 (2005683456), +3 Pet Slots 129 (2006871467), Mega Fuel 49 (2005743470).
+The store reads live prices from Roblox, so a price change on the dashboard shows up without code changes.
+The creator automatically owns their own passes, so the owner always sees "OWNED".
