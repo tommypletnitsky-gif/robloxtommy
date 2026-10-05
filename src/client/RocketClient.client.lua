@@ -18,7 +18,7 @@ local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LaunchRemote = remotes:WaitForChild("Launch")
 local FlightEvent = remotes:WaitForChild("Flight")
 local CollectRemote = remotes:WaitForChild("Collect")
-local LaunchPowerRemote = remotes:WaitForChild("LaunchPower")
+local LaunchPowerStop = remotes:WaitForChild("LaunchPowerStop")
 local BoostRemote = remotes:WaitForChild("Boost")
 local UnlockStage = remotes:WaitForChild("UnlockStage")
 
@@ -201,6 +201,9 @@ local function showDelta(d)
 end
 
 local function refreshMoney()
+	if UIKit.moneyHold then
+		return -- (a Lucky Spin roll is still going; UIKit.releaseMoney() calls us again)
+	end
 	local target = player:GetAttribute("Money") or 0
 	if lastMoney and target > lastMoney then
 		showDelta(target - lastMoney)
@@ -222,6 +225,10 @@ local function refreshMoney()
 	if target > from then
 		UIKit.bounce(moneyText)
 	end
+end
+
+UIKit.onMoneyRelease = function()
+	refreshMoney()
 end
 
 local function refreshGates()
@@ -450,10 +457,11 @@ end
 
 -- Power bar (countdown) -----------------------------------------------------------------------
 local WHITE, GOOD_YELLOW, GOOD_GREEN, BAD_RED = Color3.new(1, 1, 1), Color3.fromRGB(255, 215, 60), Color3.fromRGB(120, 255, 120), Color3.fromRGB(255, 110, 110)
-local function startPower()
+local function startPower(info)
 	local lp = Config.LaunchPower
-	local center = 0.3 + math.random() * 0.42
-	power = { t0 = os.clock() + 0.3, center = center, stopped = false }
+	-- the server picks the green zone and when the needle starts (shared server clock)
+	local center = info.powerCenter or 0.5
+	power = { t0 = info.powerT0 or (workspace:GetServerTimeNow() + 0.3), center = center, stopped = false }
 	goodZone.Position = UDim2.fromScale(center, 0)
 	goodZone.Size = UDim2.fromScale(lp.good.zone * 2, 1)
 	perfectZone.Position = UDim2.fromScale(center, 0)
@@ -467,17 +475,24 @@ local function startPower()
 end
 
 local function stopPower()
-	if not power or power.stopped or os.clock() < power.t0 then
+	local clickT = workspace:GetServerTimeNow()
+	if not power or power.stopped or clickT < power.t0 then
 		return
 	end
 	power.stopped = true
-	local x = Config.powerNeedle(os.clock() - power.t0)
-	needle.Position = UDim2.fromScale(x, 0.5)
-	local d = math.abs(x - power.center)
+	local shown = power
+	needle.Position = UDim2.fromScale(Config.powerNeedle(clickT - power.t0), 0.5)
+	-- the server grades the stop (it knows the real zone and timing)
+	local ok, quality, sx = pcall(LaunchPowerStop.InvokeServer, LaunchPowerStop, clickT)
+	if power ~= shown then
+		return -- the countdown already moved on
+	end
+	quality = ok and quality or nil
+	if ok and sx then
+		needle.Position = UDim2.fromScale(sx, 0.5)
+	end
 	local lp = Config.LaunchPower
-	local quality = (d <= lp.perfect.zone and "perfect") or (d <= lp.good.zone and "good") or nil
 	if quality then
-		LaunchPowerRemote:FireServer(quality)
 		powerTitle.Text = lp[quality].text
 		powerTitle.TextColor3 = quality == "perfect" and GOOD_GREEN or GOOD_YELLOW
 		UIKit.sound("Win", 0.5, quality == "perfect" and 1.4 or 1.15)
@@ -596,7 +611,8 @@ local STEER = {
 local mouseDelta = Vector2.zero -- pixels moved since the last frame (+X right, +Y down)
 local touchDelta = Vector2.zero
 local steerTouch = nil -- the finger that steers
-local touchCount = 0
+local touchCount = 0 -- fingers down that aren't on a button (e.g. not on BOOST)
+local freeTouches = {} -- [touch input] = true for those fingers
 local padStick = Vector2.zero
 local lastMousePos = nil -- for input that only reports positions (no movement delta)
 local lookHeld, lookYaw, lookPitch = false, 0, 0 -- right mouse button: look around (stays where you leave it)
@@ -623,13 +639,17 @@ end)
 UserInputService.InputBegan:Connect(function(input, processed)
 	-- countdown: click / tap / SPACE stops the power needle
 	local t = input.UserInputType
-	if power and not power.stopped and (t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch or input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonA) then
-		stopPower()
+	local tap = (t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch) and not processed
+	if power and not power.stopped and (tap or input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonA) then
+		task.spawn(stopPower)
 	end
 	if input.UserInputType == Enum.UserInputType.Touch then
-		touchCount += 1
-		if not processed and not steerTouch then
-			steerTouch = input
+		if not processed then
+			freeTouches[input] = true
+			touchCount += 1
+			if not steerTouch then
+				steerTouch = input
+			end
 		end
 	elseif input.UserInputType == Enum.UserInputType.MouseButton2 and flight and not processed then
 		lookHeld = true
@@ -641,7 +661,10 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.Touch then
-		touchCount = math.max(0, touchCount - 1)
+		if freeTouches[input] then
+			freeTouches[input] = nil
+			touchCount = math.max(0, touchCount - 1)
+		end
 		if input == steerTouch then
 			steerTouch = nil
 		end
@@ -676,8 +699,10 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	end
 end)
 local lastPinch = nil
-UserInputService.TouchPinch:Connect(function(_, scale, _, state)
-	if not player:GetAttribute("Flying") then
+UserInputService.TouchPinch:Connect(function(_, scale, _, state, processed)
+	-- (a thumb on BOOST + the steering finger is not a pinch)
+	if not player:GetAttribute("Flying") or processed or boostHeld then
+		lastPinch = nil
 		return
 	end
 	if state == Enum.UserInputState.Begin then
@@ -971,7 +996,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		Report.hide()
 		resetPickups()
 		clearExtras()
-		startPower()
+		startPower(info)
 		local body = info.rocket and info.rocket.PrimaryPart
 		if body then
 			launchFx = makeLaunchSmoke(body.Position - Vector3.new(0, 3, 0))
@@ -1129,6 +1154,9 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 	elseif kind == "pickup" then
 		if flight and info.fuel then
 			flight.fuel = info.fuel
+		end
+		if flight and info.boost then
+			flight.boost = info.boost
 		end
 		if info.money and flight then
 			flight.bonus += info.money
@@ -1448,7 +1476,7 @@ RunService.RenderStepped:Connect(function(dt)
 
 	-- the power needle swings during the countdown
 	if power and not power.stopped then
-		needle.Position = UDim2.fromScale(Config.powerNeedle(math.max(0, now - power.t0)), 0.5)
+		needle.Position = UDim2.fromScale(Config.powerNeedle(math.max(0, workspace:GetServerTimeNow() - power.t0)), 0.5)
 	end
 
 	local f = flight

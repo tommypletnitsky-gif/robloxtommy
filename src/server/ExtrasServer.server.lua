@@ -81,8 +81,19 @@ MarketplaceService.ProcessReceipt = function(receipt)
 	if not player or not player:GetAttribute("DataLoaded") then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
+	local done = string.split(player:GetAttribute("Receipts") or "", ",")
+	if table.find(done, receipt.PurchaseId) then
+		return Enum.ProductPurchaseDecision.PurchaseGranted -- already counted (Roblox retried)
+	end
+	table.insert(done, receipt.PurchaseId)
+	while #done > 30 do
+		table.remove(done, 1)
+	end
+	player:SetAttribute("Receipts", table.concat(done, ","))
 	player:SetAttribute("Donated", (player:GetAttribute("Donated") or 0) + donation.robux)
-	PlayerData.save(player)
+	if not PlayerData.save(player) then
+		return Enum.ProductPurchaseDecision.NotProcessedYet -- not saving right now: Roblox retries later
+	end
 	Notify:FireAllClients(player.DisplayName .. " donated " .. donation.robux .. " Robux! Thank you! ❤", Color3.fromRGB(255, 150, 220))
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end

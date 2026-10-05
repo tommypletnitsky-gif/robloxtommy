@@ -161,12 +161,16 @@ local function spin()
 	if rolling then
 		return
 	end
-	local ok, result = SpinRemote:InvokeServer()
-	if not ok then
-		UIKit.result(false, result)
+	UIKit.moneyHold = true -- the prize is paid right away: don't show it before the roll lands
+	rolling = true
+	local called, ok, result = pcall(SpinRemote.InvokeServer, SpinRemote)
+	if not (called and ok) then
+		rolling = false
+		UIKit.releaseMoney()
+		UIKit.result(false, called and result or "Couldn't spin, try again!")
+		refresh()
 		return
 	end
-	rolling = true
 	refresh()
 	local winner = PRIZES[result]
 	local cards = buildStrip(winner)
@@ -191,6 +195,7 @@ local function spin()
 		end
 		RunService.RenderStepped:Wait()
 	end
+	UIKit.releaseMoney()
 	reveal(winner, cards[LAND])
 	task.wait(0.6)
 	rolling = false
@@ -245,12 +250,14 @@ if bar then
 	fullText.Text = "⚡ FULL BOOST ready"
 	task.spawn(function()
 		while true do
-			local now = os.time()
+			local now = math.floor(workspace:GetServerTimeNow())
 			local m = (player:GetAttribute("BoostMoneyUntil") or 0) - now
 			local l = (player:GetAttribute("BoostLuckUntil") or 0) - now
-			moneyPill.Visible = m > 0
-			luckPill.Visible = l > 0
-			fullPill.Visible = player:GetAttribute("FullBoost") == true
+			if not rolling then -- (no spoilers while the roll is still going)
+				moneyPill.Visible = m > 0
+				luckPill.Visible = l > 0
+				fullPill.Visible = player:GetAttribute("FullBoost") == true
+			end
 			if m > 0 then
 				moneyText.Text = string.format("💰 x2 MONEY %d:%02d", m // 60, m % 60)
 			end

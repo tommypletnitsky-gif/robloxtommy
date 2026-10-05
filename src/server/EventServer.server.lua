@@ -65,9 +65,9 @@ local function finishRace()
 	end
 	race.finished = true
 	local list = {}
-	for player in pairs(race.racers) do
+	for player in pairs(race.racers or {}) do
 		if player.Parent then
-			table.insert(list, { player = player, distance = race.results[player] or 0 })
+			table.insert(list, { player = player, distance = (race.results or {})[player] or 0 })
 		end
 	end
 	table.sort(list, function(a, b)
@@ -75,7 +75,7 @@ local function finishRace()
 	end)
 	local out = {}
 	for place, e in ipairs(list) do
-		local studs = Config.Race.prizes[place] or Config.Race.joinPrize
+		local studs = (#list >= 2 and Config.Race.prizes[place]) or Config.Race.joinPrize -- (racing alone: join prize)
 		local prize = math.floor(Config.moneyPerStud(e.player:GetAttribute("UnlockedStage") or 1) * studs)
 		addMoney(e.player, prize)
 		if place == 1 and #list >= 2 then
@@ -239,8 +239,14 @@ Players.PlayerRemoving:Connect(function(player)
 		race.joined[player] = nil
 		if race.racers and race.racers[player] then
 			race.racers[player] = nil
-			if next(race.racers) == nil then
-				finishRace()
+			local waiting = false
+			for p in pairs(race.racers) do
+				if p.Parent and not race.results[p] then
+					waiting = true
+				end
+			end
+			if not waiting then
+				finishRace() -- (no one left, or everyone left has landed)
 			end
 		end
 	end

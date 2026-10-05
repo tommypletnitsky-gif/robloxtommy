@@ -1,6 +1,6 @@
 -- Lucky Spin (server): who has spins, what you win, and the boosts it gives.
---   Spin() -> ok, prizeIndex | message. The prize is decided here; it's handed out once the
---   client's roll animation has had time to land on it (so the money doesn't spoil the surprise).
+--   Spin() -> ok, prizeIndex | message. The prize is decided and handed out here right away (so
+--   leaving mid-roll never loses it); the client holds the money display until its roll lands.
 -- Free spins: 1 welcome spin, +1 per Config.Spin.every seconds played (max Config.Spin.max),
 -- +1 with every daily reward (ExtrasServer). Boost attributes are read by GameServer / PetServer.
 local Players = game:GetService("Players")
@@ -87,10 +87,9 @@ SpinRemote.OnServerInvoke = function(player)
 	busy[player] = true
 	player:SetAttribute("Spins", spins - 1)
 	local index = roll()
-	local prize = Config.Spin.prizes[index]
+	grant(player, Config.Spin.prizes[index])
 	task.delay(ROLL_TIME, function()
-		busy[player] = nil
-		grant(player, prize)
+		busy[player] = nil -- one roll at a time
 	end)
 	return true, index
 end

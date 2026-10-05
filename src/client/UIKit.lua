@@ -552,18 +552,39 @@ end
 
 -- Toasts ------------------------------------------------------------------------------
 local toastHolder
+local hookedBar = nil
+-- Lobby: near the top, under the event pills (however many rows they take right now).
+-- Flying: at the bottom, above the progress bar (the flight HUD uses the top of the screen).
+local function placeToasts()
+	if not toastHolder then
+		return
+	end
+	local flying = player:GetAttribute("Flying") == true
+	local top = 70
+	local bar = UIKit.gui():FindFirstChild("EventBar")
+	local layout = bar and bar:FindFirstChildOfClass("UIListLayout")
+	if layout then
+		if hookedBar ~= bar then -- follow the pills as they come and go
+			hookedBar = bar
+			layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(placeToasts)
+		end
+		if layout.AbsoluteContentSize.Y > 0 then
+			top = math.max(top, UIKit.toGui(bar.AbsolutePosition).Y + layout.AbsoluteContentSize.Y + 8)
+		end
+	end
+	toastHolder.AnchorPoint = Vector2.new(0.5, flying and 1 or 0)
+	toastHolder.Position = flying and UDim2.new(0.5, 0, 1, -140) or UDim2.new(0.5, 0, 0, top)
+	toastHolder:FindFirstChildOfClass("UIListLayout").VerticalAlignment = flying and Enum.VerticalAlignment.Bottom or Enum.VerticalAlignment.Top
+end
+player:GetAttributeChangedSignal("Flying"):Connect(placeToasts)
+
 function UIKit.toast(text, color)
 	if not toastHolder then
 		toastHolder = make("Frame", { Parent = UIKit.gui(), Name = "Toasts", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 70), Size = UDim2.fromOffset(620, 200), BackgroundTransparency = 1, ZIndex = 30 }, {
 			make("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
 	end
-	-- near the top in the lobby; while flying at the bottom (the flight HUD and the landing card
-	-- use the top and middle of the screen)
-	local flying = player:GetAttribute("Flying") == true
-	toastHolder.AnchorPoint = Vector2.new(0.5, flying and 1 or 0)
-	toastHolder.Position = flying and UDim2.new(0.5, 0, 1, -140) or UDim2.new(0.5, 0, 0, 70) -- (above the progress bar)
-	toastHolder:FindFirstChildOfClass("UIListLayout").VerticalAlignment = flying and Enum.VerticalAlignment.Bottom or Enum.VerticalAlignment.Top
+	placeToasts()
 	local l = UIKit.label({ Parent = toastHolder, Size = UDim2.fromOffset(600, 40), Text = text, TextColor3 = color or Color3.new(1, 1, 1), ZIndex = 31, StrokeThickness = 3 })
 	bounce(l)
 	task.delay(3, function()
@@ -575,6 +596,17 @@ function UIKit.toast(text, color)
 		task.wait(0.45)
 		l:Destroy()
 	end)
+end
+
+-- Money display hold: while true the money counter waits (e.g. a Lucky Spin roll that was
+-- already paid); releaseMoney() lets it catch up. RocketClient sets UIKit.onMoneyRelease.
+UIKit.moneyHold = false
+UIKit.onMoneyRelease = nil
+function UIKit.releaseMoney()
+	UIKit.moneyHold = false
+	if UIKit.onMoneyRelease then
+		UIKit.onMoneyRelease()
+	end
 end
 
 -- True while something important is on screen: flying, an open window, the landing report.

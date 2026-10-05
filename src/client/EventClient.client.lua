@@ -16,8 +16,10 @@ local GOLD = Color3.fromRGB(255, 190, 40)
 local GREEN = Color3.fromRGB(80, 200, 90)
 local SKY = Color3.fromRGB(90, 190, 255)
 
-local bar = make("Frame", { Parent = UIKit.gui(), Name = "EventBar", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 10), Size = UDim2.fromOffset(900, 56), BackgroundTransparency = 1 }, {
-	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
+-- (kept to the middle of the screen, clear of Roblox's own top-corner buttons; extra pills wrap
+-- into a second row instead of running off the edges)
+local bar = make("Frame", { Parent = UIKit.gui(), Name = "EventBar", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 10), Size = UDim2.new(0.62, 0, 0, 110), BackgroundTransparency = 1 }, {
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Wraps = true, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Top, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
 })
 UIKit.hudScale(bar)
 

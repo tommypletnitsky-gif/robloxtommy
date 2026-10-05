@@ -37,7 +37,7 @@ local BuyUpgrade = remote("RemoteFunction", "BuyUpgrade") -- ("Fuel" | "Speed" |
 local BuyTrail = remote("RemoteFunction", "BuyTrail") -- (trailId) buys if needed, then equips
 local Notify = remote("RemoteEvent", "Notify") -- server -> client: (text, color)
 local RebirthRemote = remote("RemoteFunction", "Rebirth") -- () -> ok, message
-local LaunchPowerRemote = remote("RemoteEvent", "LaunchPower") -- client -> server during the countdown: ("perfect" | "good")
+local LaunchPowerStop = remote("RemoteFunction", "LaunchPowerStop") -- (clickServerTime) -> "perfect" | "good" | false, needle x
 local BoostRemote = remote("RemoteEvent", "Boost") -- client -> server: (on) holding the boost
 
 -- For EventServer (races): StartFlight:Invoke(player) -> started?, FlightEnded(player, distance, reason)
@@ -337,7 +337,11 @@ local function startFlight(player)
 	ao.CFrame = CFrame.new()
 	ao.Parent = body
 
-	FlightEvent:FireClient(player, "countdown", { seconds = 3, rocket = model })
+	-- power bar: the needle starts swinging at powerT0 (shared server clock); the green zone is
+	-- picked here, so only the server decides how good the launch was
+	f.powerT0 = workspace:GetServerTimeNow() + 0.45
+	f.powerCenter = extrasRng:NextNumber(0.3, 0.72)
+	FlightEvent:FireClient(player, "countdown", { seconds = 3, rocket = model, powerT0 = f.powerT0, powerCenter = f.powerCenter })
 	task.delay(3, function()
 		if flights[player] ~= f or f.ended then
 			return
@@ -377,12 +381,27 @@ LaunchRemote.OnServerEvent:Connect(startFlight)
 StartFlightBindable.OnInvoke = startFlight
 
 -- Power bar: one try per flight, only while you're still in the cannon.
-LaunchPowerRemote.OnServerEvent:Connect(function(player, quality)
+-- The client says when it stopped the needle (shared clock). A believable time (within the
+-- player's ping) is used as-is, anything else is replaced by "now minus half the ping".
+LaunchPowerStop.OnServerInvoke = function(player, clickTime)
 	local f = flights[player]
-	if f and not f.launchedAt and not f.power and typeof(quality) == "string" and Config.LaunchPower[quality] then
-		f.power = quality
+	if not f or f.launchedAt or f.power ~= nil or not f.powerT0 then
+		return false
 	end
-end)
+	local now = workspace:GetServerTimeNow()
+	local okPing, ping = pcall(player.GetNetworkPing, player)
+	ping = okPing and math.clamp(ping, 0, 1) or 0.2
+	local t = now - ping / 2
+	if typeof(clickTime) == "number" and clickTime >= now - ping - 0.12 and clickTime <= now + 0.03 then
+		t = clickTime
+	end
+	local x = Config.powerNeedle(math.max(0, t - f.powerT0))
+	local d = math.abs(x - f.powerCenter)
+	local lp = Config.LaunchPower
+	local quality = (d <= lp.perfect.zone and "perfect") or (d <= lp.good.zone and "good") or false
+	f.power = quality -- one try (false = missed)
+	return quality, x
+end
 
 BoostRemote.OnServerEvent:Connect(function(player, on)
 	local f = flights[player]
@@ -391,11 +410,11 @@ BoostRemote.OnServerEvent:Connect(function(player, on)
 	end
 	if on == true and f.boost > 0 and not f.outOfFuel then
 		f.boostOn = true
-	elseif on == false then
-		if f.boostOn then
-			f.boostGrace = os.clock() + 0.5
-		end
+	elseif on == false and f.boostOn then
 		f.boostOn = false
+		local grace = math.min(0.5, f.boost * Config.Boost.drainTime)
+		f.boost = math.max(0, f.boost - grace / Config.Boost.drainTime)
+		f.boostGrace = os.clock() + grace
 	end
 end)
 
@@ -446,7 +465,8 @@ CollectRemote.OnServerEvent:Connect(function(player, id)
 	end
 	-- The server sees the rocket a little behind where the client is, so allow some lag.
 	local d = p.pos - body.Position
-	if d.X < -20 or d.X > f.speed * 0.6 + 25 or math.abs(d.Y) > 30 or math.abs(d.Z) > 30 or p.pos.X > f.maxX + 20 then
+	local reach = (p.kind == "Ring" and 7.5) or (p.kind == "Obstacle" and 6) or (p.kind == "Golden" and 10) or (p.kind == "Crate" and 9.5) or Config.PICKUP_RADIUS
+	if d.X < -20 or d.X > f.speed * 0.6 + 25 or math.abs(d.Y) > reach + 12 or math.abs(d.Z) > reach + 10 or p.pos.X > f.maxX + 20 then
 		return
 	end
 	f.collected[id] = true
