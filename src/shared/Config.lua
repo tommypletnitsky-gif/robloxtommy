@@ -339,7 +339,8 @@ function Config.comboMult(n)
 end
 
 -- Surprises that may show up somewhere ahead of you in a flight (only on your screen).
-Config.Crate = { chance = 0.45, studs = 400, petChance = 0.05, boostChance = 0.25, fuelStuds = 90 } -- mystery crate
+-- mystery crate: switched off (chance 0) - the owner didn't want a box floating over the track
+Config.Crate = { chance = 0, studs = 400, petChance = 0.05, boostChance = 0.25, fuelStuds = 90 } -- mystery crate
 Config.GoldenCoin = { chance = 1 / 40, studs = 2500 } -- super rare, the whole server hears about it
 
 -- Social + events ------------------------------------------------------------------------------
