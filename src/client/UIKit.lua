@@ -542,7 +542,7 @@ function UIKit.toast(text, color)
 	-- use the top and middle of the screen)
 	local flying = player:GetAttribute("Flying") == true
 	toastHolder.AnchorPoint = Vector2.new(0.5, flying and 1 or 0)
-	toastHolder.Position = flying and UDim2.new(0.5, 0, 1, -64) or UDim2.new(0.5, 0, 0, 70)
+	toastHolder.Position = flying and UDim2.new(0.5, 0, 1, -140) or UDim2.new(0.5, 0, 0, 70) -- (above the progress bar)
 	toastHolder:FindFirstChildOfClass("UIListLayout").VerticalAlignment = flying and Enum.VerticalAlignment.Bottom or Enum.VerticalAlignment.Top
 	local l = UIKit.label({ Parent = toastHolder, Size = UDim2.fromOffset(600, 40), Text = text, TextColor3 = color or Color3.new(1, 1, 1), ZIndex = 31, StrokeThickness = 3 })
 	bounce(l)

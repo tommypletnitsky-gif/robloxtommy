@@ -29,5 +29,6 @@
   {"file": "src/server/GamepassServer.server.lua", "path": "ServerScriptService.GamepassServer", "class": "Script"},
   {"file": "src/client/StoreClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.StoreClient", "class": "LocalScript"},
   {"file": "src/server/EventServer.server.lua", "path": "ServerScriptService.EventServer", "class": "Script"},
-  {"file": "src/client/EventClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.EventClient", "class": "LocalScript"}
+  {"file": "src/client/EventClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.EventClient", "class": "LocalScript"},
+  {"file": "src/client/ProgressClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.ProgressClient", "class": "LocalScript"}
 ]
