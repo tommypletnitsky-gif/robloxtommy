@@ -322,6 +322,7 @@ local function decorateEarth(f, s)
 	local rng = Random.new(s * 7919)
 	for _, entry in ipairs(BIOMES[s]) do
 		local name, count, _, extra = entry[1], entry[2], entry[3], entry[4]
+		count = math.ceil(count * 1.6) -- fuller fields (the open middle distance looked empty)
 		local placed, tries = 0, 0
 		while placed < count and tries < count * 12 do
 			tries += 1

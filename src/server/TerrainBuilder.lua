@@ -201,17 +201,17 @@ end
 function TerrainBuilder.applyColors()
 	local t = workspace.Terrain
 	local colors = {
-		[M.Grass] = Color3.fromRGB(122, 172, 96), -- soft green, easy on the eyes
-		[M.LeafyGrass] = Color3.fromRGB(162, 180, 98),
+		[M.Grass] = Color3.fromRGB(105, 205, 70), -- bright toy green (like the top simulators)
+		[M.LeafyGrass] = Color3.fromRGB(135, 210, 75),
 		[M.Sand] = Color3.fromRGB(255, 205, 120),
 		[M.Sandstone] = Color3.fromRGB(222, 128, 80),
-		[M.Mud] = Color3.fromRGB(105, 120, 70),
+		[M.Mud] = Color3.fromRGB(110, 140, 70),
 		[M.Snow] = Color3.fromRGB(248, 251, 255),
 		[M.Glacier] = Color3.fromRGB(160, 215, 245),
 		[M.Basalt] = Color3.fromRGB(85, 62, 60),
 		[M.CrackedLava] = Color3.fromRGB(255, 110, 40),
-		[M.Rock] = Color3.fromRGB(150, 148, 160),
-		[M.Ground] = Color3.fromRGB(132, 184, 104), -- lobby hills, matches the lawn
+		[M.Rock] = Color3.fromRGB(178, 172, 205), -- soft lavender cliffs
+		[M.Ground] = Color3.fromRGB(120, 200, 80), -- lobby hills, matches the lawn
 	}
 	for mat, c in pairs(colors) do
 		t:SetMaterialColor(mat, c)

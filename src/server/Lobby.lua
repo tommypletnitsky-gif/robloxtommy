@@ -28,7 +28,7 @@ local Lobby = {}
 
 local WHITE = C(255, 255, 255)
 local SIGN = C(53, 139, 204) -- #358bcc, every sign in the lobby
-local GRASS = C(128, 186, 96) -- soft lawn green (built-in Grass texture, no blades on parts)
+local GRASS = C(112, 200, 76) -- bright lawn green, matches the terrain (built-in Grass texture)
 local TILE = C(244, 230, 204) -- warm cream stone
 local BORDER = C(196, 150, 104) -- warm brown edging
 local PAD = C(214, 220, 230)

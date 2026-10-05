@@ -295,6 +295,9 @@ local function requestLaunch()
 end
 launchBtn.Instance.Activated:Connect(requestLaunch)
 
+-- Walking camera can't zoom far out (keeps the lobby framed like the top simulators do).
+player.CameraMaxZoomDistance = 45
+
 -- No tools in this game: hide Roblox's hotbar / inventory bar.
 pcall(function()
 	game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
@@ -615,7 +618,7 @@ end)
 -- Flight camera zoom: mouse wheel, I / O keys or a two-finger pinch while flying. The camera glides
 -- to the new distance instead of jumping; your zoom is kept between flights.
 local CAM_DIST = 17 -- default distance behind the rocket
-local ZOOM_MIN, ZOOM_MAX = 0.55, 2.4
+local ZOOM_MIN, ZOOM_MAX = 0.55, 1.6 -- not too far out: the world is built to be seen from near the rocket
 local camZoom, camZoomTarget = 1, 1
 local function zoomBy(factor)
 	camZoomTarget = math.clamp(camZoomTarget * factor, ZOOM_MIN, ZOOM_MAX)
