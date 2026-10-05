@@ -16,7 +16,8 @@ local GREEN, GOLD, BLUE = Color3.fromRGB(80, 210, 90), Color3.fromRGB(255, 190, 
 local LOBBY_POS = UDim2.new(0.5, 0, 1, -142) -- just above the LAUNCH / PETS / STORE buttons
 local FLY_POS = UDim2.new(0.5, 0, 1, -64)
 
-local holder = make("Frame", { Parent = UIKit.gui(), Name = "ProgressBar", AnchorPoint = Vector2.new(0.5, 1), Position = LOBBY_POS, Size = UDim2.fromOffset(560, 62), BackgroundTransparency = 1 })
+local gui = UIKit.gui()
+local holder = make("Frame", { Parent = gui, Name = "ProgressBar", AnchorPoint = Vector2.new(0.5, 1), Position = LOBBY_POS, Size = UDim2.fromOffset(560, 62), BackgroundTransparency = 1 })
 UIKit.hudScale(holder)
 
 -- the bar itself
@@ -73,6 +74,13 @@ local function lobbyText(best, g, unlocked)
 	return "🏆 Best " .. Config.meters(best) .. "  •  " .. Config.meters(g - best) .. " to Stage " .. (unlocked + 1)
 end
 
+-- in the lobby the bar sits just above the bottom buttons, wherever they are (phones scale them)
+local bottomBar = UIKit.bottomBar()
+local function lobbyPos()
+	local inset = gui.AbsoluteSize.Y - bottomBar.AbsolutePosition.Y
+	return UDim2.new(0.5, 0, 1, -(inset + 10))
+end
+
 RunService.RenderStepped:Connect(function(dt)
 	local flying = player:GetAttribute("Flying") == true
 	-- brand-new players see just the LAUNCH hint first; the bar appears with the first flight
@@ -124,7 +132,7 @@ end)
 -- move between the lobby spot and the flying spot
 player:GetAttributeChangedSignal("Flying"):Connect(function()
 	local flying = player:GetAttribute("Flying") == true
-	TweenService:Create(holder, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Position = flying and FLY_POS or LOBBY_POS }):Play()
+	TweenService:Create(holder, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Position = flying and FLY_POS or lobbyPos() }):Play()
 	if flying then
 		lastDistance = 0
 	end
@@ -139,4 +147,12 @@ task.spawn(function()
 		task.wait(0.2)
 	until player:GetAttribute("DataLoaded")
 	rebuildTicks()
+	if not player:GetAttribute("Flying") then
+		holder.Position = lobbyPos()
+	end
+end)
+gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+	if not player:GetAttribute("Flying") then
+		holder.Position = lobbyPos()
+	end
 end)

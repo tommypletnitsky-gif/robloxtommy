@@ -92,7 +92,9 @@ local BOOST_BLUE = Color3.fromRGB(60, 200, 255)
 local boostBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(70, 144), Size = UDim2.new(1, -140, 0, 24), BackgroundColor3 = Color3.fromRGB(50, 55, 80) }, { UIKit.corner(12), UIKit.stroke(3) })
 local boostFill = make("Frame", { Parent = boostBack, Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(12), UIKit.gloss(BOOST_BLUE) })
 local boostText = label({ Parent = boostBack, Size = UDim2.fromScale(1, 1), Text = "⚡ BOOST", ZIndex = 2, StrokeThickness = 2 })
-local flightMoney = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 240), Size = UDim2.fromOffset(300, 30), Text = "", TextColor3 = Color3.fromRGB(130, 255, 130), Visible = false })
+-- (the coin bonus line rides under the flight HUD, and both shrink together on phones)
+local flightMoney = label({ Parent = flightHud, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 180), Size = UDim2.fromOffset(300, 30), Text = "", TextColor3 = Color3.fromRGB(130, 255, 130), Visible = false })
+UIKit.hudScale(flightHud)
 
 -- BOOST button (bottom right while flying): hold it, or hold SPACE
 local boostHolder = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -24, 1, -30), Size = UDim2.fromOffset(124, 124), BackgroundTransparency = 1, Visible = false })
@@ -330,6 +332,17 @@ local lobbyUi = { bestPill, stageCard, bottomBar, UIKit.sideBar() } -- (money st
 for _, f in ipairs({ moneyPill, bestPill, stageCard }) do
 	UIKit.hudScale(f)
 end
+-- phones: the left column (money, best, side buttons) packs together as the HUD shrinks
+local function packLeft()
+	local hs = moneyPill:FindFirstChild("HudScale")
+	local k = hs and hs.Scale or 1
+	bestPill.Position = UDim2.fromOffset(14, 70 + 64 * k)
+	UIKit.sideBar().Position = UDim2.fromOffset(14, 70 + 132 * k)
+end
+camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	task.defer(packLeft)
+end)
+task.defer(packLeft)
 player:GetAttributeChangedSignal("Flying"):Connect(function()
 	local flying = player:GetAttribute("Flying")
 	for _, f in ipairs(lobbyUi) do
