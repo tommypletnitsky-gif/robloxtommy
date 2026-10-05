@@ -29,6 +29,13 @@ function UIKit.gui()
 	return g
 end
 
+-- GuiObject.AbsolutePosition is measured from just below Roblox's top bar, but our ScreenGui
+-- ignores that inset (it covers the whole screen). Convert an absolute point to an offset you
+-- can use as a Position inside UIKit.gui().
+function UIKit.toGui(absolute)
+	return absolute - UIKit.gui().AbsolutePosition
+end
+
 function UIKit.make(className, props, children)
 	local o = Instance.new(className)
 	local parent = props.Parent
@@ -558,6 +565,45 @@ function UIKit.toast(text, color)
 	end)
 end
 
+-- True while something important is on screen: flying, an open window, the landing report.
+function UIKit.busy()
+	if player:GetAttribute("Flying") then
+		return true
+	end
+	for _, w in ipairs(windows) do
+		if w.Visible then
+			return true
+		end
+	end
+	local report = UIKit.gui():FindFirstChild("FlightReport")
+	return report ~= nil and report.Visible
+end
+
+-- Run fn once nothing important has been on screen for `quiet` seconds (hints, "quest done"...).
+function UIKit.whenFree(fn, quiet)
+	task.spawn(function()
+		local since = os.clock()
+		while os.clock() - since < (quiet or 1.5) do
+			if UIKit.busy() then
+				since = os.clock()
+			end
+			task.wait(0.25)
+		end
+		fn()
+	end)
+end
+
+-- True if a GuiObject and every GuiObject above it is visible.
+function UIKit.shown(g)
+	while g and g:IsA("GuiObject") do
+		if not g.Visible then
+			return false
+		end
+		g = g.Parent
+	end
+	return true
+end
+
 -- Clear all toasts at once (e.g. flight hints when you land).
 function UIKit.clearToasts()
 	if toastHolder then
@@ -624,8 +670,8 @@ function UIKit.coinBurst(count, from)
 	local gui = UIKit.gui()
 	local pill = gui:FindFirstChild("MoneyPill")
 	local view = workspace.CurrentCamera.ViewportSize
-	from = from or Vector2.new(view.X / 2, view.Y * 0.45)
-	local target = pill and pill.Visible and (pill.AbsolutePosition + Vector2.new(30, pill.AbsoluteSize.Y / 2)) or Vector2.new(60, 90)
+	from = from and UIKit.toGui(from) or Vector2.new(view.X / 2, view.Y * 0.45) -- (from: an AbsolutePosition)
+	local target = pill and pill.Visible and UIKit.toGui(pill.AbsolutePosition + Vector2.new(30, pill.AbsoluteSize.Y / 2)) or Vector2.new(60, 90)
 	count = math.clamp(count or 10, 1, 24)
 	for i = 1, count do
 		local c = UIKit.coin({ Parent = gui, Size = math.random(30, 44), Position = UDim2.fromOffset(from.X, from.Y), ZIndex = 60 })

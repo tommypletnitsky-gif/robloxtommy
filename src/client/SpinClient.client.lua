@@ -222,12 +222,13 @@ task.spawn(function()
 	end
 	repeat
 		task.wait(0.5)
-	until (player:GetAttribute("StatFlights") or 0) > 0 and not player:GetAttribute("Flying")
-	task.wait(9) -- after the Flight Report
-	if (player:GetAttribute("Spins") or 0) > 0 and not player:GetAttribute("Flying") then
-		UIKit.toast("🎰 You have a FREE LUCKY SPIN! Press SPIN on the left.", Color3.fromRGB(230, 180, 255))
-		UIKit.bounce(spinBtn.Instance)
-	end
+	until (player:GetAttribute("StatFlights") or 0) > 0
+	UIKit.whenFree(function()
+		if (player:GetAttribute("Spins") or 0) > 0 then
+			UIKit.toast("🎰 You have a FREE LUCKY SPIN! Press SPIN on the left.", Color3.fromRGB(230, 180, 255))
+			UIKit.bounce(spinBtn.Instance)
+		end
+	end, 2)
 end)
 
 -- Active boost pills (top of the screen, in the event bar) -------------------------------------

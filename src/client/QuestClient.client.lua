@@ -60,6 +60,8 @@ local function fmt(q, n)
 	return abbreviate(n)
 end
 
+local readyBefore = {} -- quest ids that were already claimable (so each one only cheers once)
+local questsLoaded = false
 local function refreshQuests()
 	local tiers = Config.parseQuestTiers(player:GetAttribute("QuestTiers"))
 	local stage = player:GetAttribute("UnlockedStage") or 1
@@ -84,10 +86,26 @@ local function refreshQuests()
 			c.rewardText.Text = "💰 $" .. abbreviate(Config.questReward(stage, done + 1))
 			local ready = have >= goal
 			any = any or ready
+			-- a goal just got done: say so right away (after a flight, not on top of it)
+			local key = id .. ":" .. done
+			if ready and not readyBefore[key] then
+				readyBefore[key] = true
+				if questsLoaded then
+					local text = c.title.Text
+					UIKit.whenFree(function()
+						UIKit.toast("📜 Quest done: " .. text .. "! Claim it in QUESTS", Color3.fromRGB(255, 200, 110))
+						UIKit.sound("Gem", 0.45, 1.25)
+						UIKit.bounce(questBtn.Instance)
+					end, 0.8)
+				end
+			end
 			c.button.setText(ready and "CLAIM!" or "keep going...")
 			c.button.setColor(ready and GREEN or GREY)
 			c.card.LayoutOrder = (ready and 0 or 50) + c.order
 		end
+	end
+	if any and not questBadge.Visible then
+		UIKit.bounce(questBadge)
 	end
 	questBadge.Visible = any
 end
@@ -99,6 +117,13 @@ end
 for _, attr in ipairs(watched) do
 	player:GetAttributeChangedSignal(attr):Connect(refreshQuests)
 end
+task.spawn(function()
+	repeat
+		task.wait(0.3)
+	until player:GetAttribute("DataLoaded")
+	refreshQuests()
+	questsLoaded = true -- quests that were already done when you joined don't pop toasts
+end)
 refreshQuests()
 questBtn.Instance.Activated:Connect(function()
 	refreshQuests()

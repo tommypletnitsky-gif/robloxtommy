@@ -3,7 +3,7 @@
 --   2. no upgrades yet + money  -> arrow on the UPGRADE button
 --   3. can unlock the next stage -> arrow on the UNLOCK button
 --   4. no pets yet + money      -> path + arrow to the Meadow egg
--- Hidden while flying or while a window is open.
+-- Hidden while flying, while a window is open and while the landing report shows.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -61,20 +61,11 @@ local function findButton(text)
 	for _, d in ipairs(gui:GetDescendants()) do
 		if d:IsA("TextLabel") and d.Name == "Label" and d.Text:find(text, 1, true) then
 			local b = d:FindFirstAncestorOfClass("TextButton")
-			if b and b.Visible and b.AbsoluteSize.X > 0 then
+			if b and UIKit.shown(b) and b.AbsoluteSize.X > 0 then
 				return b
 			end
 		end
 	end
-end
-
-local function anyWindowOpen()
-	for _, w in ipairs(UIKit.windows) do
-		if w.Visible then
-			return true
-		end
-	end
-	return false
 end
 
 -- which hint to show right now: returns kind ("button" / "world"), target, text
@@ -116,7 +107,7 @@ task.spawn(function()
 	until player:GetAttribute("DataLoaded")
 	task.wait(1)
 	while true do
-		if player:GetAttribute("Flying") or anyWindowOpen() then
+		if UIKit.busy() then -- flying, a window or the landing report on screen
 			step.kind = nil
 		else
 			local kind, target, text = currentStep()
@@ -136,7 +127,7 @@ RunService.RenderStepped:Connect(function()
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	-- screen hint over a button
 	if kind == "button" and target and target.Parent then
-		local p, s = target.AbsolutePosition, target.AbsoluteSize
+		local p, s = UIKit.toGui(target.AbsolutePosition), target.AbsoluteSize
 		if p.Y < 260 then
 			-- button near the top: point at it from the left
 			arrow.Text = "➡"
@@ -149,7 +140,10 @@ RunService.RenderStepped:Connect(function()
 			arrow.AnchorPoint = Vector2.new(0.5, 1)
 			arrow.Position = UDim2.fromOffset(p.X + s.X / 2, p.Y + 10 - bob)
 			bubble.AnchorPoint = Vector2.new(0.5, 1)
-			bubble.Position = UDim2.fromOffset(math.clamp(p.X + s.X / 2, 160, gui.AbsoluteSize.X - 160), p.Y - 52)
+			-- (above the progress bar when it sits over the bottom buttons)
+			local progress = gui:FindFirstChild("ProgressBar")
+			local lift = (progress and progress.Visible and progress.AbsolutePosition.Y < target.AbsolutePosition.Y) and 40 or 0
+			bubble.Position = UDim2.fromOffset(math.clamp(p.X + s.X / 2, 160, gui.AbsoluteSize.X - 160), p.Y - 52 - lift)
 		end
 		arrow.Visible = true
 	else

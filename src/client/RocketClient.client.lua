@@ -178,7 +178,7 @@ local function showDelta(d)
 	local now = os.clock()
 	if not (delta.label and delta.label.Parent and now - delta.at < 0.7) then
 		delta.amount = 0
-		local p = moneyPill.AbsolutePosition + Vector2.new(moneyPill.AbsoluteSize.X + 10, moneyPill.AbsoluteSize.Y / 2)
+		local p = UIKit.toGui(moneyPill.AbsolutePosition + Vector2.new(moneyPill.AbsoluteSize.X + 10, moneyPill.AbsoluteSize.Y / 2))
 		local l = label({ Parent = gui, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromOffset(p.X, p.Y), Size = UDim2.fromOffset(170, 34), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(140, 255, 140), StrokeThickness = 3, ZIndex = 30 })
 		delta.label = l
 		task.spawn(function()

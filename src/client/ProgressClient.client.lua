@@ -77,8 +77,8 @@ end
 -- in the lobby the bar sits just above the bottom buttons, wherever they are (phones scale them)
 local bottomBar = UIKit.bottomBar()
 local function lobbyPos()
-	local inset = gui.AbsoluteSize.Y - bottomBar.AbsolutePosition.Y
-	return UDim2.new(0.5, 0, 1, -(inset + 10))
+	local top = UIKit.toGui(bottomBar.AbsolutePosition).Y
+	return UDim2.new(0.5, 0, 1, -(gui.AbsoluteSize.Y - top + 10))
 end
 
 RunService.RenderStepped:Connect(function(dt)
