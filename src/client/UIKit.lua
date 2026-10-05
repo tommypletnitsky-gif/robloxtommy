@@ -458,6 +458,7 @@ function UIKit.toggle(w)
 	UIKit.closeAll()
 	w.Visible = open
 	if open then
+		UIKit.sound("Pop", 0.5, 1.05)
 		local s = w:FindFirstChild("OpenScale") or w:FindFirstChildOfClass("UIScale")
 		local fit = 1
 		local view = workspace.CurrentCamera.ViewportSize
@@ -505,7 +506,7 @@ end)
 
 function UIKit.bottomBar()
 	if not bars.bottom then
-		bars.bottom = make("Frame", { Parent = UIKit.gui(), Name = "BottomBar", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -16), Size = UDim2.fromOffset(700, 110), BackgroundTransparency = 1 }, {
+		bars.bottom = make("Frame", { Parent = UIKit.gui(), Name = "BottomBar", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -16), Size = UDim2.fromOffset(820, 110), BackgroundTransparency = 1 }, {
 			make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Bottom, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
 		UIKit.hudScale(bars.bottom)
@@ -586,6 +587,53 @@ function UIKit.celebrate(title, sub, color, subColor)
 		t:Destroy()
 		st:Destroy()
 	end)
+end
+
+-- A cartoon coin made of frames (no images): gold disc, lighter face, a star. size in pixels.
+function UIKit.coin(props)
+	props = props or {}
+	local size = props.Size or 40
+	local z = props.ZIndex or 30
+	local c = make("Frame", { Parent = props.Parent, Name = "Coin", AnchorPoint = Vector2.new(0.5, 0.5), Position = props.Position or UDim2.new(), Size = UDim2.fromOffset(size, size), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = z }, {
+		make("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
+		make("UIStroke", { Thickness = math.max(1.5, size / 16), Color = UIKit.INK }),
+		make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(255, 235, 120), Color3.fromRGB(240, 150, 20)) }),
+	})
+	local face = make("Frame", { Parent = c, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.68, 0.68), BackgroundColor3 = Color3.fromRGB(255, 215, 70), ZIndex = z }, {
+		make("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
+		make("UIStroke", { Thickness = math.max(1, size / 30), Color = Color3.fromRGB(205, 120, 10) }),
+	})
+	make("TextLabel", { Parent = face, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Font = UIKit.FONT, Text = "★", TextScaled = true, TextColor3 = Color3.fromRGB(235, 140, 15), ZIndex = z })
+	return c
+end
+
+-- Coins burst out from a screen point and fly into the money counter (a HUD frame named
+-- "MoneyPill"), each landing with a rising little "ding". Used for every money reward.
+function UIKit.coinBurst(count, from)
+	local gui = UIKit.gui()
+	local pill = gui:FindFirstChild("MoneyPill")
+	local view = workspace.CurrentCamera.ViewportSize
+	from = from or Vector2.new(view.X / 2, view.Y * 0.45)
+	local target = pill and pill.Visible and (pill.AbsolutePosition + Vector2.new(30, pill.AbsoluteSize.Y / 2)) or Vector2.new(60, 90)
+	count = math.clamp(count or 10, 1, 24)
+	for i = 1, count do
+		local c = UIKit.coin({ Parent = gui, Size = math.random(30, 44), Position = UDim2.fromOffset(from.X, from.Y), ZIndex = 60 })
+		local a = math.random() * math.pi * 2
+		local r = math.random(50, 170)
+		local mid = from + Vector2.new(math.cos(a) * r, math.sin(a) * r * 0.7 - 30)
+		TweenService:Create(c, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromOffset(mid.X, mid.Y), Rotation = math.random(-40, 40) }):Play()
+		task.delay(0.32 + i * 0.035, function()
+			local t = TweenService:Create(c, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.fromOffset(target.X, target.Y), Size = UDim2.fromOffset(22, 22) })
+			t:Play()
+			t.Completed:Wait()
+			c:Destroy()
+			UIKit.sound("Coin", 0.22, 0.95 + i * 0.035)
+			local amount = pill and pill:FindFirstChild("Amount")
+			if amount then
+				bounce(amount)
+			end
+		end)
+	end
 end
 
 function UIKit.result(ok, msg)

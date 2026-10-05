@@ -41,6 +41,15 @@ local function rocketIcon(def)
 	return RocketModel.build(def, 1, false, CFrame.new())
 end
 
+-- Buying feels good: purchase chime + the card pops (errors just get the red toast).
+local function bought(card, ok, msg, pitch)
+	UIKit.result(ok, msg)
+	if ok then
+		UIKit.sound("Gem", 0.55, pitch or 1.15)
+		UIKit.bounce(card)
+	end
+end
+
 -- Rockets window -------------------------------------------------------------------------
 local rocketsWindow, rocketsList = UIKit.window("Rockets", BLUE, UDim2.fromOffset(780, 520), rocketIcon(Config.Rockets[4]))
 
@@ -83,7 +92,8 @@ for i, def in ipairs(Config.Rockets) do
 	local range = label({ Parent = card, Position = UDim2.fromOffset(10, 214), Size = UDim2.new(1, -20, 0, 22), Text = "", TextColor3 = Color3.fromRGB(40, 160, 70), StrokeThickness = 0, ZIndex = 12 })
 	local button = UIKit.button({ Parent = card, Text = "", Color = GREEN, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -24, 0, 52), ZIndex = 12 })
 	button.Instance.Activated:Connect(function()
-		UIKit.result(BuyRocket:InvokeServer(def.id))
+		local ok, msg = BuyRocket:InvokeServer(def.id)
+		bought(card, ok, msg)
 	end)
 	rocketCards[def.id] = { def = def, card = card, range = range, button = button, eq = eqPill, stroke = card:FindFirstChildOfClass("UIStroke") }
 end
@@ -111,7 +121,8 @@ for i, def in ipairs(Config.Trails) do
 	local eqPill = UIKit.pill(card, { Text = "EQUIPPED", Color = GREEN, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 18), Size = UDim2.fromOffset(98, 26), ZIndex = 14 })
 	local button = UIKit.button({ Parent = card, Text = "", Color = GREEN, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -24, 0, 52), ZIndex = 12 })
 	button.Instance.Activated:Connect(function()
-		UIKit.result(BuyTrail:InvokeServer(def.id))
+		local ok, msg = BuyTrail:InvokeServer(def.id)
+		bought(card, ok, msg)
 	end)
 	trailCards[def.id] = { def = def, button = button, eq = eqPill, stroke = card:FindFirstChildOfClass("UIStroke") }
 end
@@ -215,7 +226,9 @@ for i, key in ipairs({ "Cannon", "Fuel", "Speed", "Money" }) do
 	local change = label({ Parent = card, Position = UDim2.fromOffset(134, 102), Size = UDim2.new(1, -320, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(40, 160, 70), StrokeThickness = 0, ZIndex = 12 })
 	local button = UIKit.button({ Parent = card, Text = "", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0), Size = UDim2.fromOffset(170, 74), ZIndex = 12 })
 	button.Instance.Activated:Connect(function()
-		UIKit.result(BuyUpgrade:InvokeServer(key))
+		local ok, msg = BuyUpgrade:InvokeServer(key)
+		-- the chime climbs a little with every level
+		bought(card, ok, msg, 1 + math.min(30, player:GetAttribute(key .. "Level") or 0) * 0.02)
 	end)
 	upgradeCards[key] = { button = button, setLevel = setLevel, levelText = levelText, change = change, what = what, iconHolder = iconHolder, cannonSkin = nil }
 end
@@ -300,3 +313,53 @@ RunService.Heartbeat:Connect(function()
 		openedAt = nil
 	end
 end)
+
+-- HUD shortcuts: UPGRADE and ROCKETS next to LAUNCH open the same windows as the shops (no walk
+-- needed between flights), with a red "!" when you can afford something there.
+local bottom = UIKit.bottomBar()
+local upgradeHud = UIKit.button({ Parent = bottom, LayoutOrder = 3, Icon3D = "Bolt", IconYaw = 90, Icon = "⬆", Text = "UPGRADE", Color = PURPLE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+-- the rocket stands nose-up in its button (built pointing +X, turned to +Y)
+local uprightRocket = RocketModel.build(Config.Rockets[3], 1, false, CFrame.Angles(0, 0, math.pi / 2))
+local rocketsHud = UIKit.button({ Parent = bottom, LayoutOrder = 4, Icon3D = uprightRocket, IconYaw = 30, Icon = "🚀", Text = "ROCKETS", Color = BLUE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+local upgradeBadge = UIKit.badge(upgradeHud.Instance)
+local rocketsBadge = UIKit.badge(rocketsHud.Instance)
+upgradeHud.Instance.Activated:Connect(function()
+	refreshUpgrades()
+	openedAt = nil
+	UIKit.toggle(upgradesWindow)
+end)
+rocketsHud.Instance.Activated:Connect(function()
+	refreshRockets()
+	openedAt = nil
+	UIKit.toggle(rocketsWindow)
+end)
+
+local function refreshBadges()
+	local money = player:GetAttribute("Money") or 0
+	local canUpgrade = false
+	for key, u in pairs(Config.Upgrades) do
+		local lvl = player:GetAttribute(key .. "Level") or 0
+		if lvl < u.maxLevel and money >= Config.upgradeCost(key, lvl) then
+			canUpgrade = true
+		end
+	end
+	local mine = owned("OwnedRockets")
+	local canRocket = false
+	for _, def in ipairs(Config.Rockets) do
+		if not table.find(mine, def.id) and money >= def.price then
+			canRocket = true
+		end
+	end
+	if canUpgrade and not upgradeBadge.Visible then
+		UIKit.bounce(upgradeBadge)
+	end
+	if canRocket and not rocketsBadge.Visible then
+		UIKit.bounce(rocketsBadge)
+	end
+	upgradeBadge.Visible = canUpgrade
+	rocketsBadge.Visible = canRocket
+end
+for _, attr in ipairs({ "Money", "OwnedRockets", "FuelLevel", "SpeedLevel", "MoneyLevel", "CannonLevel" }) do
+	player:GetAttributeChangedSignal(attr):Connect(refreshBadges)
+end
+refreshBadges()

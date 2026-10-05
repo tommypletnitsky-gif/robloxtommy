@@ -590,7 +590,7 @@ end
 refreshPets()
 
 -- PETS button in the bottom bar
-local petsBtn = UIKit.button({ Parent = UIKit.bottomBar(), LayoutOrder = 4, Icon3D = petFolder and petFolder:FindFirstChild("Puppy") or nil, Icon = "🐾", Text = "PETS", Color = PINK, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+local petsBtn = UIKit.button({ Parent = UIKit.bottomBar(), LayoutOrder = 5, Icon3D = petFolder and petFolder:FindFirstChild("Puppy") or nil, Icon = "🐾", Text = "PETS", Color = PINK, Size = UDim2.fromOffset(104, 104), Radius = 24 })
 petsBtn.Instance.Activated:Connect(function()
 	UIKit.toggle(petsWindow)
 end)

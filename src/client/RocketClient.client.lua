@@ -12,6 +12,7 @@ local Lighting = game:GetService("Lighting")
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
 local Rider = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("RiderAnimator"))
+local Report = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("FlightReport"))
 local RocketModel = require(ReplicatedStorage.Shared:WaitForChild("RocketModel"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LaunchRemote = remotes:WaitForChild("Launch")
@@ -29,7 +30,7 @@ local gui = UIKit.gui()
 
 -- Top-left: money + best pills ------------------------------------------------------------
 local function pill(y, color, icon, icon3D)
-	local f = make("Frame", { Parent = gui, Position = UDim2.fromOffset(14, y), Size = UDim2.fromOffset(230, 54), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(27), UIKit.stroke(3.5), UIKit.gloss(color), make("UIScale", {}) })
+	local f = make("Frame", { Parent = gui, Position = UDim2.fromOffset(14, y), Size = UDim2.fromOffset(230, 54), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(27), UIKit.stroke(3.5), UIKit.gloss(color) })
 	make("Frame", { Parent = f, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.fromScale(0.08, 0.1), Size = UDim2.fromScale(0.84, 0.3) }, { UIKit.corner(10) })
 	local circle = make("Frame", { Parent = f, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -8, 0.5, 0), Size = UDim2.fromOffset(62, 62), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(31), UIKit.stroke(3.5), UIKit.gloss(Color3.fromRGB(255, 250, 235)) })
 	local icons = ReplicatedStorage:WaitForChild("UIIcons", 5)
@@ -38,10 +39,11 @@ local function pill(y, color, icon, icon3D)
 	else
 		label({ Parent = circle, Size = UDim2.fromScale(1, 1), Text = icon })
 	end
-	local text = label({ Parent = f, Position = UDim2.fromOffset(62, 6), Size = UDim2.new(1, -74, 1, -12), TextXAlignment = Enum.TextXAlignment.Left, Text = "", StrokeThickness = 3 })
+	local text = label({ Parent = f, Name = "Amount", Position = UDim2.fromOffset(62, 6), Size = UDim2.new(1, -74, 1, -12), TextXAlignment = Enum.TextXAlignment.Left, Text = "", StrokeThickness = 3 })
 	return f, text
 end
 local moneyPill, moneyText = pill(70, Color3.fromRGB(80, 210, 90), "💰", "Coin")
+moneyPill.Name = "MoneyPill" -- UIKit.coinBurst flies coins into it
 local bestPill, bestText = pill(134, Color3.fromRGB(255, 180, 40), "🏆", "Trophy")
 
 -- Right: stage card --------------------------------------------------------------------------
@@ -162,27 +164,46 @@ local bigLabel = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Posi
 make("UIScale", { Parent = bigLabel })
 local flash = make("Frame", { Parent = gui, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 60, 60), BackgroundTransparency = 1, ZIndex = 1 })
 
-local resultCard = make("Frame", {
-	Parent = gui,
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.44),
-	Size = UDim2.fromOffset(420, 300),
-	BackgroundColor3 = Color3.new(1, 1, 1),
-	Visible = false,
-	ZIndex = 20,
-}, { UIKit.corner(28), UIKit.stroke(5), make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(215, 228, 255)) }), make("UIScale", {}) })
-local ribbon = make("Frame", { Parent = resultCard, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromOffset(330, 66), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 22 }, { UIKit.corner(20), UIKit.stroke(4), UIKit.gloss(Color3.fromRGB(255, 190, 40)) })
-local ribbonText = label({ Parent = ribbon, Position = UDim2.fromScale(0.05, 0.1), Size = UDim2.fromScale(0.9, 0.8), Text = "", ZIndex = 23, StrokeThickness = 3.5 })
-local resDistance = label({ Parent = resultCard, Position = UDim2.fromOffset(20, 50), Size = UDim2.new(1, -40, 0, 60), Text = "", TextColor3 = Color3.fromRGB(70, 140, 255), ZIndex = 21, StrokeThickness = 3 })
-local resMoney = label({ Parent = resultCard, Position = UDim2.fromOffset(20, 118), Size = UDim2.new(1, -40, 0, 54), Text = "", TextColor3 = Color3.fromRGB(80, 210, 90), ZIndex = 21, StrokeThickness = 3 })
-local resCoins = label({ Parent = resultCard, Position = UDim2.fromOffset(20, 176), Size = UDim2.new(1, -40, 0, 32), Text = "", TextColor3 = Color3.fromRGB(255, 190, 40), ZIndex = 21 })
-local resHint = label({ Parent = resultCard, Position = UDim2.fromOffset(20, 222), Size = UDim2.new(1, -40, 0, 56), Text = "", TextColor3 = Color3.fromRGB(90, 90, 120), ZIndex = 21, StrokeThickness = 0 })
-
 -- Stats / stage card ----------------------------------------------------------------------------
 local shownMoney = 0
 local moneyTween
+local lastMoney = nil
+local delta = { label = nil, amount = 0, at = 0 }
+local function showDelta(d)
+	if d <= 0 or not moneyPill.Visible then
+		return
+	end
+	local now = os.clock()
+	if not (delta.label and delta.label.Parent and now - delta.at < 0.7) then
+		delta.amount = 0
+		local p = moneyPill.AbsolutePosition + Vector2.new(moneyPill.AbsoluteSize.X + 10, moneyPill.AbsoluteSize.Y / 2)
+		local l = label({ Parent = gui, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromOffset(p.X, p.Y), Size = UDim2.fromOffset(170, 34), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(140, 255, 140), StrokeThickness = 3, ZIndex = 30 })
+		delta.label = l
+		task.spawn(function()
+			repeat
+				task.wait(0.2)
+			until os.clock() - delta.at > 0.9 or delta.label ~= l
+			TweenService:Create(l, TweenInfo.new(0.5, Enum.EasingStyle.Quad), { Position = l.Position - UDim2.fromOffset(0, 26), TextTransparency = 1 }):Play()
+			local st = l:FindFirstChildOfClass("UIStroke")
+			if st then
+				TweenService:Create(st, TweenInfo.new(0.5), { Transparency = 1 }):Play()
+			end
+			task.wait(0.55)
+			l:Destroy()
+		end)
+	end
+	delta.at = now
+	delta.amount += d
+	delta.label.Text = "+$" .. abbreviate(delta.amount)
+	UIKit.bounce(delta.label)
+end
+
 local function refreshMoney()
 	local target = player:GetAttribute("Money") or 0
+	if lastMoney and target > lastMoney then
+		showDelta(target - lastMoney)
+	end
+	lastMoney = target
 	if moneyTween then
 		moneyTween:Disconnect()
 	end
@@ -197,7 +218,7 @@ local function refreshMoney()
 		end
 	end)
 	if target > from then
-		UIKit.bounce(moneyPill)
+		UIKit.bounce(moneyText)
 	end
 end
 
@@ -267,6 +288,7 @@ task.spawn(function()
 		task.wait(0.2)
 	until player:GetAttribute("DataLoaded")
 	shownMoney = player:GetAttribute("Money") or 0
+	lastMoney = shownMoney
 	moneyText.Text = "$" .. abbreviate(shownMoney)
 	refreshStage()
 	refreshGates()
@@ -289,11 +311,12 @@ local function requestLaunch()
 	if player:GetAttribute("Flying") then
 		return
 	end
-	resultCard.Visible = false
+	Report.hide()
 	UIKit.closeAll()
 	LaunchRemote:FireServer()
 end
 launchBtn.Instance.Activated:Connect(requestLaunch)
+Report.launch = requestLaunch
 
 -- Walking camera can't zoom far out (keeps the lobby framed like the top simulators do).
 player.CameraMaxZoomDistance = 45
@@ -303,7 +326,7 @@ pcall(function()
 	game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 end)
 
-local lobbyUi = { moneyPill, bestPill, stageCard, bottomBar, UIKit.sideBar() }
+local lobbyUi = { bestPill, stageCard, bottomBar, UIKit.sideBar() } -- (money stays visible in flight)
 for _, f in ipairs({ moneyPill, bestPill, stageCard }) do
 	UIKit.hudScale(f)
 end
@@ -347,6 +370,7 @@ local shake = 0
 local function addShake(amount)
 	shake = math.max(shake, amount)
 end
+Report.shake = addShake
 
 -- Pickups (coins, gems, rings, obstacles) ---------------------------------------------------
 local pickupList = {}
@@ -928,27 +952,10 @@ local function stopFlightFx()
 	end
 end
 
-local function coinBurst(count)
-	local target = moneyPill.AbsolutePosition + moneyPill.AbsoluteSize / 2
-	for i = 1, count do
-		local c = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(40, 40), Text = "💰", ZIndex = 25, StrokeThickness = 0 })
-		local spread = UDim2.fromOffset(math.random(-160, 160), math.random(-120, 80))
-		local t1 = TweenService:Create(c, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Position = c.Position + spread })
-		t1:Play()
-		task.delay(0.35 + i * 0.03, function()
-			local t2 = TweenService:Create(c, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.fromOffset(target.X, target.Y), Size = UDim2.fromOffset(20, 20) })
-			t2:Play()
-			t2.Completed:Wait()
-			c:Destroy()
-			UIKit.sound("Coin", 0.25, 1 + i * 0.03)
-		end)
-	end
-end
-
 FlightEvent.OnClientEvent:Connect(function(kind, info)
 	if kind == "countdown" then
 		setJumpBlocked(true)
-		resultCard.Visible = false
+		Report.hide()
 		resetPickups()
 		clearExtras()
 		startPower()
@@ -1003,6 +1010,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		animateCannon("fire")
 		UIKit.sound("Launch", 0.8)
 		UIKit.sound("Hit", 0.9, 0.55) -- the cannon's BOOM
+		UIKit.sound("Boom", 0.45, 1.25)
 		addShake(info.power == "perfect" and 3 or 2)
 		if power and power.stopped then
 			local shown = power
@@ -1163,6 +1171,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			if flight.engine then
 				TweenService:Create(flight.engine, TweenInfo.new(0.5), { Volume = 0 }):Play()
 			end
+			UIKit.sound("PowerDown", 0.45)
 			bigLabel.Text = "OUT OF FUEL!"
 			bigLabel.TextColor3 = Color3.fromRGB(255, 140, 80)
 			bigLabel.Visible = true
@@ -1183,44 +1192,12 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 				e:Emit(35)
 				game:GetService("Debris"):AddItem(dust, 3)
 				addShake(info.reason == "landed" and 1.2 or 0.5)
+				UIKit.sound("Boom", 0.4, 1.2)
 			end
 		end
 		bigLabel.Visible = false
-		ribbonText.Text = info.newBest and "NEW BEST!" or "FLIGHT OVER"
-		ribbon.Visible = true
-		resDistance.Text = "🚀 " .. meters(info.distance)
-		resMoney.Text = "+$" .. abbreviate(info.money)
-		resCoins.Text = (info.bonus or 0) > 0 and ("💰 " .. info.coins .. (info.coins == 1 and " coin: +$" or " coins: +$") .. abbreviate(info.bonus)) or ""
-		if (info.bestCombo or 0) >= Config.Combo.step then
-			resCoins.Text ..= "   🔥 combo " .. info.bestCombo
-		end
 		clearExtras()
-		resHint.Text = ({
-			fuel = "Out of fuel! Upgrade your Fuel Tank to fly farther.",
-			gate = "Stage locked! Unlock the next stage to keep going.",
-			jumped = "You fell off your rocket!",
-			landed = "You landed! Upgrade to fly even farther.",
-			finish = "You reached the end of the galaxy!",
-		})[info.reason] or ""
-		resultCard.Visible = true
-		local s = resultCard:FindFirstChildOfClass("UIScale")
-		s.Scale = 0.3
-		TweenService:Create(s, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
-		UIKit.sound("Win", 0.6)
-		task.delay(0.5, function()
-			coinBurst(info.newBest and 16 or 10)
-		end)
-		task.delay(5, function()
-			if not player:GetAttribute("Flying") then
-				resultCard.Visible = false
-			end
-		end)
-	end
-end)
-
-resultCard.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		resultCard.Visible = false
+		Report.show(info)
 	end
 end)
 
@@ -1242,6 +1219,7 @@ player:GetAttributeChangedSignal("Flying"):Connect(function()
 		camera.CameraType = Enum.CameraType.Custom
 		camera.FieldOfView = 70
 		playMusic("LobbyMusic")
+		Report.backHome() -- FLY AGAIN pressed while landing? launch now; else the report hides soon
 	end
 end)
 
@@ -1288,6 +1266,70 @@ local function loseCombo(f, why)
 	comboFrame.Visible = false
 end
 
+-- Stage banner: sweeps across the screen when you fly into a new stage.
+local ZONE_COLORS = { Earth = Color3.fromRGB(110, 200, 80), Sky = Color3.fromRGB(90, 180, 255), Space = Color3.fromRGB(170, 90, 255) }
+local banner = make("Frame", { Parent = gui, Name = "StageBanner", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(-0.8, 0.42), Size = UDim2.new(1.4, 0, 0, 100), BackgroundColor3 = Color3.new(1, 1, 1), Rotation = -3, Visible = false, ZIndex = 18 }, { UIKit.stroke(4) })
+local bannerSmall = label({ Parent = banner, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8), Size = UDim2.fromOffset(600, 30), Text = "", StrokeThickness = 3, ZIndex = 19 })
+local bannerBig = label({ Parent = banner, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 38), Size = UDim2.fromOffset(760, 56), Text = "", StrokeThickness = 4, ZIndex = 19 })
+local bannerToken = 0
+local function stageBanner(stage)
+	local st = Config.Stages[stage]
+	bannerToken += 1
+	local token = bannerToken
+	local old = banner:FindFirstChildOfClass("UIGradient")
+	if old then
+		old:Destroy()
+	end
+	UIKit.gloss(ZONE_COLORS[st.zone] or ZONE_COLORS.Earth).Parent = banner
+	bannerSmall.Text = "STAGE " .. stage .. "  •  " .. Config.multText(Config.moneyPerStud(stage)) .. " money"
+	bannerBig.Text = string.upper(st.name)
+	banner.Position = UDim2.fromScale(-0.8, 0.42)
+	banner.Visible = true
+	UIKit.sound("Whoosh", 0.6, 0.9)
+	TweenService:Create(banner, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.5, 0.42) }):Play()
+	task.delay(1.6, function()
+		if bannerToken ~= token then
+			return
+		end
+		local t = TweenService:Create(banner, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.fromScale(1.8, 0.42) })
+		t:Play()
+		t.Completed:Wait()
+		if bannerToken == token then
+			banner.Visible = false
+		end
+	end)
+end
+
+-- Pickup bursts: one pooled emitter part (cheap), a shockwave ring for boost rings.
+local burstPart = Instance.new("Part")
+burstPart.Name = "PickupBurst"
+burstPart.Anchored, burstPart.CanCollide, burstPart.CanQuery, burstPart.CanTouch, burstPart.Transparency = true, false, false, false, 1
+burstPart.Size = Vector3.one
+burstPart.Parent = workspace
+local goldBurst = sparkles(burstPart, Color3.fromRGB(255, 215, 70), 0)
+goldBurst.Speed = NumberRange.new(10, 22)
+goldBurst.Lifetime = NumberRange.new(0.25, 0.55)
+local blueBurst = sparkles(burstPart, Color3.fromRGB(120, 230, 255), 0)
+blueBurst.Speed = NumberRange.new(12, 28)
+blueBurst.Lifetime = NumberRange.new(0.3, 0.7)
+local function burst(pos, emitter, n)
+	burstPart.CFrame = CFrame.new(pos)
+	emitter:Emit(n)
+end
+local function ringWave(pos)
+	local w = Instance.new("Part")
+	w.Shape = Enum.PartType.Cylinder
+	w.Anchored, w.CanCollide, w.CanQuery, w.CanTouch, w.CastShadow = true, false, false, false, false
+	w.Material = Enum.Material.Neon
+	w.Color = Color3.fromRGB(255, 190, 60)
+	w.Transparency = 0.2
+	w.Size = Vector3.new(0.4, 15, 15)
+	w.CFrame = CFrame.new(pos)
+	w.Parent = workspace
+	TweenService:Create(w, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.4, 36, 36), Transparency = 1 }):Play()
+	game:GetService("Debris"):AddItem(w, 0.45)
+end
+
 local function collect(p)
 	setPickupVisible(p, false)
 	CollectRemote:FireServer(p.id)
@@ -1295,14 +1337,20 @@ local function collect(p)
 	if p.kind == "Coin" or p.kind == "Gem" or p.kind == "Ring" then
 		addCombo(f, p)
 	end
-	if p.kind == "Coin" or p.kind == "Gem" then
-		UIKit.sound("Coin", 0.45, math.min(1.6, 1 + f.combo * 0.04))
+	if p.kind == "Coin" then
+		UIKit.sound("Coin", 0.4, math.min(1.6, 1 + f.combo * 0.04))
+		burst(p.pos, goldBurst, 10)
+	elseif p.kind == "Gem" then
+		UIKit.sound("Gem", 0.55, 1.3)
+		burst(p.pos, blueBurst, 26)
 	elseif p.kind == "Ring" then
 		f.boostUntil = os.clock() + Config.Pickups.Ring.boostTime
 		f.pull = math.max(f.pull, 7)
 		f.pullHold = os.clock() + 0.2
 		f.spin = math.max(f.spin, math.pi * 2)
-		UIKit.sound("Boost", 0.6)
+		UIKit.sound("Boost", 0.45)
+		UIKit.sound("Whoosh", 0.55, 1.1)
+		ringWave(p.pos)
 		popText("BOOST! +FUEL", Color3.fromRGB(255, 180, 40))
 		addShake(0.4)
 	elseif p.kind == "Obstacle" then
@@ -1740,7 +1788,7 @@ RunService.RenderStepped:Connect(function(dt)
 		f.stage = stage
 		zoneLabel.Text = "Stage " .. stage .. " - " .. Config.Stages[stage].name
 		if stage > 1 then
-			UIKit.toast("STAGE " .. stage .. ": " .. Config.Stages[stage].name, Color3.fromRGB(255, 220, 80))
+			stageBanner(stage)
 		end
 	end
 end)
@@ -1793,111 +1841,3 @@ flights.ChildAdded:Connect(function(m)
 	label({ Parent = bb, Size = UDim2.fromScale(1, 1), Text = m.Name, TextColor3 = Color3.fromRGB(255, 230, 120) })
 end)
 
--- Zone lighting: Earth -> Sky -> Space, plus a bright cartoon color grade ---------------------
-local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere", Lighting)
-local grade = Lighting:FindFirstChild("CartoonGrade") or Instance.new("ColorCorrectionEffect")
-grade.Name = "CartoonGrade"
-grade.Saturation = 0.08
-grade.Contrast = 0.08
-grade.Brightness = 0.02
-grade.Parent = Lighting
--- Softer glow: full-strength bloom made white paving and bright parts blinding.
-local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
-if bloom then
-	bloom.Intensity = 0.35
-	bloom.Threshold = 2.4
-end
-local ZONES = {
-	Earth = { lighting = { ClockTime = 14, Brightness = 2.2, Ambient = Color3.fromRGB(90, 90, 100), OutdoorAmbient = Color3.fromRGB(150, 150, 160) }, atmo = { Density = 0.25, Haze = 0, Glare = 0, Color = Color3.fromRGB(210, 225, 255) } },
-	Sky = { lighting = { ClockTime = 16.5, Brightness = 2.6, Ambient = Color3.fromRGB(120, 120, 140), OutdoorAmbient = Color3.fromRGB(170, 170, 200) }, atmo = { Density = 0.32, Haze = 1.2, Glare = 0, Color = Color3.fromRGB(210, 230, 255) } },
-	Space = { lighting = { ClockTime = 13, Brightness = 1.4, Ambient = Color3.fromRGB(110, 100, 150), OutdoorAmbient = Color3.fromRGB(130, 120, 170) }, atmo = { Density = 0, Haze = 0, Glare = 0, Color = Color3.fromRGB(0, 0, 0) } },
-}
--- Some worlds get their own mood on top of the zone lighting.
-local STAGE_MOODS = {
-	["Dusty Desert"] = { lighting = { ClockTime = 13, Brightness = 2.6 }, atmo = { Color = Color3.fromRGB(255, 225, 180), Density = 0.3, Haze = 0.6 } },
-	["Red Canyon"] = { lighting = { ClockTime = 15.5 }, atmo = { Color = Color3.fromRGB(255, 200, 170), Density = 0.3, Haze = 0.8 } },
-	["Misty Swamp"] = { lighting = { Brightness = 1.7 }, atmo = { Color = Color3.fromRGB(190, 225, 190), Density = 0.42, Haze = 2.2 } },
-	["Volcano"] = { lighting = { ClockTime = 17.4, Brightness = 2, OutdoorAmbient = Color3.fromRGB(170, 120, 110) }, atmo = { Color = Color3.fromRGB(255, 150, 110), Density = 0.38, Haze = 2 } },
-	["Snowy Tundra"] = { lighting = { Brightness = 2.5 }, atmo = { Color = Color3.fromRGB(225, 240, 255), Density = 0.3, Haze = 0.8 } },
-	["Sunset Sky"] = { lighting = { ClockTime = 16.9, Brightness = 2.8 }, atmo = { Color = Color3.fromRGB(255, 175, 110), Density = 0.3, Haze = 2.2, Glare = 0.4 } },
-	["Thunder Storm"] = { lighting = { Brightness = 1.3, OutdoorAmbient = Color3.fromRGB(120, 120, 145) }, atmo = { Color = Color3.fromRGB(150, 155, 180), Density = 0.45, Haze = 2.5 } },
-	["Aurora Lights"] = { lighting = { ClockTime = 20.5, Brightness = 1.4 }, atmo = { Color = Color3.fromRGB(150, 220, 210), Density = 0.25, Haze = 1 } },
-	["Edge of Space"] = { lighting = { ClockTime = 19.6, Brightness = 1.5 }, atmo = { Color = Color3.fromRGB(120, 130, 200), Density = 0.18, Haze = 0.5 } },
-}
-
-local function moodFor(x)
-	local stage = x < Config.LAUNCH_X and nil or Config.Stages[Config.stageAt(x)]
-	local zone = stage and stage.zone or "Earth"
-	local lighting, atmo = table.clone(ZONES[zone].lighting), table.clone(ZONES[zone].atmo)
-	local mood = stage and STAGE_MOODS[stage.name]
-	if mood then
-		for k, v in pairs(mood.lighting) do
-			lighting[k] = v
-		end
-		for k, v in pairs(mood.atmo) do
-			atmo[k] = v
-		end
-	end
-	return (stage and stage.name or "Lobby"), lighting, atmo
-end
-
--- Sky: soft cartoon clouds over Earth and the Sky zone (thicker / greyer for some stages), and a
--- starry galaxy skybox once you're in Space.
-local clouds = workspace.Terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
-clouds.Parent = workspace.Terrain
-local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky", Lighting)
-local SKYBOX_FACES = { "SkyboxBk", "SkyboxDn", "SkyboxFt", "SkyboxLf", "SkyboxRt", "SkyboxUp" }
-local DAY_SKY = {}
-for _, face in ipairs(SKYBOX_FACES) do
-	DAY_SKY[face] = sky[face]
-end
-local function asset(id)
-	return "rbxassetid://" .. id
-end
-local SPACE_SKY = { SkyboxBk = asset(159454299), SkyboxDn = asset(159454296), SkyboxFt = asset(159454293), SkyboxLf = asset(159454286), SkyboxRt = asset(159454300), SkyboxUp = asset(159454288) }
-local CLOUDS = {
-	Earth = { Cover = 0.6, Density = 0.45, Color = Color3.fromRGB(255, 255, 255) },
-	Sky = { Cover = 0.78, Density = 0.55, Color = Color3.fromRGB(255, 250, 255) },
-	Space = { Cover = 0, Density = 0, Color = Color3.fromRGB(255, 255, 255) },
-}
-local STAGE_CLOUDS = {
-	["Dusty Desert"] = { Cover = 0.3 },
-	["Red Canyon"] = { Cover = 0.35 },
-	["Volcano"] = { Cover = 0.75, Color = Color3.fromRGB(200, 170, 165) },
-	["Misty Swamp"] = { Cover = 0.8, Color = Color3.fromRGB(225, 235, 225) },
-	["Thunder Storm"] = { Cover = 0.95, Density = 0.8, Color = Color3.fromRGB(140, 145, 165) },
-	["Sunset Sky"] = { Color = Color3.fromRGB(255, 205, 175) },
-	["Edge of Space"] = { Cover = 0.4 },
-}
-local currentSky = "day"
-local function setSky(kind)
-	if kind == currentSky then
-		return
-	end
-	currentSky = kind
-	local faces = kind == "space" and SPACE_SKY or DAY_SKY
-	for face, id in pairs(faces) do
-		sky[face] = id
-	end
-	sky.StarCount = kind == "space" and 5000 or 3000
-	sky.CelestialBodiesShown = kind ~= "space"
-end
-
-local currentMood = nil
-RunService.Heartbeat:Connect(function()
-	local name, lighting, atmo = moodFor(camera.CFrame.Position.X)
-	if name ~= currentMood then
-		currentMood = name
-		local info = TweenInfo.new(2)
-		TweenService:Create(Lighting, info, lighting):Play()
-		TweenService:Create(atmosphere, info, atmo):Play()
-		local stage = camera.CFrame.Position.X >= Config.LAUNCH_X and Config.Stages[Config.stageAt(camera.CFrame.Position.X)] or nil
-		local zone = stage and stage.zone or "Earth"
-		local c = table.clone(CLOUDS[zone])
-		for k, v in pairs(stage and STAGE_CLOUDS[stage.name] or {}) do
-			c[k] = v
-		end
-		TweenService:Create(clouds, info, c):Play()
-		setSky(zone == "Space" and "space" or "day")
-	end
-end)

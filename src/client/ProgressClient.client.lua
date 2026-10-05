@@ -61,6 +61,7 @@ local function rebuildTicks()
 end
 
 local shown = 0 -- fill fraction on screen (eased)
+local lastDistance = 0
 local lastState = nil
 local function lobbyText(best, g, unlocked)
 	if unlocked >= Config.NUM_STAGES then
@@ -74,6 +75,11 @@ end
 
 RunService.RenderStepped:Connect(function(dt)
 	local flying = player:GetAttribute("Flying") == true
+	-- brand-new players see just the LAUNCH hint first; the bar appears with the first flight
+	holder.Visible = flying or (player:GetAttribute("StatFlights") or 0) > 0
+	if not holder.Visible then
+		return
+	end
 	local g, unlocked = goal()
 	local best = player:GetAttribute("BestDistance") or 0
 	local frac
@@ -81,7 +87,9 @@ RunService.RenderStepped:Connect(function(dt)
 		local flights = workspace:FindFirstChild("Flights")
 		local m = flights and flights:FindFirstChild(player.Name)
 		local body = m and m.PrimaryPart
-		local d = body and math.max(0, body.Position.X - Config.LAUNCH_X) or 0
+		-- (after landing the rocket is removed: keep showing where you got to)
+		local d = body and math.max(0, body.Position.X - Config.LAUNCH_X) or lastDistance
+		lastDistance = d
 		frac = math.clamp(d / g, 0, 1)
 		text.Text = Config.meters(d) .. " / " .. Config.meters(g)
 		rocketMarker.Visible = true
@@ -117,6 +125,9 @@ end)
 player:GetAttributeChangedSignal("Flying"):Connect(function()
 	local flying = player:GetAttribute("Flying") == true
 	TweenService:Create(holder, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Position = flying and FLY_POS or LOBBY_POS }):Play()
+	if flying then
+		lastDistance = 0
+	end
 	lastState = nil
 end)
 player:GetAttributeChangedSignal("UnlockedStage"):Connect(function()

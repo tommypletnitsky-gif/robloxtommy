@@ -1,6 +1,6 @@
 -- New-player guide: one hint at a time, only until you've done it.
 --   1. never launched           -> bouncing arrow on LAUNCH: "Press LAUNCH to fly!"
---   2. no upgrades yet + money  -> glowing path + arrow to the Upgrades shop
+--   2. no upgrades yet + money  -> arrow on the UPGRADE button
 --   3. can unlock the next stage -> arrow on the UNLOCK button
 --   4. no pets yet + money      -> path + arrow to the Meadow egg
 -- Hidden while flying or while a window is open.
@@ -98,8 +98,7 @@ local function currentStep()
 		end
 	end
 	if not anyUpgrade and money >= Config.upgradeCost("Fuel", 0) then
-		local shop = hub() and hub():FindFirstChild("UpgradeLab")
-		return "world", shop and shop:FindFirstChild("Door"), "Buy an upgrade at the Upgrades shop! ⬆️"
+		return "button", findButton("UPGRADE"), "Upgrade your rocket! ⬆️"
 	end
 	local egg = Config.Eggs[1]
 	if (player:GetAttribute("StatEggs") or 0) == 0 and flights >= 2 and money >= egg.price then

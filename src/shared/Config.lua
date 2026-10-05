@@ -444,14 +444,23 @@ Config.Donations = {
 	{ robux = 1000, id = 3716679787 },
 }
 
--- Sounds (Creator Store audio)
+-- Sounds (Creator Store audio). One consistent palette: most effects are from the DailySoundsFX
+-- set (synthesized from scratch), jingles are licensed APM stings.
 Config.Sounds = {
 	Launch = "rbxassetid://12222065",
 	Engine = "rbxassetid://12222095",
-	Coin = "rbxassetid://1169806635",
+	Coin = "rbxassetid://130378474223829", -- bright coin pickup
+	Gem = "rbxassetid://138309872562566", -- retro collect (gems, purchases)
 	Beep = "rbxassetid://117751546358455",
 	Boost = "rbxassetid://3406813517",
-	Click = "rbxassetid://100836780668038",
+	Click = "rbxassetid://138409154614452", -- button press
+	Tick = "rbxassetid://106623224876186", -- count-up ticks
+	Pop = "rbxassetid://106984966606682", -- window open, little pops
+	Whoosh = "rbxassetid://80984744279155", -- rings, banners
+	Boom = "rbxassetid://94978851787238", -- cannon / landing impact
+	PowerDown = "rbxassetid://96795857757261", -- out of fuel
+	Jingle = "rbxassetid://1848281172", -- new best, unlocks, big prizes
+	Fanfare = "rbxassetid://9045119921", -- extra-silly win (jackpots)
 	Win = "rbxassetid://1840076509",
 	Hit = "rbxasset://sounds/impact_explosion_03.mp3",
 	LobbyMusic = "rbxassetid://9047876673",

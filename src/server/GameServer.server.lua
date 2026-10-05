@@ -180,7 +180,9 @@ local function endFlight(player, reason)
 	f.ended = true
 	flights[player] = nil
 	local distance = math.max(0, math.floor(f.distance))
-	local money = math.floor(Config.moneyForDistance(distance) * moneyMultiplier(player))
+	local base = Config.moneyForDistance(distance)
+	local mult = moneyMultiplier(player)
+	local money = math.floor(base * mult)
 	addMoney(player, money)
 	-- quest stats
 	player:SetAttribute("StatFlights", (player:GetAttribute("StatFlights") or 0) + 1)
@@ -200,6 +202,8 @@ local function endFlight(player, reason)
 		reason = reason,
 		newBest = newBest,
 		bestCombo = f.bestCombo,
+		base = math.floor(base), -- distance money before multipliers (Flight Report)
+		mult = mult,
 	})
 	FlightEnded:Fire(player, distance, reason)
 
