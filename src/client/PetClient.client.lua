@@ -5,7 +5,7 @@
 --     and reveals what you got (rarity color, boost, NEW!). Click / tap or wait to close.
 --   * PETS button: your pets. Click a pet to equip / unequip, Equip Best, delete (click twice).
 --   * Pets follow every player (drawn on each client, so they move smoothly): they hop behind you
---     when you walk and fly beside you on the rocket.
+--     when you walk (they stay behind while you fly).
 --   * The boards above the eggs show 🔒 for eggs you haven't unlocked yet.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -695,7 +695,8 @@ RunService.RenderStepped:Connect(function(dt)
 
 	for plr, f in pairs(followers) do
 		local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-		local near = root and (root.Position - camPos).Magnitude < 350
+		-- pets wait in the lobby while their owner is flying (they'd only clutter the view)
+		local near = root and not plr:GetAttribute("Flying") and (root.Position - camPos).Magnitude < 350
 		for i, p in ipairs(f.pets) do
 			if not near then
 				p.model.Parent = nil

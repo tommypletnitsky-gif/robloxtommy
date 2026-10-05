@@ -307,13 +307,10 @@ Config.Pickups = {
 	Obstacle = { perStage = 4, fuelLoss = 1, slow = 0.45, slowTime = 0.9 },
 }
 Config.PICKUP_RADIUS = 9 -- generous on purpose: it should feel easy to grab coins
--- Obstacles per stage by zone (Earth gets flying drones, Sky storm clouds, Space asteroids).
--- Stage 1 stays gentle for new players.
+-- Obstacles per stage: none on Earth (the owner didn't want birds or bomb-like drones there),
+-- storm clouds in the Sky, asteroids in Space.
 function Config.obstaclesIn(stage)
-	if stage == 1 then
-		return 2
-	end
-	return Config.Stages[stage].zone == "Earth" and 3 or Config.Pickups.Obstacle.perStage
+	return Config.Stages[stage].zone == "Earth" and 0 or Config.Pickups.Obstacle.perStage
 end
 
 -- Flying skill -------------------------------------------------------------------------------
