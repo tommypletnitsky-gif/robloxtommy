@@ -119,23 +119,47 @@ function D.hay(f, p, rng)
 	cyl(f, 4, 4.4, CFrame.new(p + Vector3.new(0, 2.1, 0)) * CFrame.Angles(0, rng:NextNumber(0, 6), 0), C(235, 200, 90), { Material = M.Fabric })
 end
 
--- A red barn facing the runway
+-- A red barn facing the runway, with a silo beside it. (The first version, a red block with a big
+-- white X door, read as a crate from the flight camera; this one says "farm" at a glance.)
 function D.barn(f, p, rng)
-	local face = CFrame.lookAt(p, Vector3.new(p.X, p.Y, 0))
+	local face = CFrame.lookAt(p, Vector3.new(p.X, p.Y, 0)) -- -Z looks at the runway
 	local function at(x, y, z)
 		return face * CFrame.new(x, y, z)
 	end
-	local red = C(210, 60, 55)
-	part(f, { Size = Vector3.new(16, 10, 14), CFrame = at(0, 5, 0), Color = red })
-	-- gable roof: two tilted panels meeting at the ridge
+	local red, trim, roof = C(215, 55, 50), WHITE, C(95, 100, 120)
+	-- walls + gable
+	part(f, { Size = Vector3.new(18, 11, 16), CFrame = at(0, 5.5, 0), Color = red })
+	part(f, { Size = Vector3.new(18, 4.5, 9), CFrame = at(0, 13, 0), Color = red })
+	-- big slate roof with a white ridge, overhanging the walls
 	for _, side in ipairs({ -1, 1 }) do
-		part(f, { Size = Vector3.new(17, 1, 9.6), CFrame = at(0, 12.6, side * 3.6) * CFrame.Angles(side * -0.72, 0, 0), Color = C(120, 60, 50) })
+		part(f, { Size = Vector3.new(19.5, 1.2, 11), CFrame = at(0, 14.4, side * 4.1) * CFrame.Angles(side * -0.62, 0, 0), Color = roof })
 	end
-	part(f, { Size = Vector3.new(16, 3.5, 7), CFrame = at(0, 11.3, 0), Color = red })
-	part(f, { Size = Vector3.new(6, 7, 0.4), CFrame = at(0, 3.5, -7.1), Color = C(150, 40, 40) })
-	beam(f, (at(-3, 0.2, -7.3)).Position, (at(3, 6.8, -7.3)).Position, 0.5, WHITE)
-	beam(f, (at(3, 0.2, -7.3)).Position, (at(-3, 6.8, -7.3)).Position, 0.5, WHITE)
-	part(f, { Size = Vector3.new(16.2, 0.6, 14.2), CFrame = at(0, 10, 0), Color = WHITE })
+	part(f, { Size = Vector3.new(19.8, 0.9, 1.2), CFrame = at(0, 17.6, 0), Color = trim })
+	-- white corner trim
+	for _, x in ipairs({ -9, 9 }) do
+		for _, z in ipairs({ -8, 8 }) do
+			part(f, { Size = Vector3.new(0.8, 11, 0.8), CFrame = at(x, 5.5, z), Color = trim })
+		end
+	end
+	-- double doors with white frames (no X brace) facing the runway
+	for _, x in ipairs({ -1.75, 1.75 }) do
+		part(f, { Size = Vector3.new(3.3, 7.4, 0.3), CFrame = at(x, 3.7, -8.15), Color = C(160, 40, 40) })
+		part(f, { Size = Vector3.new(3.5, 0.5, 0.4), CFrame = at(x, 4, -8.3), Color = trim })
+	end
+	part(f, { Size = Vector3.new(7.8, 0.6, 0.5), CFrame = at(0, 7.6, -8.3), Color = trim })
+	for _, x in ipairs({ -3.9, 3.9 }) do
+		part(f, { Size = Vector3.new(0.6, 7.8, 0.5), CFrame = at(x, 3.8, -8.3), Color = trim })
+	end
+	-- hayloft window
+	part(f, { Size = Vector3.new(3.4, 2.6, 0.3), CFrame = at(0, 12.6, -4.6), Color = C(255, 225, 140), Material = M.SmoothPlastic })
+	part(f, { Size = Vector3.new(4.2, 3.4, 0.25), CFrame = at(0, 12.6, -4.5), Color = trim })
+	-- silo: tall white-striped tower with a dome
+	local siloBase = at(13.5, 0, 3).Position
+	column(f, 22, 7, siloBase - Vector3.new(0, 0.5, 0), C(190, 195, 205))
+	for y = 4, 20, 5 do
+		cyl(f, 0.6, 7.3, CFrame.new(siloBase + Vector3.new(0, y, 0)) * UP, trim, { CastShadow = false })
+	end
+	ball(f, 7, siloBase + Vector3.new(0, 21.5, 0), C(95, 100, 120))
 end
 
 function D.windmill(f, p, rng)

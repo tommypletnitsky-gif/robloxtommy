@@ -273,7 +273,7 @@ local function eggGarden(hub)
 		local anchor = part(stand, { Name = "Board", Size = Vector3.one, CFrame = CFrame.new(pos + Vector3.new(0, top + 7, 0)), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
 		local bb = Instance.new("BillboardGui")
 		bb.Size = UDim2.fromScale(8, 3.5) -- in studs, so far-away boards shrink and don't overlap
-		bb.MaxDistance = 80
+		bb.MaxDistance = 44 -- only boards near you (from the spawn they stacked into a pile)
 		bb.LightInfluence = 0
 		bb.Parent = anchor
 		local function line(name, y, h, text, color)
@@ -571,8 +571,76 @@ local function topBoard(hub)
 	layout.Parent = rows
 end
 
+-- Landmarks: a soft light pillar + a big floating label over the places that matter (cannon,
+-- Egg Garden, Rebirth Portal), so you can find them from anywhere in the lobby.
+local function landmark(hub, name, pos, color, text, height, labelWidth)
+	local m = Instance.new("Model")
+	m.Name = "Landmark_" .. name
+	m.Parent = hub
+	local base = part(m, { Name = "Base", Size = Vector3.one, CFrame = CFrame.new(pos), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
+	local a0 = Instance.new("Attachment")
+	a0.Parent = base
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, height, 0)
+	a1.Parent = base
+	local beam = Instance.new("Beam")
+	beam.Attachment0, beam.Attachment1 = a0, a1
+	beam.Width0, beam.Width1 = 4.5, 6.5
+	beam.FaceCamera = true
+	beam.LightEmission = 0.35
+	beam.LightInfluence = 0
+	beam.Color = ColorSequence.new(color, color:Lerp(WHITE, 0.4))
+	beam.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(0.6, 0.7), NumberSequenceKeypoint.new(1, 1) })
+	beam.Segments = 2
+	beam.Parent = base
+	-- the label: sized in studs, so it shrinks with distance instead of covering the screen
+	local labelPart = part(m, { Name = "Label", Size = Vector3.one, CFrame = CFrame.new(pos + Vector3.new(0, height * 0.75, 0)), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.fromScale(labelWidth or 16, (labelWidth or 16) / 4)
+	bb.MaxDistance = 400
+	bb.LightInfluence = 0
+	bb.Parent = labelPart
+	local bg = Instance.new("Frame")
+	bg.AnchorPoint = Vector2.new(0.5, 0.5)
+	bg.Position = UDim2.fromScale(0.5, 0.5)
+	bg.Size = UDim2.fromScale(1, 0.8)
+	bg.BackgroundColor3 = WHITE
+	bg.Parent = bb
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = bg
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 4
+	stroke.Color = C(30, 30, 50)
+	stroke.Parent = bg
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = 90
+	grad.Color = ColorSequence.new(color:Lerp(WHITE, 0.35), darker(color, 0.15))
+	grad.Parent = bg
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Size = UDim2.fromScale(0.92, 0.8)
+	l.Position = UDim2.fromScale(0.04, 0.1)
+	l.Font = Enum.Font.FredokaOne
+	l.TextScaled = true
+	l.TextColor3 = WHITE
+	l.Text = text
+	l.Parent = bg
+	local ts = Instance.new("UIStroke")
+	ts.Thickness = 3
+	ts.Color = C(30, 30, 50)
+	ts.Parent = l
+	-- gentle bob (LobbyClient animates everything tagged LobbySpin)
+	labelPart:SetAttribute("SpinSpeed", 0)
+	labelPart:SetAttribute("Bob", 0.7)
+	CollectionService:AddTag(labelPart, "LobbySpin")
+end
+
 function Lobby.build(hub)
 	topBoard(hub)
+	landmark(hub, "Cannon", Vector3.new(PAD_X, LAWN_TOP, 0), C(255, 150, 40), "🚀 LAUNCH PAD", 50, 36)
+	landmark(hub, "Eggs", LobbyLayout.EGG_GARDEN.center + Vector3.new(0, LAWN_TOP, 0), C(255, 120, 190), "🥚 EGGS", 36, 15)
+	landmark(hub, "Rebirth", LobbyLayout.REBIRTH.portal + Vector3.new(0, LAWN_TOP, 0), C(170, 105, 245), "🌟 REBIRTH", 36, 16)
 	ground(hub)
 	spawnArea(hub)
 	for _, info in ipairs(SHOPS) do
