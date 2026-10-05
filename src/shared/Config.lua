@@ -343,6 +343,28 @@ end
 Config.Crate = { chance = 0, studs = 400, petChance = 0.05, boostChance = 0.25, fuelStuds = 90 } -- mystery crate
 Config.GoldenCoin = { chance = 1 / 40, studs = 2500 } -- super rare, the whole server hears about it
 
+-- Lucky Spin: a prize roll. 1 free spin right away for new players, +1 per `every` seconds played
+-- (stacks up to `max`), +1 with each daily reward. The server picks the prize (by weight).
+-- money prizes pay like flying `studs` studs in your highest unlocked stage.
+Config.Spin = {
+	every = 1200,
+	max = 3,
+	boostTime = 300, -- seconds for the x2 boosts
+	prizes = {
+		{ id = "cash", kind = "money", studs = 300, weight = 30, name = "Cash", icon = "Coin", color = Color3.fromRGB(80, 200, 90) },
+		{ id = "bag", kind = "money", studs = 800, weight = 18, name = "Money Bag", icon = "MoneyBag", color = Color3.fromRGB(60, 180, 120) },
+		{ id = "x2money", kind = "boostMoney", weight = 14, name = "x2 Money", icon = "Coin", tag = "x2", color = Color3.fromRGB(255, 190, 40) },
+		{ id = "x2luck", kind = "boostLuck", weight = 10, name = "x2 Luck", icon = "Clover", tag = "x2", color = Color3.fromRGB(60, 190, 110) },
+		{ id = "boost", kind = "fullBoost", weight = 12, name = "Full Boost", icon = "FuelCan", color = Color3.fromRGB(60, 200, 255) },
+		{ id = "pet", kind = "pet", weight = 8, name = "Free Pet", icon = "Gift", color = Color3.fromRGB(255, 120, 190) },
+		{ id = "mega", kind = "money", studs = 3000, weight = 6, name = "Mega Cash", icon = "Trophy", color = Color3.fromRGB(170, 90, 255) },
+		{ id = "jackpot", kind = "money", studs = 10000, weight = 2, name = "JACKPOT", icon = "Crown", color = Color3.fromRGB(255, 80, 80), jackpot = true },
+	},
+}
+function Config.spinMoney(prize, stage)
+	return math.floor(Config.moneyPerStud(stage or 1) * (prize.studs or 0))
+end
+
 -- Social + events ------------------------------------------------------------------------------
 Config.FRIEND_BOOST = 0.1 -- +10% money for each friend in your server
 Config.FRIEND_BOOST_MAX = 5

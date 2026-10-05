@@ -86,6 +86,9 @@ local function moneyMultiplier(player)
 	if Config.activeEvent() == "Money" then
 		m *= Config.EVENT_MONEY
 	end
+	if (player:GetAttribute("BoostMoneyUntil") or 0) > os.time() then -- Lucky Spin x2 Money
+		m *= 2
+	end
 	return m
 end
 
@@ -357,11 +360,15 @@ local function startFlight(player)
 			f.blastTime += lp.time
 		end
 		f.extras = rollExtras(player, f)
+		if player:GetAttribute("FullBoost") then -- Lucky Spin prize: start with a full boost bar
+			player:SetAttribute("FullBoost", false)
+			f.boost = 1
+		end
 		local extraList = {}
 		for id, e in pairs(f.extras) do
 			table.insert(extraList, { id = id, kind = e.kind, pos = e.pos })
 		end
-		FlightEvent:FireClient(player, "start", { speed = speed, fuel = fuel, startX = f.startX, rocket = model, blastPower = f.blastPower, blastTime = f.blastTime, power = f.power, extras = extraList })
+		FlightEvent:FireClient(player, "start", { speed = speed, fuel = fuel, startX = f.startX, rocket = model, blastPower = f.blastPower, blastTime = f.blastTime, power = f.power, extras = extraList, boost = f.boost })
 	end)
 	return true
 end

@@ -558,6 +558,17 @@ function UIKit.toast(text, color)
 	end)
 end
 
+-- Clear all toasts at once (e.g. flight hints when you land).
+function UIKit.clearToasts()
+	if toastHolder then
+		for _, c in ipairs(toastHolder:GetChildren()) do
+			if c:IsA("TextLabel") then
+				c:Destroy()
+			end
+		end
+	end
+end
+
 -- Big moment: white flash, confetti, a bouncing title and subtitle (rebirth, stage unlock...).
 function UIKit.celebrate(title, sub, color, subColor)
 	local gui = UIKit.gui()

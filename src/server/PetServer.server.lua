@@ -117,8 +117,10 @@ local function bestFirst(a, b)
 end
 
 -- Hatching --------------------------------------------------------------------------------------
-local function rollRarity(lucky)
-	local chance = Config.rarityChances(lucky, Config.activeEvent() == "Luck")
+local function rollRarity(lucky, player)
+	-- x2 from the Lucky Eggs server event or a Lucky Spin luck boost
+	local luckBoost = Config.activeEvent() == "Luck" or (player and (player:GetAttribute("BoostLuckUntil") or 0) > os.time())
+	local chance = Config.rarityChances(lucky, luckBoost)
 	local roll = rng:NextNumber(0, 100)
 	local acc = 0
 	for i = #RARITY_ORDER, 1, -1 do -- rarest first so rounding never eats a Legendary
@@ -174,7 +176,7 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 	local nextId = player:GetAttribute("NextPetId") or 1
 	local results = {}
 	for _ = 1, count do
-		local rarity = rollRarity(Config.hasPass(player, "LuckyEggs"))
+		local rarity = rollRarity(Config.hasPass(player, "LuckyEggs"), player)
 		local kind = egg.pets[rarity]
 		table.insert(pets, { uid = nextId, kind = kind })
 		table.insert(results, { uid = nextId, kind = kind })
@@ -278,7 +280,7 @@ GivePet.OnInvoke = function(player)
 			egg = e
 		end
 	end
-	local rarity = rollRarity(Config.hasPass(player, "LuckyEggs"))
+	local rarity = rollRarity(Config.hasPass(player, "LuckyEggs"), player)
 	local kind = egg.pets[rarity]
 	local uid = player:GetAttribute("NextPetId") or 1
 	table.insert(pets, { uid = uid, kind = kind })

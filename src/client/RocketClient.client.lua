@@ -1076,7 +1076,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			aimCF = CFrame.new(),
 			focus = nil,
 			flameFx = nil,
-			boost = 0, -- boost bar 0..1 (coins / gems / rings fill it)
+			boost = info.boost or 0, -- boost bar 0..1 (coins / gems / rings fill it; a spin prize can fill it)
 			boostOn = false,
 			combo = 0,
 			comboX = Config.LAUNCH_X, -- x of the last pickup that kept the combo going

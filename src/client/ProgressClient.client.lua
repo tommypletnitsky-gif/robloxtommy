@@ -88,7 +88,7 @@ RunService.RenderStepped:Connect(function(dt)
 		local m = flights and flights:FindFirstChild(player.Name)
 		local body = m and m.PrimaryPart
 		-- (after landing the rocket is removed: keep showing where you got to)
-		local d = body and math.max(0, body.Position.X - Config.LAUNCH_X) or lastDistance
+		local d = body and math.clamp(body.Position.X - Config.LAUNCH_X, 0, g) or lastDistance -- (stops at the locked gate, like the payout)
 		lastDistance = d
 		frac = math.clamp(d / g, 0, 1)
 		text.Text = Config.meters(d) .. " / " .. Config.meters(g)

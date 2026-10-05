@@ -124,6 +124,11 @@ function Report.show(info)
 	totalText.Text = ""
 	hintText.Text = ""
 	bestStamp.Visible = false
+	UIKit.clearToasts()
+	local banner = gui:FindFirstChild("StageBanner")
+	if banner then
+		banner.Visible = false
+	end
 	card.Visible = true
 	-- fit small screens, then spring open
 	local view = camera.ViewportSize

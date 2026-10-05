@@ -317,10 +317,30 @@ end)
 -- HUD shortcuts: UPGRADE and ROCKETS next to LAUNCH open the same windows as the shops (no walk
 -- needed between flights), with a red "!" when you can afford something there.
 local bottom = UIKit.bottomBar()
-local upgradeHud = UIKit.button({ Parent = bottom, LayoutOrder = 3, Icon3D = "Bolt", IconYaw = 90, Icon = "⬆", Text = "UPGRADE", Color = PURPLE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+-- a chunky 3D up-arrow for the UPGRADE button (shaft + two wedges for the head), facing -Z
+local function arrowIcon()
+	local m = Instance.new("Model")
+	local function p(class, size, cf)
+		local x = Instance.new(class)
+		x.Size = size
+		x.CFrame = cf
+		x.Color = Color3.fromRGB(110, 230, 90)
+		x.Material = Enum.Material.SmoothPlastic
+		x.Anchored = true
+		x.Parent = m
+		return x
+	end
+	p("Part", Vector3.new(1.6, 2.4, 1.2), CFrame.new(0, 1.2, 0))
+	for _, side in ipairs({ -1, 1 }) do
+		-- each wedge makes half of the triangle head
+		p("WedgePart", Vector3.new(1.2, 2, 1.8), CFrame.new(side * 0.9, 3.4, 0) * CFrame.Angles(0, -side * math.pi / 2, 0)) -- tall side toward the middle
+	end
+	return m
+end
+local upgradeHud = UIKit.button({ Parent = bottom, LayoutOrder = 3, Icon3D = arrowIcon(), Icon = "⬆", Text = "UPGRADE", Color = PURPLE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
 -- the rocket stands nose-up in its button (built pointing +X, turned to +Y)
-local uprightRocket = RocketModel.build(Config.Rockets[3], 1, false, CFrame.Angles(0, 0, math.pi / 2))
-local rocketsHud = UIKit.button({ Parent = bottom, LayoutOrder = 4, Icon3D = uprightRocket, IconYaw = 30, Icon = "🚀", Text = "ROCKETS", Color = BLUE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+local uprightRocket = RocketModel.build(Config.Rockets[4], 1, false, CFrame.Angles(0, 0, math.pi / 2)) -- (the chunky Turbo)
+local rocketsHud = UIKit.button({ Parent = bottom, LayoutOrder = 4, Icon3D = uprightRocket, IconYaw = 30, IconZoom = 0.95, Icon = "🚀", Text = "ROCKETS", Color = BLUE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
 local upgradeBadge = UIKit.badge(upgradeHud.Instance)
 local rocketsBadge = UIKit.badge(rocketsHud.Instance)
 upgradeHud.Instance.Activated:Connect(function()

@@ -32,5 +32,7 @@
   {"file": "src/client/EventClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.EventClient", "class": "LocalScript"},
   {"file": "src/client/ProgressClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.ProgressClient", "class": "LocalScript"},
   {"file": "src/client/FlightReport.lua", "path": "StarterPlayer.StarterPlayerScripts.ClientModules.FlightReport", "class": "ModuleScript"},
-  {"file": "src/client/WorldLookClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.WorldLookClient", "class": "LocalScript"}
+  {"file": "src/client/WorldLookClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.WorldLookClient", "class": "LocalScript"},
+  {"file": "src/server/SpinServer.server.lua", "path": "ServerScriptService.SpinServer", "class": "Script"},
+  {"file": "src/client/SpinClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.SpinClient", "class": "LocalScript"}
 ]

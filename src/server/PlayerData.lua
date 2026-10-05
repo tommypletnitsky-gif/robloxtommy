@@ -38,6 +38,12 @@ PlayerData.DEFAULTS = {
 	StatEggs = 0,
 	RaceWins = 0,
 	BestCombo = 0,
+	Spins = 0, -- Lucky Spin: spins waiting
+	SpinProgress = 0, -- seconds played toward the next free spin
+	FirstSpin = false, -- the welcome spin was given
+	BoostMoneyUntil = 0, -- os.time() when the x2 Money boost ends
+	BoostLuckUntil = 0, -- os.time() when the x2 Luck boost ends
+	FullBoost = false, -- next flight starts with a full boost bar
 	QuestTiers = "", -- "flights:2,best:1" = goals claimed per quest chain
 	Codes = "", -- redeemed codes
 	MusicOn = true,

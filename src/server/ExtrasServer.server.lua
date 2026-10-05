@@ -58,8 +58,9 @@ ClaimDaily.OnServerInvoke = function(player)
 	addMoney(player, reward)
 	player:SetAttribute("DailyStreak", streak)
 	player:SetAttribute("LastDaily", now)
+	player:SetAttribute("Spins", (player:GetAttribute("Spins") or 0) + 1) -- + a Lucky Spin
 	PlayerData.save(player)
-	return true, "Day " .. streak .. " reward: +$" .. Config.abbreviate(reward) .. "!"
+	return true, "Day " .. streak .. " reward: +$" .. Config.abbreviate(reward) .. " and a LUCKY SPIN!"
 end
 
 -- Donations ---------------------------------------------------------------------------
@@ -108,6 +109,9 @@ local function onChat(player, msg)
 		player:SetAttribute("UnlockedStage", s)
 		player:SetAttribute("BestDistance", math.max(player:GetAttribute("BestDistance") or 0, (s - 1) * Config.STAGE_LENGTH))
 		Notify:FireClient(player, "Unlocked up to Stage " .. s, Color3.fromRGB(130, 255, 130))
+	elseif cmd == "spins" then
+		player:SetAttribute("Spins", n or 3)
+		Notify:FireClient(player, "Spins: " .. (n or 3), Color3.fromRGB(130, 255, 130))
 	elseif cmd == "reset" then
 		for k, v in pairs(PlayerData.DEFAULTS) do
 			if k ~= "Migrated" then -- don't re-import the old save on next join
