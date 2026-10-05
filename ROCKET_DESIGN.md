@@ -156,3 +156,28 @@ Changes (checked with a balance sim, normal player without passes / pets / rebir
 - Pace now: stage 2 ~3 min, stage 10 ~45 min (31 min skilled / 63 min clumsy), stage 20 ~4.5 h,
   stage 30 30h+ without pets and rebirths (pets + rebirths are what get you there).
 - The owner gets every gamepass free (x2.5 money, +50% fuel): test as a normal player with /pass none.
+
+## Pristine pass (2026-10-05, "change anything, make it amazing")
+Plan + audit: design/features/pristine-pass/design.md. Research: design/INSPIRATION.md.
+- Flight Report (src/client/FlightReport.lua): distance counts up, earning lines pop in (distance
+  money, money boost, coins, best combo), TOTAL slams in + cartoon coins fly into the money pill,
+  next-goal line, FLY AGAIN (queues an instant relaunch while landing) and UPGRADE.
+- HUD: UPGRADE + ROCKETS buttons next to LAUNCH (same windows as the shops) with "!" badges that
+  wiggle; "+$X" popups beside the money; money stays visible in flight; stage banner sweep.
+- Lucky Spin (SpinServer / SpinClient): prize roll with ticks; prizes cash / bag / x2 Money 5m /
+  x2 Luck 5m / Full Boost / Free Pet / Mega / JACKPOT. Free: welcome spin, +1 per 20 min played
+  (max 3), +1 per daily claim. Granted instantly on the server; the client holds the money
+  display (UIKit.moneyHold) until the roll lands. Owner test: /spins 3.
+- Sound palette: DailySoundsFX set (coin, gem/purchase, tick, pop, whoosh, boom, power-down) +
+  APM jingles (new best, unlocks, legendary hatch). Hatch sounds scale with rarity.
+- World: barns with silos (no crate look), landmark light pillars + labels (launch pad, eggs,
+  rebirth), egg boards only near you, pickup bursts + ring shockwaves.
+- First session: no popups before the first flight; hints wait for a clear screen
+  (UIKit.busy / UIKit.whenFree); quest-complete toasts; guide arrows only on visible buttons.
+- Phones: flight HUD + left column scale/pack; progress bar follows the bottom bar; top pills wrap.
+- Security (from an independent review): power launch graded on the server with the shared clock,
+  boost grace costs bar, pickup reach checked per kind, receipts deduped, races robust to /race
+  and leavers, solo race = join prize.
+- Gotchas: Luau allows 200 locals per function (RocketClient is ~170: put new features in their
+  own scripts/modules). GuiObject.AbsolutePosition is measured below Roblox's top bar; convert
+  with UIKit.toGui() before using it as a Position in our IgnoreGuiInset ScreenGui.
