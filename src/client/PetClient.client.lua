@@ -193,15 +193,20 @@ local function refreshEggWindow()
 		return
 	end
 	local unlocked = (player:GetAttribute("UnlockedStage") or 1) >= egg.stage
-	local money = player:GetAttribute("Money") or 0
+	local candy = egg.currency == "Candy"
+	local have = player:GetAttribute(egg.currency or "Money") or 0
+	local function price(n)
+		return candy and ("🍬 " .. abbreviate(n)) or ("$" .. abbreviate(n))
+	end
 	lockLabel.Visible = not unlocked
 	lockLabel.Text = "🔒 Unlock Stage " .. egg.stage .. " to hatch this egg!"
 	hatch1.Instance.Visible = unlocked
 	hatch3.Instance.Visible = unlocked
-	hatch1.setText("Hatch 1  $" .. abbreviate(egg.price))
-	hatch3.setText("Hatch 3  $" .. abbreviate(egg.price * 3))
-	hatch1.setColor(money >= egg.price and GREEN or RED)
-	hatch3.setColor(money >= egg.price * 3 and BLUE or RED)
+	hatch1.setText("Hatch 1  " .. price(egg.price))
+	hatch3.setText("Hatch 3  " .. price(egg.price * 3))
+	hatch1.setColor(have >= egg.price and GREEN or RED)
+	hatch3.setColor(have >= egg.price * 3 and BLUE or RED)
+	eggTitle.Text = egg.name .. (candy and ("   (you have 🍬 " .. abbreviate(have) .. ")") or "")
 end
 
 local function openEgg(egg, promptPart)
@@ -473,14 +478,14 @@ local summary2 = label({ Parent = topRow, Position = UDim2.fromOffset(14, 36), S
 local equipBest = UIKit.button({ Parent = topRow, Text = "Equip Best", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(180, 50), ZIndex = 12 })
 local indexBtn = UIKit.button({ Parent = topRow, Text = "📖 Index", Color = Color3.fromRGB(110, 140, 240), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -200, 0.5, 0), Size = UDim2.fromOffset(140, 50), ZIndex = 12 })
 
--- Pet Index: all 24 pets by egg; ones you've never had are black silhouettes. A full egg set
+-- Pet Index: every pet by egg (event eggs too); ones you've never had are black silhouettes. A full egg set
 -- gives +10% money forever (server: PetServer / GameServer).
 local indexWindow, indexList = UIKit.window("Pet Index", Color3.fromRGB(110, 140, 240), UDim2.fromOffset(700, 520))
 local indexHead = UIKit.row(indexList, 0, 56)
 local indexHeadText = label({ Parent = indexHead, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 1, -16), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 local indexCards = {} -- [kind] = { vp, name }
 local eggHeads = {} -- [egg.id] = { label, card }
-for i, egg in ipairs(Config.Eggs) do
+for i, egg in ipairs(Config.allEggs()) do
 	local section = UIKit.card(indexList, { LayoutOrder = i, Size = UDim2.new(1, -12, 0, 214), ZIndex = 11, Tint = UIKit.lighter(egg.color, 0.7) })
 	local head = label({ Parent = section, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 	local row = make("Frame", { Parent = section, Position = UDim2.fromOffset(10, 44), Size = UDim2.new(1, -20, 0, 160), BackgroundTransparency = 1, ZIndex = 12 }, {
@@ -628,17 +633,22 @@ local function makeCard(p)
 			UIKit.bounce(fuse)
 			UIKit.toast("Press again: " .. Config.GOLDEN_COST .. " " .. pet.name .. " → 1 GOLDEN " .. pet.name .. " (" .. multText(Config.petMult(p.kind, true)) .. ")", Color3.fromRGB(255, 215, 80))
 			task.delay(2.5, function()
-				if fuse.Parent and os.clock() - info.fuseArmed >= 2.4 then
+				if fuse.Parent and os.clock() - info.fuseArmed >= 2.4 and info.copies >= Config.GOLDEN_COST then
 					fuseText.Text = "⭐ GOLD"
 				end
 			end)
 			return
 		end
+		if hatching then
+			return -- (a hatch / golden show is already running or a request is on its way)
+		end
+		hatching = true
 		info.fuseArmed = 0
 		local ok, result = PetAction:InvokeServer("golden", p.uid)
 		if ok then
 			task.spawn(playGolden, p.kind, result)
 		else
+			hatching = false
 			UIKit.result(false, result)
 		end
 	end)
@@ -737,7 +747,7 @@ end
 for _, attr in ipairs({ "Pets", "EquippedPets", "PetMultiplier", "Rebirths", "Pass_VIP", "Pass_PetSlots" }) do
 	player:GetAttributeChangedSignal(attr):Connect(refreshPets)
 end
-for _, attr in ipairs({ "Money", "UnlockedStage" }) do
+for _, attr in ipairs({ "Money", "UnlockedStage", "Candy" }) do
 	player:GetAttributeChangedSignal(attr):Connect(refreshEggWindow)
 end
 refreshPets()

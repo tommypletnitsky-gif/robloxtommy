@@ -46,6 +46,7 @@ PlayerData.DEFAULTS = {
 	FullBoost = false, -- next flight starts with a full boost bar
 	Receipts = "", -- last purchase ids handled (developer products), so a retry never counts twice
 	StatPerfect = 0, -- PERFECT launches (daily missions)
+	Candy = 0, -- Halloween candy (kept between events)
 	MissionDay = 0, -- the day (UTC) today's missions were picked
 	Missions = "", -- "id:goal:start,..." (Config.parseMissions)
 	MissionsClaimed = "", -- ids claimed today

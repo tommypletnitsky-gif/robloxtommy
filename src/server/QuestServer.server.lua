@@ -80,12 +80,12 @@ local function rollMissions(player)
 			table.insert(pool, m)
 		end
 	end
-	local parts = {}
+	local list = {}
 	for _ = 1, math.min(Config.MISSIONS_PER_DAY, #pool) do
 		local m = table.remove(pool, missionRng:NextInteger(1, #pool))
-		table.insert(parts, m.id .. ":" .. m.amount(stage) .. ":" .. math.floor(player:GetAttribute(m.stat) or 0))
+		table.insert(list, { id = m.id, goal = m.amount(stage), start = math.floor(player:GetAttribute(m.stat) or 0), stage = stage })
 	end
-	player:SetAttribute("Missions", table.concat(parts, ","))
+	player:SetAttribute("Missions", Config.joinMissions(list))
 	player:SetAttribute("MissionsClaimed", "")
 	player:SetAttribute("MissionBonus", false)
 	player:SetAttribute("MissionDay", day)
@@ -116,9 +116,13 @@ ClaimMission.OnServerInvoke = function(player, id)
 	busy[player] = true
 	table.insert(claimed, id)
 	player:SetAttribute("MissionsClaimed", table.concat(claimed, ","))
-	local reward = Config.missionReward(player:GetAttribute("UnlockedStage") or 1)
+	local reward = Config.missionReward(entry.stage or player:GetAttribute("UnlockedStage") or 1)
 	addMoney(player, reward)
 	local msg = "Mission complete! +$" .. Config.abbreviate(reward)
+	if Config.halloweenActive() then
+		player:SetAttribute("Candy", (player:GetAttribute("Candy") or 0) + Config.Candy.Mission)
+		msg ..= " +" .. Config.Candy.Mission .. " 🍬"
+	end
 	local all = true
 	for _, e in ipairs(Config.parseMissions(player:GetAttribute("Missions"))) do
 		if not table.find(claimed, e.id) then
@@ -143,6 +147,37 @@ local function missionsFor(player)
 	if player.Parent then
 		rollMissions(player)
 	end
+end
+-- After a rebirth (back to stage 1) unclaimed goals shrink to what a new stage-1 set would ask
+-- (progress made today still counts; the reward stays at the stage they were picked at).
+local function easeMissions(player)
+	local list = Config.parseMissions(player:GetAttribute("Missions"))
+	local claimed = string.split(player:GetAttribute("MissionsClaimed") or "", ",")
+	local stage = player:GetAttribute("UnlockedStage") or 1
+	local changed = false
+	for _, e in ipairs(list) do
+		local m = Config.getMission(e.id)
+		if m and not table.find(claimed, e.id) then
+			local goal = m.amount(stage)
+			if goal < e.goal then
+				e.goal = goal
+				changed = true
+			end
+		end
+	end
+	if changed then
+		player:SetAttribute("Missions", Config.joinMissions(list))
+	end
+end
+Players.PlayerAdded:Connect(function(player)
+	player:GetAttributeChangedSignal("Rebirths"):Connect(function()
+		easeMissions(player)
+	end)
+end)
+for _, p in ipairs(Players:GetPlayers()) do
+	p:GetAttributeChangedSignal("Rebirths"):Connect(function()
+		easeMissions(p)
+	end)
 end
 Players.PlayerAdded:Connect(missionsFor)
 for _, p in ipairs(Players:GetPlayers()) do

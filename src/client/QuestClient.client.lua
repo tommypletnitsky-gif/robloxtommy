@@ -101,7 +101,7 @@ local function refreshMissions()
 			local goalText = m.id == "distance" and (Config.meters(e.goal):gsub("m$", "")) or abbreviate(e.goal)
 			mc.title.Text = string.format(m.text, goalText)
 			mc.setBar(have / e.goal, abbreviate(math.min(have, e.goal)) .. " / " .. abbreviate(e.goal))
-			mc.rewardText.Text = "💰 $" .. abbreviate(Config.missionReward(stage))
+			mc.rewardText.Text = "💰 $" .. abbreviate(Config.missionReward(e.stage or stage))
 			local isClaimed = table.find(claimed, e.id) ~= nil
 			local ready = not isClaimed and have >= e.goal
 			if isClaimed then

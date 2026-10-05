@@ -35,5 +35,7 @@
   {"file": "src/client/WorldLookClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.WorldLookClient", "class": "LocalScript"},
   {"file": "src/server/SpinServer.server.lua", "path": "ServerScriptService.SpinServer", "class": "Script"},
   {"file": "src/client/SpinClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.SpinClient", "class": "LocalScript"},
-  {"file": "src/client/FlightFxClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.FlightFxClient", "class": "LocalScript"}
+  {"file": "src/client/FlightFxClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.FlightFxClient", "class": "LocalScript"},
+  {"file": "src/server/HalloweenServer.server.lua", "path": "ServerScriptService.HalloweenServer", "class": "Script"},
+  {"file": "src/client/HalloweenClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.HalloweenClient", "class": "LocalScript"}
 ]

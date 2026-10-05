@@ -173,13 +173,21 @@ end
 function Config.missionDay()
 	return math.floor(workspace:GetServerTimeNow() / 86400)
 end
--- "launch:12:40,coins:31:120" -> { { id, goal, start }, ... }
+-- "launch:12:40:3,coins:31:120:3" -> { { id, goal, start, stage }, ... }  (stage = the stage the
+-- set was picked at: the reward is paid at that stage; old 3-field entries still parse)
 function Config.parseMissions(s)
 	local list = {}
-	for id, goal, start in string.gmatch(s or "", "(%w+):(%d+):(%d+)") do
-		table.insert(list, { id = id, goal = tonumber(goal), start = tonumber(start) })
+	for id, goal, start, stage in string.gmatch(s or "", "(%w+):(%d+):(%d+):?(%d*)") do
+		table.insert(list, { id = id, goal = tonumber(goal), start = tonumber(start), stage = tonumber(stage) })
 	end
 	return list
+end
+function Config.joinMissions(list)
+	local parts = {}
+	for _, e in ipairs(list) do
+		table.insert(parts, e.id .. ":" .. e.goal .. ":" .. e.start .. ":" .. (e.stage or 1))
+	end
+	return table.concat(parts, ",")
 end
 function Config.getMission(id)
 	for _, m in ipairs(Config.Missions) do
@@ -254,6 +262,26 @@ Config.Eggs = {
 		pets = { Common = "StarPuppy", Rare = "CometFox", Epic = "NebulaDragon", Legendary = "GalaxyUnicorn" } },
 }
 
+-- Event eggs: hatched with an event currency, only while their event runs; built at runtime by
+-- the event's server script (HalloweenServer). Their pets are kept forever and have an Index set.
+Config.EventEggs = {
+	{ id = "Spooky", name = "Spooky Egg", stage = 1, price = 75, currency = "Candy", event = "Halloween", bonus = 0.6, color = Color3.fromRGB(130, 70, 200),
+		stand = Vector3.new(-150, 0, 40), pets = { Common = "PumpkinPup", Rare = "GhostKitty", Epic = "BatDragon", Legendary = "PumpkinKing" } },
+}
+
+-- Halloween 2026: candy from pickups, the Spooky Egg, lobby pumpkins. Ends by itself.
+Config.Halloween = { ends = 1793577600 } -- 2026-11-02 00:00 UTC
+Config.Candy = { Coin = 1, Gem = 3, Ring = 2, Golden = 50, Mission = 10 }
+function Config.halloweenActive()
+	return workspace:GetServerTimeNow() < Config.Halloween.ends
+end
+function Config.eventActive(event)
+	if event == "Halloween" then
+		return Config.halloweenActive()
+	end
+	return false
+end
+
 Config.PET_NAMES = {
 	Puppy = "Puppy", Kitty = "Kitty", Bunny = "Bunny", RocketCorgi = "Rocket Corgi",
 	Monkey = "Monkey", Parrot = "Parrot", TigerCub = "Tiger Cub", GoldenJaguar = "Golden Jaguar",
@@ -261,11 +289,21 @@ Config.PET_NAMES = {
 	CloudSheep = "Cloud Sheep", Owl = "Owl", Pegasus = "Pegasus", ThunderBird = "Thunder Bird",
 	MoonBunny = "Moon Bunny", Alien = "Alien", RoboDog = "Robo Dog", UFOCat = "UFO Cat",
 	StarPuppy = "Star Puppy", CometFox = "Comet Fox", NebulaDragon = "Nebula Dragon", GalaxyUnicorn = "Galaxy Unicorn",
+	PumpkinPup = "Pumpkin Pup", GhostKitty = "Ghost Kitty", BatDragon = "Bat Dragon", PumpkinKing = "Pumpkin King",
 }
+
+-- every egg (regular + event), for building pets and the Pet Index
+function Config.allEggs()
+	local list = table.clone(Config.Eggs)
+	for _, e in ipairs(Config.EventEggs) do
+		table.insert(list, e)
+	end
+	return list
+end
 
 -- Pets[kind] = { id, name, egg, rarity, mult } (built from the eggs above)
 Config.Pets = {}
-for _, egg in ipairs(Config.Eggs) do
+for _, egg in ipairs(Config.allEggs()) do
 	for rarity, kind in pairs(egg.pets) do
 		Config.Pets[kind] = {
 			id = kind,
@@ -281,7 +319,7 @@ end
 Config.INDEX_SET_BONUS = 0.1
 function Config.indexSets(index) -- index = { [kind] = true }
 	local n = 0
-	for _, egg in ipairs(Config.Eggs) do
+	for _, egg in ipairs(Config.allEggs()) do
 		local all = true
 		for _, kind in pairs(egg.pets) do
 			if not index[kind] then
@@ -296,7 +334,7 @@ function Config.indexSets(index) -- index = { [kind] = true }
 end
 
 function Config.getEgg(id)
-	for _, e in ipairs(Config.Eggs) do
+	for _, e in ipairs(Config.allEggs()) do
 		if e.id == id then
 			return e
 		end

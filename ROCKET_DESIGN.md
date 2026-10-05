@@ -181,3 +181,22 @@ Plan + audit: design/features/pristine-pass/design.md. Research: design/INSPIRAT
 - Gotchas: Luau allows 200 locals per function (RocketClient is ~170: put new features in their
   own scripts/modules). GuiObject.AbsolutePosition is measured below Roblox's top bar; convert
   with UIKit.toGui() before using it as a Position in our IgnoreGuiInset ScreenGui.
+
+## Round 2 (2026-10-05, "keep going, make it even better")
+Briefs: design/features/round2/design.md, design/features/halloween/design.md.
+- Golden pets: 5 copies -> 1 Golden (x2.5 bonus). Saved as "uid:Kind:G"; PetKinds "Kind:G".
+  Gold look = the pet's own mesh + texture via SpecialMesh.VertexColor (Config.GOLDEN_TINT).
+  Fusing refills freed slots best-first. Pet cards: "⭐ n/5" tag -> gold GOLD button (press twice).
+- Daily missions: 3/day (UTC) per player from Config.Missions, goals scale with stage, entries
+  "id:goal:start:stage" (reward paid at the roll stage), all 3 = Lucky Spin, rebirth lowers
+  unclaimed goals. Top of the Quests window, with countdown + toasts. StatPerfect counts
+  server-graded PERFECT launches.
+- Coin patterns: line / arc / wave / corkscrew / diagonal, kept inside the lane and height band.
+- Flight FX (FlightFxClient): wind streaks off every rocket, sonic-boom hoop when boost starts.
+- Halloween 2026 (ends 2026-11-02 00:00 UTC by itself): coins/gems/rings/golden coin give candy
+  (Config.Candy), missions +10 candy; Spooky Egg (Config.EventEggs, candy price, built at runtime
+  by HalloweenServer at the Egg Garden entrance) with Pumpkin Pup / Ghost Kitty / Bat Dragon /
+  Pumpkin King (x1.6 / x2.2 / x3.4 / x7, kept forever, own Pet Index set); jack-o-lanterns by the
+  path lamps; event pill "🎃 🍬 n • time left" (HalloweenClient).
+- Place-only assets (need Save + Publish): PetModels PumpkinPup/GhostKitty/BatDragon/PumpkinKing,
+  EggModels.Spooky, ReplicatedStorage.HalloweenModels.JackOLantern, UIIcons.Bolt rotated.

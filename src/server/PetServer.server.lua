@@ -147,10 +147,13 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 		return false, "Unknown egg."
 	end
 	local index = eggIndex(eggId)
-	if not index or busy[player] then
+	local egg = index and Config.Eggs[index] or Config.getEgg(eggId) -- (event eggs aren't in Config.Eggs)
+	if not egg or busy[player] then
 		return false, "Unknown egg."
 	end
-	local egg = Config.Eggs[index]
+	if egg.event and not Config.eventActive(egg.event) then
+		return false, "The " .. egg.name .. " is gone until the next event!"
+	end
 	if player:GetAttribute("Flying") then
 		return false, "Can't hatch while flying!"
 	end
@@ -158,7 +161,7 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 		return false, "Unlock Stage " .. egg.stage .. " to open the " .. egg.name .. "!"
 	end
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	local standPos = LobbyLayout.eggStand(index, #Config.Eggs)
+	local standPos = egg.stand or LobbyLayout.eggStand(index, #Config.Eggs)
 	if not root or (root.Position - standPos).Magnitude > 24 then
 		return false, "Walk up to the egg first!"
 	end
@@ -167,13 +170,17 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 		return false, "Your pets are full (" .. Config.MAX_PETS .. ")! Delete some first."
 	end
 	local cost = egg.price * count
-	local money = player:GetAttribute("Money") or 0
-	if money < cost then
-		return false, "You need $" .. Config.abbreviate(cost - money) .. " more!"
+	local currency = egg.currency or "Money"
+	local have = player:GetAttribute(currency) or 0
+	if have < cost then
+		if currency == "Candy" then
+			return false, "You need " .. (cost - have) .. " more 🍬 candy! Grab coins in flight to get candy."
+		end
+		return false, "You need $" .. Config.abbreviate(cost - have) .. " more!"
 	end
 
 	busy[player] = true
-	player:SetAttribute("Money", money - cost)
+	player:SetAttribute(currency, have - cost)
 	local nextId = player:GetAttribute("NextPetId") or 1
 	local results = {}
 	for _ = 1, count do
@@ -295,6 +302,17 @@ PetAction.OnServerInvoke = function(player, action, uid)
 		end
 		if wasEquipped then
 			table.insert(newEquipped, 1, newUid)
+		end
+		-- fill any free slots with the best pets you have (the new golden one included)
+		local pool = table.clone(kept)
+		table.sort(pool, bestFirst)
+		for _, p in ipairs(pool) do
+			if #newEquipped >= slots(player) then
+				break
+			end
+			if not table.find(newEquipped, p.uid) then
+				table.insert(newEquipped, p.uid)
+			end
 		end
 		setPets(player, kept)
 		setEquipped(player, newEquipped)
