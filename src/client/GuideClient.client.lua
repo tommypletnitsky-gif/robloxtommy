@@ -121,6 +121,9 @@ task.spawn(function()
 end)
 
 RunService.RenderStepped:Connect(function()
+	if step.kind and UIKit.busy() then
+		step.kind = nil -- (hide at once when a show / window / flight starts)
+	end
 	local t = os.clock()
 	local bob = math.abs(math.sin(t * 4)) * 14
 	local kind, target = step.kind, step.target

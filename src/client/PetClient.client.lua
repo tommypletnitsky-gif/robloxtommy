@@ -4,6 +4,8 @@
 --   * Hatch show: the egg wobbles while a "roll" flickers through its pets, then cracks with a flash
 --     and reveals what you got (rarity color, boost, NEW!). Click / tap or wait to close.
 --   * PETS button: your pets. Click a pet to equip / unequip, Equip Best, delete (click twice).
+--   * Golden pets: a "⭐ n/5" tag shows how many copies you have; with 5 it turns gold: press it
+--     twice to fuse 5 copies into one Golden pet (2.5x the bonus), with its own reveal show.
 --   * Pets follow every player (drawn on each client, so they move smoothly): they hop behind you
 --     when you walk (they stay behind while you fly).
 --   * The boards above the eggs show 🔒 for eggs you haven't unlocked yet.
@@ -45,16 +47,55 @@ local function prep(m)
 	return m
 end
 
-local function petModel(kind)
-	local t = petFolder and petFolder:FindFirstChild(kind)
-	if t then
-		return prep(t:Clone())
+-- Golden pets: the same mesh + texture re-drawn with a gold tint (SpecialMesh.VertexColor keeps
+-- every detail of the texture, just golden).
+local GOLD = Color3.fromRGB(255, 190, 40)
+local function makeGolden(m)
+	for _, mp in ipairs(m:GetDescendants()) do
+		if mp:IsA("MeshPart") then
+			local okSize, meshSize = pcall(function()
+				return mp.MeshSize
+			end)
+			local p = Instance.new("Part")
+			p.Name = mp.Name
+			p.Size = mp.Size
+			p.CFrame = mp.CFrame
+			p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch = true, false, false, false
+			local sm = Instance.new("SpecialMesh")
+			sm.MeshType = Enum.MeshType.FileMesh
+			sm.MeshId = mp.MeshId
+			sm.TextureId = mp.TextureID
+			sm.Scale = (okSize and meshSize.Magnitude > 0) and (mp.Size / meshSize) or Vector3.one
+			sm.VertexColor = Config.GOLDEN_TINT
+			sm.Parent = p
+			p.Parent = mp.Parent
+			if m.PrimaryPart == mp then
+				m.PrimaryPart = p
+			end
+			mp:Destroy()
+		elseif mp:IsA("BasePart") then
+			mp.Color = GOLD -- (the plain fallback model)
+		end
 	end
-	local pet = Config.Pets[kind]
-	local m = Instance.new("Model")
-	make("Part", { Parent = m, Shape = Enum.PartType.Ball, Size = Vector3.new(2.6, 2.6, 2.6), CFrame = CFrame.new(0, 1.3, 0), Color = pet and Config.Rarities[pet.rarity].color or GREY, Material = Enum.Material.SmoothPlastic })
-	m.WorldPivot = CFrame.new()
-	return prep(m)
+	return m
+end
+
+local function petModel(kind, golden)
+	local t = petFolder and petFolder:FindFirstChild(kind)
+	local m
+	if t then
+		m = prep(t:Clone())
+	else
+		local pet = Config.Pets[kind]
+		m = Instance.new("Model")
+		make("Part", { Parent = m, Shape = Enum.PartType.Ball, Size = Vector3.new(2.6, 2.6, 2.6), CFrame = CFrame.new(0, 1.3, 0), Color = pet and Config.Rarities[pet.rarity].color or GREY, Material = Enum.Material.SmoothPlastic })
+		m.WorldPivot = CFrame.new()
+		prep(m)
+	end
+	if golden then
+		makeGolden(m)
+	end
+	return m
 end
 
 local function eggModel(egg)
@@ -502,22 +543,105 @@ local grid = make("Frame", { Parent = petsList, LayoutOrder = 2, Size = UDim2.ne
 	make("UIGridLayout", { CellSize = UDim2.fromOffset(100, 126), CellPadding = UDim2.fromOffset(8, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
 
+-- Golden reveal: the new Golden pet springs in over spinning gold rays.
+local function playGolden(kind, uid)
+	hatching = true
+	for _, c in ipairs(slotsHolder:GetChildren()) do
+		if c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+	table.clear(spinning)
+	hint.Visible = false
+	overlay.Visible = true
+	overlay.BackgroundTransparency = 1
+	TweenService:Create(overlay, TweenInfo.new(0.25), { BackgroundTransparency = 0.3 }):Play()
+	local wasOpen = petsWindow.Visible
+	petsWindow.Visible = false
+	local s = makeSlot(1)
+	local pet = Config.Pets[kind]
+	UIKit.sound("Whoosh", 0.5, 0.9)
+	task.wait(0.25)
+	flash.BackgroundTransparency = 0
+	TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+	UIKit.sound("Boom", 0.35, 1.5)
+	local m = petModel(kind, true)
+	viewport(s.holder, m, { Size = UDim2.fromScale(1, 1), ZIndex = 52 })
+	local pop = make("UIScale", { Parent = s.holder, Scale = 0.2 })
+	UIKit.spr.target(pop, 0.45, 4, { Scale = 1 })
+	s.rays.ImageColor3 = GOLD
+	s.rays.ImageTransparency = 0.05
+	s.roll.Text = "⭐ GOLDEN " .. string.upper(pet.name) .. "!"
+	s.roll.TextColor3 = Color3.fromRGB(255, 220, 80)
+	s.sub.Text = multText(pet.mult) .. "  →  " .. multText(Config.petMult(kind, true)) .. " 💰"
+	s.sub.TextColor3 = Color3.fromRGB(140, 255, 140)
+	UIKit.bounce(s.roll)
+	table.insert(spinning, { rays = s.rays, model = m, spin = true })
+	UIKit.sound("Jingle", 0.6, 1.1)
+	UIKit.sound("Gem", 0.5, 1.3)
+	task.wait(0.6)
+	hint.Visible = true
+	local closed = false
+	local conn = overlay.Activated:Connect(function()
+		closed = true
+	end)
+	local tEnd = os.clock() + 3.5
+	while not closed and os.clock() < tEnd do
+		task.wait(0.05)
+	end
+	conn:Disconnect()
+	overlay.Visible = false
+	table.clear(spinning)
+	hatching = false
+	if wasOpen then
+		UIKit.toggle(petsWindow)
+	end
+end
+
 local cards = {} -- [uid] = card info
 local function makeCard(p)
 	local pet = Config.Pets[p.kind]
-	local color = Config.Rarities[pet.rarity].color
+	local color = p.golden and GOLD or Config.Rarities[pet.rarity].color
 	local card = make("TextButton", { Parent = grid, Text = "", AutoButtonColor = false, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(14) })
 	local stroke = UIKit.stroke(3.5, color)
 	stroke.Parent = card
 	make("UIGradient", { Parent = card, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), UIKit.lighter(color, 0.72)) })
 	local holder = make("Frame", { Parent = card, Position = UDim2.fromOffset(6, 4), Size = UDim2.fromOffset(88, 78), BackgroundTransparency = 1, ZIndex = 13 })
-	viewport(holder, petModel(p.kind), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })
-	label({ Parent = card, Position = UDim2.fromOffset(3, 82), Size = UDim2.new(1, -6, 0, 20), Text = pet.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
-	label({ Parent = card, Position = UDim2.fromOffset(3, 102), Size = UDim2.new(1, -6, 0, 20), Text = multText(pet.mult) .. " 💰", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 13 })
+	viewport(holder, petModel(p.kind, p.golden), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })
+	label({ Parent = card, Position = UDim2.fromOffset(3, 82), Size = UDim2.new(1, -6, 0, 20), Text = (p.golden and "⭐ Golden " or "") .. pet.name, TextColor3 = p.golden and Color3.fromRGB(210, 140, 0) or UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
+	label({ Parent = card, Position = UDim2.fromOffset(3, 102), Size = UDim2.new(1, -6, 0, 20), Text = multText(Config.petMult(p.kind, p.golden)) .. " 💰", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 13 })
+	-- golden tag: "⭐ 3/5" while collecting copies, a gold button once you have 5
+	local fuse = make("TextButton", { Parent = card, Name = "Fuse", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 3), Size = UDim2.fromOffset(44, 22), BackgroundColor3 = Color3.fromRGB(235, 235, 245), Text = "", AutoButtonColor = false, Visible = false, ZIndex = 16 }, { UIKit.corner(11), UIKit.stroke(2) })
+	local fuseText = label({ Parent = fuse, Size = UDim2.fromScale(1, 1), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 17 })
 	local check = label({ Parent = card, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(16, 16), Size = UDim2.fromOffset(28, 28), BackgroundTransparency = 0, BackgroundColor3 = GREEN, Text = "✔", ZIndex = 15, Visible = false }, nil)
 	make("UICorner", { Parent = check, CornerRadius = UDim.new(1, 0) })
 	local del = make("TextButton", { Parent = card, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -3, 0, 3), Size = UDim2.fromOffset(26, 26), BackgroundColor3 = Color3.fromRGB(255, 235, 235), Text = "🗑", TextScaled = true, Font = UIKit.FONT, ZIndex = 15 }, { UIKit.corner(8) })
-	local info = { card = card, check = check, del = del, kind = p.kind, uid = p.uid, armed = 0 }
+	local info = { card = card, check = check, del = del, kind = p.kind, uid = p.uid, golden = p.golden, armed = 0, fuse = fuse, fuseText = fuseText, fuseArmed = 0, copies = 0 }
+	fuse.Activated:Connect(function()
+		if info.copies < Config.GOLDEN_COST then
+			UIKit.toast("Collect " .. (Config.GOLDEN_COST - info.copies) .. " more " .. pet.name .. " to make a GOLDEN " .. pet.name .. "! ⭐", Color3.fromRGB(255, 220, 120))
+			return
+		end
+		if os.clock() - info.fuseArmed > 2.5 then
+			info.fuseArmed = os.clock()
+			fuseText.Text = "SURE?"
+			UIKit.bounce(fuse)
+			UIKit.toast("Press again: " .. Config.GOLDEN_COST .. " " .. pet.name .. " → 1 GOLDEN " .. pet.name .. " (" .. multText(Config.petMult(p.kind, true)) .. ")", Color3.fromRGB(255, 215, 80))
+			task.delay(2.5, function()
+				if fuse.Parent and os.clock() - info.fuseArmed >= 2.4 then
+					fuseText.Text = "⭐ GOLD"
+				end
+			end)
+			return
+		end
+		info.fuseArmed = 0
+		local ok, result = PetAction:InvokeServer("golden", p.uid)
+		if ok then
+			task.spawn(playGolden, p.kind, result)
+		else
+			UIKit.result(false, result)
+		end
+	end)
 	card.Activated:Connect(function()
 		UIKit.sound("Click", 0.4)
 		UIKit.bounce(card)
@@ -567,12 +691,35 @@ local function refreshPets()
 		if ea ~= eb then
 			return ea > eb
 		end
-		local ma, mb = Config.Pets[a.kind].mult, Config.Pets[b.kind].mult
+		local ma, mb = Config.petMult(a.kind, a.golden), Config.petMult(b.kind, b.golden)
 		if ma ~= mb then
 			return ma > mb
 		end
 		return a.uid > b.uid
 	end)
+	-- copies of each pet (not golden) for the golden tags
+	local copies = {}
+	for _, p in ipairs(pets) do
+		if not p.golden then
+			copies[p.kind] = (copies[p.kind] or 0) + 1
+		end
+	end
+	for _, c in pairs(cards) do
+		local n = c.golden and 0 or (copies[c.kind] or 0)
+		c.copies = n
+		c.fuse.Visible = n >= 2
+		if n >= Config.GOLDEN_COST then
+			c.fuse.BackgroundColor3 = GOLD
+			if os.clock() - c.fuseArmed > 2.5 then
+				c.fuseText.Text = "⭐ GOLD"
+			end
+			c.fuseText.TextColor3 = Color3.new(1, 1, 1)
+		else
+			c.fuse.BackgroundColor3 = Color3.fromRGB(235, 235, 245)
+			c.fuseText.Text = "⭐ " .. n .. "/" .. Config.GOLDEN_COST
+			c.fuseText.TextColor3 = UIKit.INK
+		end
+	end
 	local nEquipped = 0
 	for i, p in ipairs(pets) do
 		local c = cards[p.uid]
@@ -622,9 +769,25 @@ local function rebuildFollowers(plr)
 	local kindsStr = plr:GetAttribute("PetKinds") or ""
 	f = { kinds = kindsStr, pets = {} }
 	followers[plr] = f
-	for kind in string.gmatch(kindsStr, "[^,]+") do
-		if Config.Pets[kind] then
-			local m = petModel(kind)
+	for entry in string.gmatch(kindsStr, "[^,]+") do
+		local kind, flag = string.match(entry, "^(%w+):?(%a?)$")
+		if kind and Config.Pets[kind] then
+			local golden = flag == "G"
+			local m = petModel(kind, golden)
+			if golden then
+				-- golden pets glitter
+				local e = Instance.new("ParticleEmitter")
+				e.Name = "Gold"
+				e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+				e.Color = ColorSequence.new(Color3.fromRGB(255, 225, 90), Color3.fromRGB(255, 170, 30))
+				e.Size = NumberSequence.new(0.45, 0)
+				e.Lifetime = NumberRange.new(0.5, 0.9)
+				e.Speed = NumberRange.new(0.5, 2)
+				e.SpreadAngle = Vector2.new(180, 180)
+				e.Rate = 10
+				e.LightEmission = 0.6
+				e.Parent = m:FindFirstChildWhichIsA("BasePart", true)
+			end
 			for _, d in ipairs(m:GetDescendants()) do
 				if d:IsA("BasePart") then
 					d.CastShadow = true

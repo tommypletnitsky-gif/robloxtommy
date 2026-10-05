@@ -400,6 +400,9 @@ LaunchPowerStop.OnServerInvoke = function(player, clickTime)
 	local lp = Config.LaunchPower
 	local quality = (d <= lp.perfect.zone and "perfect") or (d <= lp.good.zone and "good") or false
 	f.power = quality -- one try (false = missed)
+	if quality == "perfect" then
+		player:SetAttribute("StatPerfect", (player:GetAttribute("StatPerfect") or 0) + 1)
+	end
 	return quality, x
 end
 

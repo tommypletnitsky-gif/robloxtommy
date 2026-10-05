@@ -619,8 +619,14 @@ function UIKit.busy()
 			return true
 		end
 	end
-	local report = UIKit.gui():FindFirstChild("FlightReport")
-	return report ~= nil and report.Visible
+	local g = UIKit.gui()
+	for _, name in ipairs({ "FlightReport", "HatchShow" }) do -- (full-screen moments)
+		local f = g:FindFirstChild(name)
+		if f and f.Visible then
+			return true
+		end
+	end
+	return false
 end
 
 -- Run fn once nothing important has been on screen for `quiet` seconds (hints, "quest done"...).

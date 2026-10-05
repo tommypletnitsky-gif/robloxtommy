@@ -7,6 +7,7 @@ local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("
 local RocketModel = require(ReplicatedStorage.Shared:WaitForChild("RocketModel"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local ClaimQuest = remotes:WaitForChild("ClaimQuest")
+local ClaimMission = remotes:WaitForChild("ClaimMission")
 local RedeemCode = remotes:WaitForChild("RedeemCode")
 local SetSetting = remotes:WaitForChild("SetSetting")
 
@@ -31,9 +32,111 @@ local function questIcon(name)
 	return name
 end
 
+-- Daily missions (top of the window): 3 a day, all 3 = a Lucky Spin --------------------------------
+local TEAL = Color3.fromRGB(40, 185, 205)
+local missionHead = UIKit.row(questList, 0, 52)
+make("UIGradient", { Parent = missionHead, Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(225, 250, 255), Color3.fromRGB(190, 235, 245)) })
+local missionTitle = label({ Parent = missionHead, Position = UDim2.fromOffset(14, 6), Size = UDim2.new(0.55, 0, 1, -12), TextXAlignment = Enum.TextXAlignment.Left, Text = "📅 DAILY MISSIONS", TextColor3 = Color3.fromRGB(20, 120, 140), StrokeThickness = 0, ZIndex = 12 })
+local missionTimer = label({ Parent = missionHead, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 10), Size = UDim2.new(0.42, 0, 1, -20), TextXAlignment = Enum.TextXAlignment.Right, Text = "", TextColor3 = Color3.fromRGB(70, 110, 130), StrokeThickness = 0, ZIndex = 12 })
+local missionCards = {}
+for i = 1, Config.MISSIONS_PER_DAY do
+	local card = UIKit.card(questList, { LayoutOrder = i, Size = UDim2.new(1, -12, 0, 84), ZIndex = 11, Tint = Color3.fromRGB(220, 246, 252), Border = Color3.fromRGB(120, 205, 225) })
+	local iconBox = make("Frame", { Parent = card, Position = UDim2.fromOffset(10, 8), Size = UDim2.fromOffset(68, 68), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(18), UIKit.stroke(3), UIKit.gloss(Color3.fromRGB(150, 225, 240)) })
+	local title = label({ Parent = card, Position = UDim2.fromOffset(90, 8), Size = UDim2.new(1, -290, 0, 28), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+	local _, setBar = UIKit.bar(card, { Position = UDim2.fromOffset(90, 44), Size = UDim2.new(1, -290, 0, 22), Color = TEAL, ShowText = true, ZIndex = 12 })
+	local rewardPill, rewardText = UIKit.pill(card, { Text = "", Color = GREEN, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 6), Size = UDim2.fromOffset(160, 26), ZIndex = 12 })
+	local button = UIKit.button({ Parent = card, Text = "", Color = GREY, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -16, 1, -6), Size = UDim2.fromOffset(160, 44), ZIndex = 12 })
+	local mc = { card = card, iconBox = iconBox, title = title, setBar = setBar, rewardPill = rewardPill, rewardText = rewardText, button = button, id = nil, icon = nil }
+	button.Instance.Activated:Connect(function()
+		if not mc.id then
+			return
+		end
+		local ok, msg = ClaimMission:InvokeServer(mc.id)
+		UIKit.result(ok, msg)
+		if ok then
+			UIKit.sound("Jingle", 0.45, 1.25)
+			UIKit.bounce(card)
+			UIKit.coinBurst(10, button.Instance.AbsolutePosition + button.Instance.AbsoluteSize / 2)
+		end
+	end)
+	missionCards[i] = mc
+end
+-- time until the next set of missions (new set at 00:00 UTC)
+task.spawn(function()
+	while true do
+		local left = 86400 - (workspace:GetServerTimeNow() % 86400)
+		missionTimer.Text = string.format("new in %d:%02d:%02d", left // 3600, (left // 60) % 60, left % 60)
+		task.wait(1)
+	end
+end)
+local bonusRow = UIKit.row(questList, 4, 40)
+local bonusText = label({ Parent = bonusRow, Position = UDim2.fromOffset(14, 6), Size = UDim2.new(1, -28, 1, -12), Text = "", TextColor3 = Color3.fromRGB(150, 80, 220), StrokeThickness = 0, ZIndex = 12 })
+local questHead = UIKit.row(questList, 5, 40)
+label({ Parent = questHead, Position = UDim2.fromOffset(14, 6), Size = UDim2.new(1, -28, 1, -12), TextXAlignment = Enum.TextXAlignment.Left, Text = "📜 QUESTS", TextColor3 = Color3.fromRGB(200, 110, 30), StrokeThickness = 0, ZIndex = 12 })
+
+local questsLoaded = false -- (set once your saved data is in: goals done before that don't toast)
+local missionReadySeen = {} -- "day:id" already announced
+local missionsAny = false
+local function refreshMissions()
+	local list = Config.parseMissions(player:GetAttribute("Missions"))
+	local claimed = string.split(player:GetAttribute("MissionsClaimed") or "", ",")
+	local stage = player:GetAttribute("UnlockedStage") or 1
+	local day = player:GetAttribute("MissionDay") or 0
+	local any, doneCount = false, 0
+	for i, mc in ipairs(missionCards) do
+		local e = list[i]
+		local m = e and Config.getMission(e.id)
+		mc.card.Visible = m ~= nil
+		if m then
+			mc.id = e.id
+			if mc.icon ~= m.icon then
+				mc.icon = m.icon
+				mc.iconBox:ClearAllChildren()
+				UIKit.corner(18).Parent = mc.iconBox
+				UIKit.stroke(3).Parent = mc.iconBox
+				UIKit.gloss(Color3.fromRGB(150, 225, 240)).Parent = mc.iconBox
+				UIKit.icon3D(mc.iconBox, questIcon(m.icon), { ZIndex = 13, Yaw = m.icon == "Rocket" and 145 or 0 })
+			end
+			local have = math.max(0, (player:GetAttribute(m.stat) or 0) - e.start)
+			local goalText = m.id == "distance" and (Config.meters(e.goal):gsub("m$", "")) or abbreviate(e.goal)
+			mc.title.Text = string.format(m.text, goalText)
+			mc.setBar(have / e.goal, abbreviate(math.min(have, e.goal)) .. " / " .. abbreviate(e.goal))
+			mc.rewardText.Text = "💰 $" .. abbreviate(Config.missionReward(stage))
+			local isClaimed = table.find(claimed, e.id) ~= nil
+			local ready = not isClaimed and have >= e.goal
+			if isClaimed then
+				doneCount += 1
+				mc.button.setText("✔ DONE")
+				mc.button.setColor(GREY)
+			elseif ready then
+				any = true
+				mc.button.setText("CLAIM!")
+				mc.button.setColor(GREEN)
+				local key = day .. ":" .. e.id
+				if not missionReadySeen[key] then
+					missionReadySeen[key] = true
+					if questsLoaded then
+						local text = mc.title.Text
+						UIKit.whenFree(function()
+							UIKit.toast("📅 Daily mission done: " .. text .. "! Claim it in QUESTS", Color3.fromRGB(120, 230, 255))
+							UIKit.sound("Gem", 0.45, 1.3)
+							UIKit.bounce(questBtn.Instance)
+						end, 0.8)
+					end
+				end
+			else
+				mc.button.setText("keep going...")
+				mc.button.setColor(GREY)
+			end
+		end
+	end
+	bonusText.Text = (doneCount >= #list and #list > 0) and "✔ All 3 missions done: you got a LUCKY SPIN! New missions tomorrow." or ("🎰 Finish all 3 missions for a free LUCKY SPIN!   (" .. doneCount .. " / " .. #list .. ")")
+	missionsAny = any
+end
+
 local cards = {}
 for i, q in ipairs(Config.Quests) do
-	local card = UIKit.card(questList, { LayoutOrder = i, Size = UDim2.new(1, -12, 0, 98), ZIndex = 11, Tint = Color3.fromRGB(255, 240, 222) })
+	local card = UIKit.card(questList, { LayoutOrder = 10 + i, Size = UDim2.new(1, -12, 0, 98), ZIndex = 11, Tint = Color3.fromRGB(255, 240, 222) })
 	local iconBox = make("Frame", { Parent = card, Position = UDim2.fromOffset(10, 9), Size = UDim2.fromOffset(80, 80), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(20), UIKit.stroke(3), UIKit.gloss(Color3.fromRGB(255, 220, 160)) })
 	UIKit.icon3D(iconBox, questIcon(q.icon), { ZIndex = 13, Yaw = q.icon == "Rocket" and 145 or 0 })
 	local title = label({ Parent = card, Position = UDim2.fromOffset(102, 10), Size = UDim2.new(1, -300, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
@@ -61,7 +164,6 @@ local function fmt(q, n)
 end
 
 local readyBefore = {} -- quest ids that were already claimable (so each one only cheers once)
-local questsLoaded = false
 local function refreshQuests()
 	local tiers = Config.parseQuestTiers(player:GetAttribute("QuestTiers"))
 	local stage = player:GetAttribute("UnlockedStage") or 1
@@ -78,9 +180,13 @@ local function refreshQuests()
 			c.rewardPill.Visible = false
 			c.button.setText("ALL DONE ⭐")
 			c.button.setColor(GREY)
-			c.card.LayoutOrder = 100 + c.order
+			c.card.LayoutOrder = 300 + c.order
 		else
-			c.title.Text = string.format(q.text, fmt(q, goal))
+			local text = string.format(q.text, fmt(q, goal))
+			if goal == 1 then -- "Launch 1 time", "Hatch 1 egg"
+				text = text:gsub("1 times", "1 time"):gsub("1 eggs", "1 egg"):gsub("1 coins", "1 coin"):gsub("1 boost rings", "1 boost ring")
+			end
+			c.title.Text = text
 			c.setBar(have / goal, abbreviate(math.min(have, goal)) .. " / " .. abbreviate(goal))
 			c.rewardPill.Visible = true
 			c.rewardText.Text = "💰 $" .. abbreviate(Config.questReward(stage, done + 1))
@@ -101,16 +207,18 @@ local function refreshQuests()
 			end
 			c.button.setText(ready and "CLAIM!" or "keep going...")
 			c.button.setColor(ready and GREEN or GREY)
-			c.card.LayoutOrder = (ready and 0 or 50) + c.order
+			c.card.LayoutOrder = (ready and 100 or 200) + c.order
 		end
 	end
+	refreshMissions()
+	any = any or missionsAny
 	if any and not questBadge.Visible then
 		UIKit.bounce(questBadge)
 	end
 	questBadge.Visible = any
 end
 
-local watched = { "QuestTiers", "UnlockedStage" }
+local watched = { "QuestTiers", "UnlockedStage", "Missions", "MissionsClaimed", "MissionDay", "StatPerfect" }
 for _, q in ipairs(Config.Quests) do
 	table.insert(watched, q.stat)
 end

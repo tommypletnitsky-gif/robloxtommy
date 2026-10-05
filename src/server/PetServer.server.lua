@@ -41,16 +41,16 @@ end
 local function setPets(player, list)
 	local parts = {}
 	for _, p in ipairs(list) do
-		table.insert(parts, p.uid .. ":" .. p.kind)
+		table.insert(parts, p.uid .. ":" .. p.kind .. (p.golden and ":G" or ""))
 	end
 	player:SetAttribute("Pets", table.concat(parts, ";"))
 end
 
 local function getEquipped(player, pets)
 	-- only uids the player still owns, at most MAX_EQUIPPED
-	local owned = {}
+	local owned = {} -- [uid] = pet record { uid, kind, golden }
 	for _, p in ipairs(pets or getPets(player)) do
-		owned[p.uid] = p.kind
+		owned[p.uid] = p
 	end
 	local list = {}
 	for uid in string.gmatch(player:GetAttribute("EquippedPets") or "", "%d+") do
@@ -75,7 +75,8 @@ local function refresh(player)
 	local equipped, owned = getEquipped(player)
 	local kinds = {}
 	for _, uid in ipairs(equipped) do
-		table.insert(kinds, owned[uid])
+		local p = owned[uid]
+		table.insert(kinds, p.kind .. (p.golden and ":G" or "")) -- (":G": everyone draws it golden)
 	end
 	local mult = Config.petMultiplier(kinds)
 	if Config.hasPass(player, "RainbowPets") then
@@ -91,9 +92,9 @@ local function refresh(player)
 		index[kind] = true
 	end
 	local changed = false
-	for _, kind in pairs(owned) do
-		if not index[kind] then
-			index[kind] = true
+	for _, p in pairs(owned) do
+		if not index[p.kind] then
+			index[p.kind] = true
 			changed = true
 		end
 	end
@@ -109,9 +110,9 @@ local function refresh(player)
 end
 
 local function bestFirst(a, b)
-	local pa, pb = Config.Pets[a.kind], Config.Pets[b.kind]
-	if pa.mult ~= pb.mult then
-		return pa.mult > pb.mult
+	local ma, mb = Config.petMult(a.kind, a.golden), Config.petMult(b.kind, b.golden)
+	if ma ~= mb then
+		return ma > mb
 	end
 	return a.uid < b.uid
 end
@@ -226,7 +227,7 @@ PetAction.OnServerInvoke = function(player, action, uid)
 	if typeof(uid) ~= "number" or not owned[uid] then
 		return false, "You don't have that pet."
 	end
-	local name = Config.Pets[owned[uid]].name
+	local name = (owned[uid].golden and "Golden " or "") .. Config.Pets[owned[uid].kind].name
 	local at = table.find(equipped, uid)
 	if action == "equip" then
 		if at then
@@ -246,6 +247,64 @@ PetAction.OnServerInvoke = function(player, action, uid)
 			refresh(player)
 		end
 		return true, name .. " unequipped."
+	elseif action == "golden" then
+		-- fuse GOLDEN_COST copies of this pet (unequipped ones first) into one Golden pet
+		local base = owned[uid]
+		if base.golden then
+			return false, name .. " is already golden!"
+		end
+		local same = {}
+		for _, p in ipairs(pets) do
+			if p.kind == base.kind and not p.golden then
+				table.insert(same, p)
+			end
+		end
+		if #same < Config.GOLDEN_COST then
+			return false, "You need " .. Config.GOLDEN_COST .. " " .. name .. " pets (you have " .. #same .. ")."
+		end
+		table.sort(same, function(a, b)
+			-- the one you pressed first, then unequipped, then the rest
+			local ka = (a.uid == uid and 0) or (table.find(equipped, a.uid) and 2 or 1)
+			local kb = (b.uid == uid and 0) or (table.find(equipped, b.uid) and 2 or 1)
+			if ka ~= kb then
+				return ka < kb
+			end
+			return a.uid < b.uid
+		end)
+		local used, wasEquipped = {}, false
+		for i = 1, Config.GOLDEN_COST do
+			used[same[i].uid] = true
+			if table.find(equipped, same[i].uid) then
+				wasEquipped = true
+			end
+		end
+		local kept = {}
+		for _, p in ipairs(pets) do
+			if not used[p.uid] then
+				table.insert(kept, p)
+			end
+		end
+		local newUid = player:GetAttribute("NextPetId") or 1
+		player:SetAttribute("NextPetId", newUid + 1)
+		table.insert(kept, { uid = newUid, kind = base.kind, golden = true })
+		local newEquipped = {}
+		for _, e in ipairs(equipped) do
+			if not used[e] then
+				table.insert(newEquipped, e)
+			end
+		end
+		if wasEquipped then
+			table.insert(newEquipped, 1, newUid)
+		end
+		setPets(player, kept)
+		setEquipped(player, newEquipped)
+		refresh(player)
+		PlayerData.save(player)
+		local pet = Config.Pets[base.kind]
+		if pet.rarity == "Epic" or pet.rarity == "Legendary" then
+			Notify:FireAllClients("⭐ " .. player.DisplayName .. " made a GOLDEN " .. pet.name .. "!", Color3.fromRGB(255, 215, 60))
+		end
+		return true, newUid
 	elseif action == "delete" then
 		for i, p in ipairs(pets) do
 			if p.uid == uid then

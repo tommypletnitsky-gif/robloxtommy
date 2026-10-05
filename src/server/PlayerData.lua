@@ -45,6 +45,11 @@ PlayerData.DEFAULTS = {
 	BoostLuckUntil = 0, -- os.time() when the x2 Luck boost ends
 	FullBoost = false, -- next flight starts with a full boost bar
 	Receipts = "", -- last purchase ids handled (developer products), so a retry never counts twice
+	StatPerfect = 0, -- PERFECT launches (daily missions)
+	MissionDay = 0, -- the day (UTC) today's missions were picked
+	Missions = "", -- "id:goal:start,..." (Config.parseMissions)
+	MissionsClaimed = "", -- ids claimed today
+	MissionBonus = false, -- the all-3 bonus spin was given today
 	QuestTiers = "", -- "flights:2,best:1" = goals claimed per quest chain
 	Codes = "", -- redeemed codes
 	MusicOn = true,

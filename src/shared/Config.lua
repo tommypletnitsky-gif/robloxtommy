@@ -143,6 +143,52 @@ Config.Quests = {
 	{ id = "stage", stat = "UnlockedStage", icon = "Calendar", text = "Unlock Stage %s", goals = { 2, 3, 5, 8, 11, 15, 20, 25, 30 } },
 	{ id = "cannon", stat = "CannonLevel", icon = "MoneyBag", text = "Upgrade Cannon Power to %s", goals = { 1, 3, 6, 12, 18, 24, 30 } },
 }
+-- Daily missions: 3 a day (picked per player, new set every UTC day). Progress = stat now minus
+-- the stat when the set was picked. `amount(stage)` is the goal; `minStage` hides early ones.
+-- Rewards scale with your stage; finishing all 3 gives a Lucky Spin.
+Config.Missions = {
+	{ id = "launch", stat = "StatFlights", text = "Launch %s times", icon = "Rocket", amount = function(stage)
+		return 8 + math.min(stage, 10)
+	end },
+	{ id = "coins", stat = "StatCoins", text = "Grab %s coins", icon = "Coin", amount = function(stage)
+		return 25 + stage * 3
+	end },
+	{ id = "rings", stat = "StatRings", text = "Fly through %s boost rings", icon = "Bolt", amount = function(stage)
+		return 6 + math.floor(stage / 2)
+	end },
+	{ id = "distance", stat = "StatDistance", text = "Fly %sm in total", icon = "Trophy", amount = function(stage)
+		return math.floor(stage * Config.STAGE_LENGTH * 4 / 100 + 0.5) * 100
+	end },
+	{ id = "eggs", stat = "StatEggs", text = "Hatch %s eggs", icon = "Gift", minStage = 2, amount = function(stage)
+		return 3 + math.floor(stage / 3)
+	end },
+	{ id = "perfect", stat = "StatPerfect", text = "Get %s PERFECT launches", icon = "Crown", amount = function(stage)
+		return 3 + math.floor(stage / 6)
+	end },
+}
+Config.MISSIONS_PER_DAY = 3
+function Config.missionReward(stage)
+	return math.floor(Config.moneyPerStud(stage or 1) * 500)
+end
+function Config.missionDay()
+	return math.floor(workspace:GetServerTimeNow() / 86400)
+end
+-- "launch:12:40,coins:31:120" -> { { id, goal, start }, ... }
+function Config.parseMissions(s)
+	local list = {}
+	for id, goal, start in string.gmatch(s or "", "(%w+):(%d+):(%d+)") do
+		table.insert(list, { id = id, goal = tonumber(goal), start = tonumber(start) })
+	end
+	return list
+end
+function Config.getMission(id)
+	for _, m in ipairs(Config.Missions) do
+		if m.id == id then
+			return m
+		end
+	end
+end
+
 function Config.questReward(stage, tier)
 	return math.floor(Config.moneyPerStud(stage or 1) * 150 * 1.65 ^ (tier - 1))
 end
@@ -257,13 +303,32 @@ function Config.getEgg(id)
 	end
 end
 
--- Saved pet list format (player attribute "Pets"): "uid:Kind;uid:Kind". Equipped: "uid,uid".
+-- Golden pets: GOLDEN_COST copies of a pet fuse into one Golden pet whose money bonus is
+-- GOLDEN_POWER times bigger. Drawn with its own texture tinted GOLDEN_TINT.
+Config.GOLDEN_COST = 5
+Config.GOLDEN_POWER = 2.5
+Config.GOLDEN_TINT = Vector3.new(2, 1.8, 0.45)
+
+-- A pet's money multiplier (golden or not).
+function Config.petMult(kind, golden)
+	local p = Config.Pets[kind]
+	if not p then
+		return 1
+	end
+	if golden then
+		return math.floor((1 + (p.mult - 1) * Config.GOLDEN_POWER) * 100 + 0.5) / 100
+	end
+	return p.mult
+end
+
+-- Saved pet list format (player attribute "Pets"): "uid:Kind;uid:Kind:G" (G = golden).
+-- Equipped: "uid,uid".
 function Config.parsePets(s)
 	local list = {}
 	for entry in string.gmatch(s or "", "[^;]+") do
-		local uid, kind = entry:match("^(%d+):(%w+)$")
+		local uid, kind, flag = entry:match("^(%d+):(%w+):?(%a?)$")
 		if uid and Config.Pets[kind] then
-			table.insert(list, { uid = tonumber(uid), kind = kind })
+			table.insert(list, { uid = tonumber(uid), kind = kind, golden = flag == "G" })
 		end
 	end
 	return list
@@ -277,13 +342,13 @@ function Config.parseEquipped(s)
 	return set
 end
 
--- Total money multiplier from a list of pet kinds.
+-- Total money multiplier from a list of equipped pets ("Kind" or "Kind:G" for golden).
 function Config.petMultiplier(kinds)
 	local m = 1
-	for _, kind in ipairs(kinds) do
-		local p = Config.Pets[kind]
-		if p then
-			m += p.mult - 1
+	for _, entry in ipairs(kinds) do
+		local kind, flag = string.match(entry, "^(%w+):?(%a?)$")
+		if kind and Config.Pets[kind] then
+			m += Config.petMult(kind, flag == "G") - 1
 		end
 	end
 	return m
