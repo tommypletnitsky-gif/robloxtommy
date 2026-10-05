@@ -144,3 +144,15 @@ The creator automatically owns their own passes, so the owner always sees "OWNED
 - Donations are real developer products (10 / 50 / 100 / 500 / 1000 R$) inside the Store window;
   the SUPPORT side button is gone.
 - Owner test chat: /race, /event money|luck|fuel|off, /golden.
+
+## Longer game (2026-10-05, "it's super easy to beat the game")
+Problems: a ring gave +1.5s fuel no matter how fast you fly, so fast rockets never ran out; the
+boost bar filled almost constantly; upgrades were so cheap they were all maxed by stage 10.
+Changes (checked with a balance sim, normal player without passes / pets / rebirths):
+- Rings refuel by distance (45 studs worth: less time for faster rockets). Crate boost: 90 studs.
+- Boost fills ~3x slower (coin 0.035, gem 0.12, ring 0.08). Combo: x1.5 every 8, max x3.
+- Stage 2 costs $2,000, each stage x2.4 (was $500, x2.2). Upgrades start 2x pricier and grow x1.65
+  (Money x1.7) per level. Rockets 3x pricier.
+- Pace now: stage 2 ~3 min, stage 10 ~45 min (31 min skilled / 63 min clumsy), stage 20 ~4.5 h,
+  stage 30 30h+ without pets and rebirths (pets + rebirths are what get you there).
+- The owner gets every gamepass free (x2.5 money, +50% fuel): test as a normal player with /pass none.

@@ -414,7 +414,7 @@ local function openCrate(player, f, p)
 	end
 	if roll < Config.Crate.petChance + Config.Crate.boostChance then
 		f.boost = 1
-		f.fuel += 2
+		f.fuel += Config.Crate.fuelStuds / f.speed
 		return { prize = "boost", fuel = f.fuel }
 	end
 	local amount = math.floor(Config.moneyPerStud(p.stage) * Config.Crate.studs * moneyMultiplier(player))
@@ -452,7 +452,7 @@ CollectRemote.OnServerEvent:Connect(function(player, id)
 	elseif p.kind == "Ring" then
 		local r = Config.Pickups.Ring
 		addCombo(f, p)
-		f.fuel += r.fuel
+		f.fuel += r.fuelStuds / f.speed
 		f.boostUntil = now + r.boostTime
 		player:SetAttribute("StatRings", (player:GetAttribute("StatRings") or 0) + 1)
 		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Ring", fuel = f.fuel, combo = f.combo, boost = f.boost })

@@ -16,8 +16,8 @@ Config.SKY_RISE = 600 -- how high the path climbs through the Sky zone
 -- Money
 Config.MONEY_PER_STUD = 1 -- in stage 1
 Config.STAGE_MONEY_GROWTH = 1.7 -- each stage pays this much more per stud
-Config.STAGE_COST_BASE = 500 -- price of stage 2
-Config.STAGE_COST_GROWTH = 2.2
+Config.STAGE_COST_BASE = 2000 -- price of stage 2
+Config.STAGE_COST_GROWTH = 2.4 -- grows faster than income (x1.7): later stages take many flights
 
 -- Stages: Earth (1-10) -> Sky (11-20) -> Space (21-30)
 Config.Stages = {
@@ -58,23 +58,23 @@ Config.Stages = {
 -- Rockets: speed = studs/sec, fuel = seconds of thrust. Bought in the shop (step 2).
 Config.Rockets = {
 	{ id = "Starter", name = "Starter Rocket", speed = 40, fuel = 5, price = 0, color = Color3.fromRGB(230, 230, 235), accent = Color3.fromRGB(220, 50, 50) },
-	{ id = "Bottle", name = "Bottle Rocket", speed = 50, fuel = 6, price = 1000, color = Color3.fromRGB(120, 200, 255), accent = Color3.fromRGB(40, 90, 200) },
-	{ id = "Firework", name = "Firework", speed = 60, fuel = 7.5, price = 6000, color = Color3.fromRGB(255, 80, 80), accent = Color3.fromRGB(255, 220, 60) },
-	{ id = "Turbo", name = "Turbo Rocket", speed = 75, fuel = 9, price = 40000, color = Color3.fromRGB(255, 150, 30), accent = Color3.fromRGB(40, 40, 40) },
-	{ id = "Jet", name = "Jet Rocket", speed = 90, fuel = 11, price = 250000, color = Color3.fromRGB(80, 80, 90), accent = Color3.fromRGB(0, 200, 255) },
-	{ id = "Shuttle", name = "Space Shuttle", speed = 110, fuel = 13, price = 1500000, color = Color3.fromRGB(245, 245, 245), accent = Color3.fromRGB(30, 30, 30) },
-	{ id = "Plasma", name = "Plasma Rocket", speed = 135, fuel = 15, price = 10000000, color = Color3.fromRGB(170, 60, 255), accent = Color3.fromRGB(255, 120, 255) },
-	{ id = "Galaxy", name = "Galaxy Rocket", speed = 165, fuel = 18, price = 80000000, color = Color3.fromRGB(20, 20, 60), accent = Color3.fromRGB(120, 200, 255) },
-	{ id = "Quantum", name = "Quantum Rocket", speed = 200, fuel = 21, price = 700000000, color = Color3.fromRGB(0, 255, 170), accent = Color3.fromRGB(255, 255, 255) },
-	{ id = "Nova", name = "Nova Rocket", speed = 250, fuel = 25, price = 6000000000, color = Color3.fromRGB(255, 215, 0), accent = Color3.fromRGB(255, 80, 0) },
+	{ id = "Bottle", name = "Bottle Rocket", speed = 50, fuel = 6, price = 3000, color = Color3.fromRGB(120, 200, 255), accent = Color3.fromRGB(40, 90, 200) },
+	{ id = "Firework", name = "Firework", speed = 60, fuel = 7.5, price = 18000, color = Color3.fromRGB(255, 80, 80), accent = Color3.fromRGB(255, 220, 60) },
+	{ id = "Turbo", name = "Turbo Rocket", speed = 75, fuel = 9, price = 120000, color = Color3.fromRGB(255, 150, 30), accent = Color3.fromRGB(40, 40, 40) },
+	{ id = "Jet", name = "Jet Rocket", speed = 90, fuel = 11, price = 750000, color = Color3.fromRGB(80, 80, 90), accent = Color3.fromRGB(0, 200, 255) },
+	{ id = "Shuttle", name = "Space Shuttle", speed = 110, fuel = 13, price = 4500000, color = Color3.fromRGB(245, 245, 245), accent = Color3.fromRGB(30, 30, 30) },
+	{ id = "Plasma", name = "Plasma Rocket", speed = 135, fuel = 15, price = 30000000, color = Color3.fromRGB(170, 60, 255), accent = Color3.fromRGB(255, 120, 255) },
+	{ id = "Galaxy", name = "Galaxy Rocket", speed = 165, fuel = 18, price = 240000000, color = Color3.fromRGB(20, 20, 60), accent = Color3.fromRGB(120, 200, 255) },
+	{ id = "Quantum", name = "Quantum Rocket", speed = 200, fuel = 21, price = 2100000000, color = Color3.fromRGB(0, 255, 170), accent = Color3.fromRGB(255, 255, 255) },
+	{ id = "Nova", name = "Nova Rocket", speed = 250, fuel = 25, price = 18000000000, color = Color3.fromRGB(255, 215, 0), accent = Color3.fromRGB(255, 80, 0) },
 }
 
 -- Upgrades (shop, step 2). Each level adds `perLevel` (as a fraction) to that stat.
 Config.Upgrades = {
-	Fuel = { name = "Fuel Tank", perLevel = 0.08, baseCost = 100, costGrowth = 1.45, maxLevel = 30 },
-	Speed = { name = "Engine", perLevel = 0.05, baseCost = 150, costGrowth = 1.45, maxLevel = 30 },
-	Money = { name = "Money Boost", perLevel = 0.10, baseCost = 200, costGrowth = 1.5, maxLevel = 30 },
-	Cannon = { name = "Cannon Power", perLevel = 0.15, baseCost = 250, costGrowth = 1.5, maxLevel = 30 },
+	Fuel = { name = "Fuel Tank", perLevel = 0.08, baseCost = 200, costGrowth = 1.65, maxLevel = 30 },
+	Speed = { name = "Engine", perLevel = 0.05, baseCost = 300, costGrowth = 1.65, maxLevel = 30 },
+	Money = { name = "Money Boost", perLevel = 0.10, baseCost = 400, costGrowth = 1.7, maxLevel = 30 },
+	Cannon = { name = "Cannon Power", perLevel = 0.15, baseCost = 500, costGrowth = 1.65, maxLevel = 30 },
 }
 
 -- The launch cannon shoots you out with a blast of extra speed that fades back to your rocket's
@@ -302,7 +302,8 @@ end
 Config.Pickups = {
 	Coin = { studs = 20, perStage = 14 },
 	Gem = { studs = 120, perStage = 2 },
-	Ring = { perStage = 3, fuel = 1.5, boost = 1.6, boostTime = 1.5 }, -- +fuel seconds, speed x1.6
+	-- a ring refuels enough to fly `fuelStuds` more studs (so fast rockets get less time: no endless flights)
+	Ring = { perStage = 3, fuelStuds = 45, boost = 1.6, boostTime = 1.5 },
 	Obstacle = { perStage = 4, fuelLoss = 1, slow = 0.45, slowTime = 0.9 },
 }
 Config.PICKUP_RADIUS = 9 -- generous on purpose: it should feel easy to grab coins
@@ -331,17 +332,17 @@ end
 
 -- Boost: grabbing coins / gems / rings charges the boost bar; hold SPACE (or the BOOST button)
 -- to fly faster without using fuel.
-Config.Boost = { speed = 1.6, drainTime = 2.5, Coin = 0.1, Gem = 0.35, Ring = 0.25 }
+Config.Boost = { speed = 1.6, drainTime = 2.5, Coin = 0.035, Gem = 0.12, Ring = 0.08 }
 
 -- Combo: every coin, gem or ring adds to the combo; fly `gap` studs without grabbing one (or hit
 -- an obstacle) and it's gone. Coins pay x the combo multiplier.
-Config.Combo = { gap = 300, step = 5, perStep = 0.5, max = 5 }
+Config.Combo = { gap = 300, step = 8, perStep = 0.5, max = 3 }
 function Config.comboMult(n)
 	return math.min(Config.Combo.max, 1 + math.floor((n or 0) / Config.Combo.step) * Config.Combo.perStep)
 end
 
 -- Surprises that may show up somewhere ahead of you in a flight (only on your screen).
-Config.Crate = { chance = 0.45, studs = 400, petChance = 0.05, boostChance = 0.25 } -- mystery crate
+Config.Crate = { chance = 0.45, studs = 400, petChance = 0.05, boostChance = 0.25, fuelStuds = 90 } -- mystery crate
 Config.GoldenCoin = { chance = 1 / 40, studs = 2500 } -- super rare, the whole server hears about it
 
 -- Social + events ------------------------------------------------------------------------------
