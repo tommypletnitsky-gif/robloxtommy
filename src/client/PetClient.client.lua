@@ -173,7 +173,7 @@ local function openEgg(egg, promptPart)
 		c.name.Text = pet.name
 		c.boost.Text = multText(pet.mult) .. " 💰"
 		local lucky = Config.hasPass(player, "LuckyEggs")
-		c.chance.Text = (lucky and "🍀 " or "") .. Config.rarityChances(lucky)[rarity] .. "%"
+		c.chance.Text = (lucky and "🍀 " or "") .. Config.rarityChances(lucky, Config.activeEvent() == "Luck")[rarity] .. "%"
 		c.chance.TextColor3 = lucky and Color3.fromRGB(40, 160, 70) or INK_SOFT
 		c.holder:ClearAllChildren()
 		viewport(c.holder, petModel(kind), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })

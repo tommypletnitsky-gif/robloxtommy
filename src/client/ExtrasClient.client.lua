@@ -1,7 +1,6 @@
--- Side bar: free timed gifts, daily reward, and the "support the game" donation window.
+-- Side bar: free timed gifts and the daily reward. (Donations live in the Store window: StoreClient.)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local MarketplaceService = game:GetService("MarketplaceService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
@@ -14,10 +13,9 @@ local make, label = UIKit.make, UIKit.label
 local abbreviate = Config.abbreviate
 local side = UIKit.sideBar()
 
-local PINK, GOLD, TEAL = Color3.fromRGB(255, 110, 170), Color3.fromRGB(255, 180, 40), Color3.fromRGB(40, 190, 200)
+local PINK, GOLD = Color3.fromRGB(255, 110, 170), Color3.fromRGB(255, 180, 40)
 local giftsBtn = UIKit.button({ Parent = side, LayoutOrder = 1, Icon3D = "Gift", Text = "GIFTS", Color = PINK, Size = UDim2.fromOffset(92, 98), Radius = 22 })
 local dailyBtn = UIKit.button({ Parent = side, LayoutOrder = 2, Icon3D = "Calendar", Text = "DAILY", Color = GOLD, Size = UDim2.fromOffset(92, 98), Radius = 22 })
-local donateBtn = UIKit.button({ Parent = side, LayoutOrder = 3, Icon3D = "Heart", Text = "SUPPORT", Color = TEAL, Size = UDim2.fromOffset(92, 98), Radius = 22 })
 local giftBadge = UIKit.badge(giftsBtn.Instance)
 local dailyBadge = UIKit.badge(dailyBtn.Instance)
 
@@ -123,25 +121,6 @@ local function refreshDaily()
 	dailyBadge.Visible = ready
 end
 
--- Donations ----------------------------------------------------------------------------------
-local donateWindow, donateList = UIKit.window("Support the Game", TEAL, UDim2.fromOffset(620, 500), "Heart")
-local thanks = UIKit.row(donateList, 0, 70)
-label({ Parent = thanks, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 1, -16), Text = "Donations help us add new rockets & worlds!\nTop donators get shown on the board in the lobby.", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-for i, d in ipairs(Config.Donations) do
-	local r = UIKit.row(donateList, i, 80)
-	local iconBox = make("Frame", { Parent = r, Position = UDim2.fromOffset(8, 4), Size = UDim2.fromOffset(72, 72), BackgroundTransparency = 1, ZIndex = 12 })
-	UIKit.icon3D(iconBox, "Heart", { ZIndex = 12 })
-	label({ Parent = r, Position = UDim2.fromOffset(88, 14), Size = UDim2.new(1, -250, 1, -28), TextXAlignment = Enum.TextXAlignment.Left, Text = "Donate " .. d.robux .. " Robux", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-	local btn = UIKit.button({ Parent = r, Text = d.id ~= 0 and ("R$ " .. d.robux) or "SOON", Color = d.id ~= 0 and TEAL or Color3.fromRGB(160, 165, 185), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(140, 54), ZIndex = 12 })
-	btn.Instance.Activated:Connect(function()
-		if d.id == 0 then
-			UIKit.toast("Donations open soon!", Color3.fromRGB(255, 230, 120))
-			return
-		end
-		MarketplaceService:PromptProductPurchase(player, d.id)
-	end)
-end
-
 giftsBtn.Instance.Activated:Connect(function()
 	refreshGifts()
 	UIKit.toggle(giftsWindow)
@@ -149,9 +128,6 @@ end)
 dailyBtn.Instance.Activated:Connect(function()
 	refreshDaily()
 	UIKit.toggle(dailyWindow)
-end)
-donateBtn.Instance.Activated:Connect(function()
-	UIKit.toggle(donateWindow)
 end)
 
 -- Tick timers once a second; pop the daily window on join if it's ready.

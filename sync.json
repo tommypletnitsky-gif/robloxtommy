@@ -27,5 +27,7 @@
   {"file": "src/client/GuideClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.GuideClient", "class": "LocalScript"},
   {"file": "src/client/BestMarkerClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.BestMarkerClient", "class": "LocalScript"},
   {"file": "src/server/GamepassServer.server.lua", "path": "ServerScriptService.GamepassServer", "class": "Script"},
-  {"file": "src/client/StoreClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.StoreClient", "class": "LocalScript"}
+  {"file": "src/client/StoreClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.StoreClient", "class": "LocalScript"},
+  {"file": "src/server/EventServer.server.lua", "path": "ServerScriptService.EventServer", "class": "Script"},
+  {"file": "src/client/EventClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.EventClient", "class": "LocalScript"}
 ]

@@ -36,6 +36,8 @@ PlayerData.DEFAULTS = {
 	StatCoins = 0,
 	StatRings = 0,
 	StatEggs = 0,
+	RaceWins = 0,
+	BestCombo = 0,
 	QuestTiers = "", -- "flights:2,best:1" = goals claimed per quest chain
 	Codes = "", -- redeemed codes
 	MusicOn = true,

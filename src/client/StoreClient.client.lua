@@ -47,6 +47,29 @@ for i, pass in ipairs(Config.Gamepasses) do
 	cards[pass.key] = { pass = pass, button = button, price = pass.robux }
 end
 
+-- Support the game: Robux donations (developer products, Config.Donations). Top supporters show
+-- on the leaderboard in the lobby.
+local TEAL = Color3.fromRGB(40, 190, 200)
+local supportHead = UIKit.row(list, 2, 70)
+local heartBox = make("Frame", { Parent = supportHead, Position = UDim2.fromOffset(6, 2), Size = UDim2.fromOffset(66, 66), BackgroundTransparency = 1, ZIndex = 12 })
+if ReplicatedStorage:FindFirstChild("UIIcons") and ReplicatedStorage.UIIcons:FindFirstChild("Heart") then
+	UIKit.icon3D(heartBox, "Heart", { ZIndex = 13 })
+end
+label({ Parent = supportHead, Position = UDim2.fromOffset(80, 8), Size = UDim2.new(1, -96, 1, -16), TextXAlignment = Enum.TextXAlignment.Left, Text = "Support the game! Top supporters are shown on the board in the lobby.", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+local donateRow = make("Frame", { Parent = list, LayoutOrder = 3, Size = UDim2.new(1, -12, 0, 66), BackgroundTransparency = 1, ZIndex = 11 }, {
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
+})
+for i, d in ipairs(Config.Donations) do
+	local b = UIKit.button({ Parent = donateRow, LayoutOrder = i, Text = "❤ R$ " .. d.robux, Color = d.id ~= 0 and TEAL or GREY, Size = UDim2.fromOffset(128, 58), ZIndex = 12 })
+	b.Instance.Activated:Connect(function()
+		if d.id == 0 then
+			UIKit.toast("Donations open soon!", Color3.fromRGB(255, 230, 120))
+		else
+			MarketplaceService:PromptProductPurchase(player, d.id)
+		end
+	end)
+end
+
 local function refresh()
 	for key, c in pairs(cards) do
 		if Config.hasPass(player, key) then

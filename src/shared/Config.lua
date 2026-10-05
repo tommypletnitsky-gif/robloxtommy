@@ -306,6 +306,72 @@ Config.Pickups = {
 	Obstacle = { perStage = 4, fuelLoss = 1, slow = 0.45, slowTime = 0.9 },
 }
 Config.PICKUP_RADIUS = 9 -- generous on purpose: it should feel easy to grab coins
+-- Obstacles per stage by zone (Earth gets flying drones, Sky storm clouds, Space asteroids).
+-- Stage 1 stays gentle for new players.
+function Config.obstaclesIn(stage)
+	if stage == 1 then
+		return 2
+	end
+	return Config.Stages[stage].zone == "Earth" and 3 or Config.Pickups.Obstacle.perStage
+end
+
+-- Flying skill -------------------------------------------------------------------------------
+-- Power launch: during the countdown a needle swings across a bar; stop it in the green for a
+-- stronger cannon blast.
+Config.POWER_PERIOD = 1.1 -- seconds for the needle to swing across and back
+Config.LaunchPower = {
+	perfect = { zone = 0.07, blast = 1.3, time = 0.5, text = "PERFECT LAUNCH!" }, -- zone = half width
+	good = { zone = 0.18, blast = 1.12, time = 0.2, text = "GOOD LAUNCH!" },
+}
+-- Where the needle is (0..1) `t` seconds after it starts swinging.
+function Config.powerNeedle(t)
+	local u = (t / Config.POWER_PERIOD) % 1
+	return u < 0.5 and u * 2 or 2 - u * 2
+end
+
+-- Boost: grabbing coins / gems / rings charges the boost bar; hold SPACE (or the BOOST button)
+-- to fly faster without using fuel.
+Config.Boost = { speed = 1.6, drainTime = 2.5, Coin = 0.1, Gem = 0.35, Ring = 0.25 }
+
+-- Combo: every coin, gem or ring adds to the combo; fly `gap` studs without grabbing one (or hit
+-- an obstacle) and it's gone. Coins pay x the combo multiplier.
+Config.Combo = { gap = 300, step = 5, perStep = 0.5, max = 5 }
+function Config.comboMult(n)
+	return math.min(Config.Combo.max, 1 + math.floor((n or 0) / Config.Combo.step) * Config.Combo.perStep)
+end
+
+-- Surprises that may show up somewhere ahead of you in a flight (only on your screen).
+Config.Crate = { chance = 0.45, studs = 400, petChance = 0.05, boostChance = 0.25 } -- mystery crate
+Config.GoldenCoin = { chance = 1 / 40, studs = 2500 } -- super rare, the whole server hears about it
+
+-- Social + events ------------------------------------------------------------------------------
+Config.FRIEND_BOOST = 0.1 -- +10% money for each friend in your server
+Config.FRIEND_BOOST_MAX = 5
+Config.GROUP_ID = 0 -- your Roblox group's id; members get GROUP_BOOST (0 = no group yet)
+Config.GROUP_BOOST = 0.1
+
+-- Race: every `every` seconds a race opens; everyone who joins launches together.
+-- Prizes are paid like flying `studs` studs in your highest unlocked stage.
+Config.Race = { every = 600, joinTime = 45, maxTime = 100, prizes = { 1500, 1000, 700 }, joinPrize = 400 }
+
+-- Server events: one starts every `every` seconds and lasts `length` seconds.
+Config.EVENT_EVERY = 900
+Config.EVENT_LENGTH = 300
+Config.EVENT_MONEY = 2 -- x money from flights
+Config.EVENT_FUEL = 1.25 -- x fuel
+Config.EVENT_LUCK = 2 -- x Epic / Legendary chance
+Config.Events = {
+	Money = { name = "x2 MONEY", desc = "All flight money is doubled!", color = Color3.fromRGB(80, 210, 90), icon = "MoneyBag" },
+	Luck = { name = "LUCKY EGGS x2", desc = "Epic + Legendary pets are 2x more likely!", color = Color3.fromRGB(60, 190, 110), icon = "Clover" },
+	Fuel = { name = "FUEL FRENZY", desc = "+25% fuel on every rocket!", color = Color3.fromRGB(255, 150, 40), icon = "FuelCan" },
+}
+-- the event running right now (nil if none)
+function Config.activeEvent()
+	local key = workspace:GetAttribute("Event")
+	if key and (workspace:GetAttribute("EventEnds") or 0) > workspace:GetServerTimeNow() then
+		return key
+	end
+end
 
 -- Free gifts: unlock after this many minutes of play in one session.
 Config.GiftMinutes = { 1, 3, 5, 8, 12, 16, 20, 25, 30, 40 }
@@ -338,14 +404,16 @@ Config.PASS = {
 	PetSlots = 3,
 	MegaFuel = 1.5, -- fuel x
 }
--- hatch chances (%) per rarity; Lucky Eggs pass: Epic + Legendary x3, taken from Common
-function Config.rarityChances(lucky)
+-- hatch chances (%) per rarity; Lucky Eggs pass: Epic + Legendary x3, the Lucky Eggs server
+-- event another x2; the extra chance is taken from Common
+function Config.rarityChances(lucky, luckEvent)
 	local chance = table.clone(Config.RARITY_CHANCE)
-	if lucky then
+	local factor = (lucky and Config.PASS.LuckyEggs or 1) * (luckEvent and Config.EVENT_LUCK or 1)
+	if factor > 1 then
 		local extra = 0
 		for _, r in ipairs({ "Epic", "Legendary" }) do
-			extra += chance[r] * (Config.PASS.LuckyEggs - 1)
-			chance[r] *= Config.PASS.LuckyEggs
+			extra += chance[r] * (factor - 1)
+			chance[r] *= factor
 		end
 		chance.Common = math.max(0, chance.Common - extra)
 	end
@@ -370,11 +438,11 @@ end
 -- Robux donations. Create Developer Products on the Creator Dashboard, then paste their ids here.
 -- id = 0 means "not set up yet" and the button shows as coming soon.
 Config.Donations = {
-	{ robux = 10, id = 0 },
-	{ robux = 50, id = 0 },
-	{ robux = 100, id = 0 },
-	{ robux = 500, id = 0 },
-	{ robux = 1000, id = 0 },
+	{ robux = 10, id = 3716679535 },
+	{ robux = 50, id = 3716679654 },
+	{ robux = 100, id = 3716679690 },
+	{ robux = 500, id = 3716679750 },
+	{ robux = 1000, id = 3716679787 },
 }
 
 -- Sounds (Creator Store audio)

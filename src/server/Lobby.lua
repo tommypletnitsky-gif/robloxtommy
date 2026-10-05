@@ -503,7 +503,76 @@ local function decor(hub)
 	end
 end
 
+-- Leaderboard beside the main path (ExtrasServer fills in the rows and flips between
+-- Farthest Flights / Richest / Top Supporters).
+local function topBoard(hub)
+	local m = Instance.new("Model")
+	m.Name = "TopBoard"
+	m.Parent = hub
+	local W, H, BOTTOM = 17, 13, 3.2
+	local x, z = -67, -24
+	local face = Vector3.new(-0.35, 0, 1).Unit -- looks at the path, turned a bit toward the spawn
+	local center = Vector3.new(x, LAWN_TOP + BOTTOM + H / 2, z)
+	local cf = CFrame.lookAt(center, center + face)
+	for _, side in ipairs({ -1, 1 }) do
+		local base = (cf * CFrame.new(side * (W / 2 - 0.6), 0, 0.5)).Position
+		cyl(m, BOTTOM + H + 0.6, 1.1, CFrame.new(base.X, LAWN_TOP + (BOTTOM + H + 0.6) / 2, base.Z) * UP, darker(BORDER, 0.2))
+	end
+	part(m, { Name = "Frame", Size = Vector3.new(W + 1, H + 1, 0.8), CFrame = cf * CFrame.new(0, 0, 0.45), Color = darker(SIGN, 0.35) })
+	local panel = part(m, { Name = "Panel", Size = Vector3.new(W, H, 0.4), CFrame = cf, Color = WHITE })
+	local roof = part(m, { Name = "Roof", Size = Vector3.new(W + 2, 1, 2), CFrame = cf * CFrame.new(0, H / 2 + 0.9, 0.3), Color = SIGN })
+	roof.Material = M.SmoothPlastic
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Board"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0
+	gui.Parent = panel
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.BackgroundColor3 = WHITE
+	bg.Parent = gui
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = 90
+	grad.Color = ColorSequence.new(C(255, 255, 255), C(214, 230, 255))
+	grad.Parent = bg
+	local function text(name, y, h, color, stroke)
+		local l = Instance.new("TextLabel")
+		l.Name = name
+		l.BackgroundTransparency = 1
+		l.Position = UDim2.fromScale(0.04, y)
+		l.Size = UDim2.fromScale(0.92, h)
+		l.Font = Enum.Font.FredokaOne
+		l.TextScaled = true
+		l.TextColor3 = color
+		l.Text = ""
+		l.Parent = bg
+		if stroke then
+			local s = Instance.new("UIStroke")
+			s.Thickness = 4
+			s.Color = C(30, 30, 50)
+			s.Parent = l
+		end
+		return l
+	end
+	local title = text("Title", 0.02, 0.14, C(255, 200, 50), true)
+	title.Text = "🚀 FARTHEST FLIGHTS"
+	text("Subtitle", 0.16, 0.06, C(90, 100, 140), false)
+	local rows = Instance.new("Frame")
+	rows.Name = "Rows"
+	rows.BackgroundTransparency = 1
+	rows.Position = UDim2.fromScale(0.04, 0.24)
+	rows.Size = UDim2.fromScale(0.92, 0.74)
+	rows.Parent = bg
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0.005, 0)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = rows
+end
+
 function Lobby.build(hub)
+	topBoard(hub)
 	ground(hub)
 	spawnArea(hub)
 	for _, info in ipairs(SHOPS) do

@@ -125,3 +125,22 @@ On sale since 2026-10-05 (Creator Dashboard -> Monetization -> Passes; price set
 Lucky Eggs 99 (2005683456), +3 Pet Slots 129 (2006871467), Mega Fuel 49 (2005743470).
 The store reads live prices from Roblox, so a price change on the dashboard shows up without code changes.
 The creator automatically owns their own passes, so the owner always sees "OWNED".
+
+## Fun update (2026-10-05, "what's missing" -> "do all of it")
+- Power launch: during the countdown a needle swings over a red/yellow/green bar; click / tap /
+  SPACE to stop it. Green = PERFECT (blast x1.3, +0.5s), yellow = GOOD (x1.12). (Config.LaunchPower)
+- Boost: coins / gems / rings fill a boost bar; hold SPACE, R2 or the BOOST button for x1.6 speed
+  with no fuel cost. Server tracks the bar too. (Config.Boost) SPACE / Shift no longer steer up/down.
+- Combo: every coin / gem / ring adds to it; 300 studs without one or hitting an obstacle ends it.
+  Coins pay x1.5 at 5, x2 at 10 ... up to x5. Best combo saved (BestCombo). (Config.Combo)
+- Earth obstacles: flying drones (owner said no birds earlier), 2 in stage 1, 3 per Earth stage.
+- Surprises per flight (only you see them): mystery crate 45% (money bag / super boost / 5% free pet),
+  golden coin 1 in 40 (server-wide shout). (Config.Crate, Config.GoldenCoin)
+- Races (EventServer): every 10 min a 45s JOIN window, everyone launches together, live standings,
+  prizes for top 3 + something for everyone, RaceWins stat, results window.
+- Server events every 15 min for 5 min: x2 Money / Lucky Eggs x2 / Fuel Frenzy +25%.
+- Friend boost +10% money per friend in the server (max +50%). Group boost ready (Config.GROUP_ID = 0).
+- Lobby leaderboard beside the main path flipping Farthest Flights / Richest / Top Supporters.
+- Donations are real developer products (10 / 50 / 100 / 500 / 1000 R$) inside the Store window;
+  the SUPPORT side button is gone.
+- Owner test chat: /race, /event money|luck|fuel|off, /golden.

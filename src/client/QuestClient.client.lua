@@ -134,7 +134,7 @@ local codeRow = UIKit.row(settingsList, 3, 150)
 label({ Parent = codeRow, Position = UDim2.fromOffset(18, 10), Size = UDim2.new(1, -36, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, Text = "🎟️ Codes", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 local box = make("TextBox", { Parent = codeRow, Position = UDim2.fromOffset(18, 52), Size = UDim2.new(1, -210, 0, 60), BackgroundColor3 = Color3.fromRGB(240, 244, 255), Font = UIKit.FONT, TextScaled = true, PlaceholderText = "Type a code...", PlaceholderColor3 = Color3.fromRGB(150, 155, 180), Text = "", TextColor3 = UIKit.INK, ClearTextOnFocus = false, ZIndex = 12 }, { UIKit.corner(16), UIKit.stroke(3, Color3.fromRGB(170, 180, 210)), make("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10) }) })
 local redeem = UIKit.button({ Parent = codeRow, Text = "REDEEM", Color = GREEN, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 52), Size = UDim2.fromOffset(170, 64), ZIndex = 12 })
-local codeHint = label({ Parent = codeRow, Position = UDim2.fromOffset(18, 118), Size = UDim2.new(1, -36, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "Try ROCKET or BLASTOFF!", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
+local codeHint = label({ Parent = codeRow, Position = UDim2.fromOffset(18, 118), Size = UDim2.new(1, -36, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "Try ROCKET!  👍 Like the game: new codes at 100 and 500 likes!", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
 local function redeemCode()
 	if box.Text == "" then
 		return
@@ -155,8 +155,8 @@ box.FocusLost:Connect(function(enter)
 	end
 end)
 
-local controls = UIKit.row(settingsList, 4, 118)
-label({ Parent = controls, Position = UDim2.fromOffset(18, 10), Size = UDim2.new(1, -36, 1, -20), TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextScaled = false, TextSize = 20, TextWrapped = true, Text = "Flying: WASD or hold left-click + drag to steer.  Right-click + move to look around (C = back).  Mouse wheel or I / O to zoom.  On phones: drag to steer, pinch to zoom.", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
+local controls = UIKit.row(settingsList, 4, 150)
+label({ Parent = controls, Position = UDim2.fromOffset(18, 10), Size = UDim2.new(1, -36, 1, -20), TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextScaled = false, TextSize = 20, TextWrapped = true, Text = "Launch: click / tap in the green for a POWER LAUNCH.  Flying: WASD or hold left-click + drag to steer, hold SPACE to boost (grab coins to charge it).  Right-click + move to look around (C = back).  Mouse wheel or I / O to zoom.  Phones: drag to steer, hold BOOST, pinch to zoom.", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
 
 gearBtn.Instance.Activated:Connect(function()
 	UIKit.toggle(settingsWindow)

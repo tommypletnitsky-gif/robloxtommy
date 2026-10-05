@@ -117,16 +117,22 @@ local function buildPickups(folder, s)
 			newPart(m, { Size = Vector3.new(1, 1.2, 4), CFrame = CFrame.new(center) * CFrame.Angles(a, 0, 0) * CFrame.new(0, 7, 0), Color = i % 2 == 0 and Color3.fromRGB(255, 170, 30) or Color3.fromRGB(255, 240, 90), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false, CastShadow = false })
 		end
 	end
-	for _ = 1, (st.zone == "Earth" and 0 or Config.Pickups.Obstacle.perStage) do -- no birds on Earth
+	for _ = 1, Config.obstaclesIn(s) do
 		local m = pickupModel(folder, "Obstacle", s)
 		local c = spot(rng:NextNumber(x0 + first + 30, x0 + L - 30))
 		local core
-		if st.zone == "Earth" then -- a chunky cartoon bird
-			core = newPart(m, { Shape = Enum.PartType.Ball, Size = Vector3.one * 4, CFrame = CFrame.new(c), Color = Color3.fromRGB(240, 240, 245), CanCollide = false })
-			newPart(m, { Shape = Enum.PartType.Ball, Size = Vector3.one * 2.6, CFrame = CFrame.new(c + Vector3.new(-2.4, 1.2, 0)), Color = Color3.fromRGB(240, 240, 245), CanCollide = false })
-			newPart(m, { Size = Vector3.new(1.2, 0.6, 0.6), CFrame = CFrame.new(c + Vector3.new(-3.9, 1.1, 0)), Color = Color3.fromRGB(255, 160, 30), CanCollide = false })
-			for _, side in ipairs({ -1, 1 }) do
-				newPart(m, { Size = Vector3.new(2.6, 0.4, 5), CFrame = CFrame.new(c + Vector3.new(0.3, 0.8, side * 3.2)) * CFrame.Angles(side * 0.35, 0, 0), Color = Color3.fromRGB(200, 200, 210), CanCollide = false })
+		if st.zone == "Earth" then -- a chunky cartoon drone: dark body, red eye, four rotors
+			local DARK, RED = Color3.fromRGB(55, 58, 72), Color3.fromRGB(255, 60, 60)
+			local np = { CanCollide = false, CanQuery = false, CastShadow = false }
+			core = newPart(m, { Shape = Enum.PartType.Ball, Size = Vector3.new(4.4, 4.4, 4.4), CFrame = CFrame.new(c), Color = DARK, CanCollide = false })
+			newPart(m, { Size = Vector3.new(1.2, 1.2, 2.4), CFrame = CFrame.new(c + Vector3.new(-2, 0.3, 0)), Color = RED, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+			newPart(m, { Size = Vector3.new(0.6, 0.6, 2.6), CFrame = CFrame.new(c + Vector3.new(-2.2, -1.1, 0)), Color = Color3.fromRGB(255, 200, 40), CanCollide = false, CanQuery = false })
+			for _, dx in ipairs({ -1, 1 }) do
+				for _, dz in ipairs({ -1, 1 }) do
+					local hub = c + Vector3.new(dx * 2.6, 1.6, dz * 2.6)
+					newPart(m, { Size = Vector3.new(0.5, 0.5, 3.4), CFrame = CFrame.lookAt(c + Vector3.new(0, 1.3, 0), hub) * CFrame.new(0, 0, -1.8), Color = DARK, CanCollide = false, CanQuery = false })
+					cyl(m, 0.25, 3.6, CFrame.new(hub) * CFrame.Angles(0, 0, math.pi / 2), Color3.fromRGB(255, 120, 40), np).Transparency = 0.25
+				end
 			end
 		elseif st.zone == "Sky" then -- an angry storm cloud
 			core = newPart(m, { Shape = Enum.PartType.Ball, Size = Vector3.one * 7, CFrame = CFrame.new(c), Color = Color3.fromRGB(80, 80, 100), CanCollide = false })

@@ -37,6 +37,33 @@ local BuyUpgrade = remote("RemoteFunction", "BuyUpgrade") -- ("Fuel" | "Speed" |
 local BuyTrail = remote("RemoteFunction", "BuyTrail") -- (trailId) buys if needed, then equips
 local Notify = remote("RemoteEvent", "Notify") -- server -> client: (text, color)
 local RebirthRemote = remote("RemoteFunction", "Rebirth") -- () -> ok, message
+local LaunchPowerRemote = remote("RemoteEvent", "LaunchPower") -- client -> server during the countdown: ("perfect" | "good")
+local BoostRemote = remote("RemoteEvent", "Boost") -- client -> server: (on) holding the boost
+
+-- For EventServer (races): StartFlight:Invoke(player) -> started?, FlightEnded(player, distance, reason)
+local ServerStorage = game:GetService("ServerStorage")
+local function bindable(className, name)
+	local b = ServerStorage:FindFirstChild(name) or Instance.new(className)
+	b.Name = name
+	b.Parent = ServerStorage
+	return b
+end
+local StartFlightBindable = bindable("BindableFunction", "StartFlight")
+local FlightEnded = bindable("BindableEvent", "FlightEnded")
+
+-- Riders don't bump into each other (everyone in a race is shot out of the same cannon).
+local PhysicsService = game:GetService("PhysicsService")
+pcall(function()
+	PhysicsService:RegisterCollisionGroup("Riders")
+	PhysicsService:CollisionGroupSetCollidable("Riders", "Riders", false)
+end)
+local function setRiderGroup(char, group)
+	for _, d in ipairs(char:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.CollisionGroup = group
+		end
+	end
+end
 
 local flights = {} -- [player] = flight state
 
@@ -50,6 +77,14 @@ local function moneyMultiplier(player)
 	end
 	if Config.hasPass(player, "VIP") then
 		m *= Config.PASS.VIPMoney
+	end
+	-- friends in the server + group members (EventServer sets these)
+	m *= 1 + math.min(player:GetAttribute("Friends") or 0, Config.FRIEND_BOOST_MAX) * Config.FRIEND_BOOST
+	if player:GetAttribute("InGroup") then
+		m *= 1 + Config.GROUP_BOOST
+	end
+	if Config.activeEvent() == "Money" then
+		m *= Config.EVENT_MONEY
 	end
 	return m
 end
@@ -66,6 +101,9 @@ local function rocketStats(player)
 	local fuel = def.fuel * (1 + (player:GetAttribute("FuelLevel") or 0) * Config.Upgrades.Fuel.perLevel)
 	if Config.hasPass(player, "MegaFuel") then
 		fuel *= Config.PASS.MegaFuel
+	end
+	if Config.activeEvent() == "Fuel" then
+		fuel *= Config.EVENT_FUEL
 	end
 	return def, speed, fuel
 end
@@ -118,6 +156,7 @@ local function mountRider(f, char, hum, root)
 	weld.Part1 = root
 	weld.Parent = root
 	f.weld = weld
+	setRiderGroup(char, "Riders")
 end
 
 local function dismountRider(f, hum)
@@ -127,6 +166,9 @@ local function dismountRider(f, hum)
 	end
 	if hum then
 		hum.PlatformStand = false
+		if hum.Parent then
+			setRiderGroup(hum.Parent, "Default")
+		end
 	end
 end
 
@@ -147,6 +189,9 @@ local function endFlight(player, reason)
 	if newBest then
 		player:SetAttribute("BestDistance", distance)
 	end
+	if f.bestCombo > (player:GetAttribute("BestCombo") or 0) then
+		player:SetAttribute("BestCombo", f.bestCombo)
+	end
 	FlightEvent:FireClient(player, "result", {
 		distance = distance,
 		money = money,
@@ -154,7 +199,9 @@ local function endFlight(player, reason)
 		coins = f.coins,
 		reason = reason,
 		newBest = newBest,
+		bestCombo = f.bestCombo,
 	})
+	FlightEnded:Fire(player, distance, reason)
 
 	-- Keep the rocket where it landed for a moment (landing celebration), then go home.
 	local body = f.model and f.model.PrimaryPart
@@ -185,15 +232,41 @@ local function endFlight(player, reason)
 	end)
 end
 
+-- Surprises somewhere ahead in this flight (only this player sees them): maybe a mystery crate,
+-- very rarely a golden coin. Placed between a bit past the cannon and about how far you'll fly.
+local extrasRng = Random.new()
+local function rollExtras(player, f)
+	local extras = {}
+	local reach = f.speed * f.fuel * 0.8
+	local unlocked = player:GetAttribute("UnlockedStage") or 1
+	local limit = (unlocked < Config.NUM_STAGES and Config.stageEndX(unlocked) or Config.stageEndX(Config.NUM_STAGES)) - 40
+	local function spot()
+		local x = math.min(f.startX + extrasRng:NextNumber(150, math.max(220, reach)), limit)
+		local y = Config.pathY(x) + extrasRng:NextNumber(Config.FLY_MIN_HEIGHT + 4, 34)
+		local z = extrasRng:NextNumber(-Config.PATH_HALF_WIDTH + 8, Config.PATH_HALF_WIDTH - 8)
+		return Vector3.new(x, y, z)
+	end
+	if extrasRng:NextNumber() < Config.Crate.chance then
+		local pos = spot()
+		extras[-1] = { kind = "Crate", pos = pos, stage = Config.stageAt(pos.X) }
+	end
+	if extrasRng:NextNumber() < Config.GoldenCoin.chance or player:GetAttribute("ForceGolden") then
+		player:SetAttribute("ForceGolden", nil)
+		local pos = spot()
+		extras[-2] = { kind = "Golden", pos = pos, stage = Config.stageAt(pos.X) }
+	end
+	return extras
+end
+
 local function startFlight(player)
 	if flights[player] or player:GetAttribute("Flying") then
-		return
+		return false
 	end
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	if not hum or not root or hum.Health <= 0 then
-		return
+		return false
 	end
 	local def, speed, fuel = rocketStats(player)
 	hum:UnequipTools()
@@ -223,6 +296,14 @@ local function startFlight(player)
 		collected = {},
 		bonus = 0,
 		coins = 0,
+		boost = 0, -- boost bar 0..1, charged by pickups
+		boostOn = false,
+		boostGrace = 0, -- the client may still be boosting for a moment after the bar empties here
+		combo = 0,
+		bestCombo = 0,
+		comboX = Config.LAUNCH_X, -- x of the last pickup that counted for the combo
+		power = nil, -- "perfect" | "good" from the countdown power bar
+		extras = {},
 	}
 	flights[player] = f
 	player:SetAttribute("Flying", true)
@@ -266,21 +347,90 @@ local function startFlight(player)
 		f.maxX = math.max(f.startX, body.Position.X) + 15
 		-- BOOM: the cannon blast (stronger + longer with Cannon Power upgrades)
 		f.blastPower, f.blastTime = Config.cannonBlast(player:GetAttribute("CannonLevel") or 0)
-		FlightEvent:FireClient(player, "start", { speed = speed, fuel = fuel, startX = f.startX, rocket = model, blastPower = f.blastPower, blastTime = f.blastTime })
+		local lp = f.power and Config.LaunchPower[f.power]
+		if lp then -- stopped the power needle in the green / yellow
+			f.blastPower *= lp.blast
+			f.blastTime += lp.time
+		end
+		f.extras = rollExtras(player, f)
+		local extraList = {}
+		for id, e in pairs(f.extras) do
+			table.insert(extraList, { id = id, kind = e.kind, pos = e.pos })
+		end
+		FlightEvent:FireClient(player, "start", { speed = speed, fuel = fuel, startX = f.startX, rocket = model, blastPower = f.blastPower, blastTime = f.blastTime, power = f.power, extras = extraList })
 	end)
+	return true
 end
 
 LaunchRemote.OnServerEvent:Connect(startFlight)
+StartFlightBindable.OnInvoke = startFlight
 
--- Pickups: the client says "I hit this one", the server checks it's believable.
-CollectRemote.OnServerEvent:Connect(function(player, id)
+-- Power bar: one try per flight, only while you're still in the cannon.
+LaunchPowerRemote.OnServerEvent:Connect(function(player, quality)
 	local f = flights[player]
-	local p = typeof(id) == "number" and pickups[id]
-	if not f or f.ended or not f.launchedAt or not p or f.collected[id] then
+	if f and not f.launchedAt and not f.power and typeof(quality) == "string" and Config.LaunchPower[quality] then
+		f.power = quality
+	end
+end)
+
+BoostRemote.OnServerEvent:Connect(function(player, on)
+	local f = flights[player]
+	if not f or not f.launchedAt or f.ended then
 		return
 	end
+	if on == true and f.boost > 0 and not f.outOfFuel then
+		f.boostOn = true
+	elseif on == false then
+		if f.boostOn then
+			f.boostGrace = os.clock() + 0.5
+		end
+		f.boostOn = false
+	end
+end)
+
+-- Pickups: the client says "I hit this one", the server checks it's believable.
+-- Coins, gems and rings keep the combo going and charge the boost bar.
+local function addCombo(f, p)
+	if p.pos.X - f.comboX > Config.Combo.gap then
+		f.combo = 0 -- flew too far without grabbing anything
+	end
+	f.combo += 1
+	f.bestCombo = math.max(f.bestCombo, f.combo)
+	f.comboX = math.max(f.comboX, p.pos.X)
+	f.boost = math.min(1, f.boost + (Config.Boost[p.kind] or 0))
+end
+
+local crateRng = Random.new()
+-- What's in a mystery crate: mostly a money bag, sometimes a full boost + fuel, rarely a pet.
+local function openCrate(player, f, p)
+	local roll = crateRng:NextNumber()
+	local GivePet = ServerStorage:FindFirstChild("GivePet") -- PetServer
+	if roll < Config.Crate.petChance and GivePet then
+		local kind = GivePet:Invoke(player)
+		if kind then
+			Notify:FireAllClients("📦 " .. player.DisplayName .. " found a " .. Config.Pets[kind].name .. " in a mystery crate!", Color3.fromRGB(255, 200, 90))
+			return { prize = "pet", pet = kind }
+		end
+	end
+	if roll < Config.Crate.petChance + Config.Crate.boostChance then
+		f.boost = 1
+		f.fuel += 2
+		return { prize = "boost", fuel = f.fuel }
+	end
+	local amount = math.floor(Config.moneyPerStud(p.stage) * Config.Crate.studs * moneyMultiplier(player))
+	addMoney(player, amount)
+	f.bonus += amount
+	return { prize = "money", money = amount }
+end
+
+CollectRemote.OnServerEvent:Connect(function(player, id)
+	local f = flights[player]
+	if not f or f.ended or not f.launchedAt or typeof(id) ~= "number" or f.collected[id] then
+		return
+	end
+	local p = pickups[id] or f.extras[id]
 	local body = f.model and f.model.PrimaryPart
-	if not body then
+	if not p or not body then
 		return
 	end
 	-- The server sees the rocket a little behind where the client is, so allow some lag.
@@ -291,22 +441,36 @@ CollectRemote.OnServerEvent:Connect(function(player, id)
 	f.collected[id] = true
 	local now = os.clock()
 	if p.kind == "Coin" or p.kind == "Gem" then
-		local amount = math.floor(Config.moneyPerStud(p.stage) * Config.Pickups[p.kind].studs * moneyMultiplier(player))
+		addCombo(f, p)
+		local mult = Config.comboMult(f.combo)
+		local amount = math.floor(Config.moneyPerStud(p.stage) * Config.Pickups[p.kind].studs * moneyMultiplier(player) * mult)
 		addMoney(player, amount)
 		f.bonus += amount
 		f.coins += 1
 		player:SetAttribute("StatCoins", (player:GetAttribute("StatCoins") or 0) + 1)
-		FlightEvent:FireClient(player, "pickup", { id = id, kind = p.kind, money = amount })
+		FlightEvent:FireClient(player, "pickup", { id = id, kind = p.kind, money = amount, combo = f.combo, boost = f.boost })
 	elseif p.kind == "Ring" then
 		local r = Config.Pickups.Ring
+		addCombo(f, p)
 		f.fuel += r.fuel
 		f.boostUntil = now + r.boostTime
 		player:SetAttribute("StatRings", (player:GetAttribute("StatRings") or 0) + 1)
-		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Ring", fuel = f.fuel })
+		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Ring", fuel = f.fuel, combo = f.combo, boost = f.boost })
 	elseif p.kind == "Obstacle" then
 		local o = Config.Pickups.Obstacle
 		f.fuel = math.max(now - f.launchedAt + 0.2, f.fuel - o.fuelLoss)
-		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Obstacle", fuel = f.fuel })
+		f.combo = 0
+		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Obstacle", fuel = f.fuel, combo = 0 })
+	elseif p.kind == "Crate" then
+		local info = openCrate(player, f, p)
+		info.id, info.kind, info.boost = id, "Crate", f.boost
+		FlightEvent:FireClient(player, "pickup", info)
+	elseif p.kind == "Golden" then
+		local amount = math.floor(Config.moneyPerStud(p.stage) * Config.GoldenCoin.studs * moneyMultiplier(player))
+		addMoney(player, amount)
+		f.bonus += amount
+		Notify:FireAllClients("🌟 " .. player.DisplayName .. " found a GOLDEN COIN! +$" .. Config.abbreviate(amount), Color3.fromRGB(255, 215, 60))
+		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Golden", money = amount })
 	end
 end)
 
@@ -326,11 +490,21 @@ RunService.Heartbeat:Connect(function(dt)
 			continue
 		end
 		local elapsed = now - f.launchedAt
-		-- Can't go farther than the rocket could possibly have flown (boost rings allow a bit more).
-		local boosting = now < (f.boostUntil or 0)
-		local cap = boosting and Config.Pickups.Ring.boost * 1.1 or 1.15
+		-- the boost bar drains while you hold boost
+		if f.boostOn then
+			f.boost -= dt / Config.Boost.drainTime
+			if f.boost <= 0 or f.outOfFuel then
+				f.boost, f.boostOn, f.boostGrace = 0, false, now + 0.5
+			end
+		end
+		-- Can't go farther than the rocket could possibly have flown (boost rings / boosting allow more).
+		local mult = now < (f.boostUntil or 0) and Config.Pickups.Ring.boost or 1
+		if f.boostOn or now < f.boostGrace then
+			mult *= Config.Boost.speed
+		end
+		local cap = math.max(1.15, mult * 1.1)
 		if f.blastTime and elapsed < f.blastTime + 0.5 then
-			cap = math.max(cap, f.blastPower * 1.1) -- the cannon blast
+			cap = math.max(cap, f.blastPower * mult * 1.1) -- the cannon blast
 		end
 		f.maxX += f.speed * cap * dt
 		local x = math.min(body.Position.X, f.maxX)

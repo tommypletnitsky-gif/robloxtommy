@@ -45,6 +45,7 @@ LobbyLayout.PAVED_BOXES = {
 LobbyLayout.BUILDINGS = {
 	{ -114, -66, -76, -26 }, -- Rocket Shop
 	{ -119, 25, -71, 67 }, -- Upgrade shop
+	{ -74, -26, -54, -20 }, -- leaderboard
 }
 
 function LobbyLayout.inPark(x, z)

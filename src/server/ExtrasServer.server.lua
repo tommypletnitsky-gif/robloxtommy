@@ -129,10 +129,16 @@ for _, player in ipairs(Players:GetPlayers()) do
 	end)
 end
 
--- Leaderboards ------------------------------------------------------------------------
+-- Leaderboard -------------------------------------------------------------------------
+-- One board in the lobby (Hub.TopBoard) flips between three pages every few seconds.
 local boards = {
-	{ name = "RichestBoard", attr = "Money", store = "Richest_v1", prefix = "$" },
-	{ name = "DonorBoard", attr = "Donated", store = "Donated_v1", prefix = "R$ " },
+	{ title = "🚀 FARTHEST FLIGHTS", attr = "BestDistance", store = "BestDistance_v1", format = Config.meters },
+	{ title = "💰 RICHEST", attr = "Money", store = "Richest_v1", format = function(v)
+		return "$" .. Config.abbreviate(v)
+	end },
+	{ title = "❤ TOP SUPPORTERS", attr = "Donated", store = "Donated_v1", format = function(v)
+		return "R$ " .. Config.abbreviate(v)
+	end },
 }
 for _, b in ipairs(boards) do
 	pcall(function()
@@ -179,7 +185,9 @@ local function topList(b)
 	end
 	local list = {}
 	for _, p in ipairs(Players:GetPlayers()) do
-		table.insert(list, { name = p.DisplayName, value = p:GetAttribute(b.attr) or 0 })
+		if (p:GetAttribute(b.attr) or 0) > 0 then
+			table.insert(list, { name = p.DisplayName, value = p:GetAttribute(b.attr) or 0 })
+		end
 	end
 	table.sort(list, function(a, c)
 		return a.value > c.value
@@ -189,8 +197,9 @@ end
 
 local MEDALS = { Color3.fromRGB(255, 205, 60), Color3.fromRGB(205, 215, 230), Color3.fromRGB(225, 150, 90) }
 
-local function renderBoard(b, list, global)
-	local board = workspace.World:FindFirstChild(b.name, true)
+local function renderBoard(b)
+	local world = workspace:FindFirstChild("World")
+	local board = world and world:FindFirstChild("TopBoard", true)
 	local rows = board and board:FindFirstChild("Rows", true)
 	if not rows then
 		return
@@ -200,10 +209,15 @@ local function renderBoard(b, list, global)
 			c:Destroy()
 		end
 	end
+	local title = board:FindFirstChild("Title", true)
+	if title then
+		title.Text = b.title
+	end
 	local sub = board:FindFirstChild("Subtitle", true)
 	if sub then
-		sub.Text = global and "All servers" or "This server"
+		sub.Text = b.global and "All servers" or "This server"
 	end
+	local list = b.list or {}
 	for i = 1, 10 do
 		local entry = list[i]
 		local row = Instance.new("Frame")
@@ -230,22 +244,31 @@ local function renderBoard(b, list, global)
 		end
 		text("#" .. i, 0.03, 0.12, Enum.TextXAlignment.Left, MEDALS[i] and MEDALS[i]:Lerp(Color3.new(0, 0, 0), 0.25))
 		text(entry and entry.name or "---", 0.16, 0.5, Enum.TextXAlignment.Left)
-		text(entry and (b.prefix .. Config.abbreviate(entry.value)) or "", 0.62, 0.35, Enum.TextXAlignment.Right, Color3.fromRGB(40, 150, 60))
+		text(entry and b.format(entry.value) or "", 0.62, 0.35, Enum.TextXAlignment.Right, Color3.fromRGB(40, 150, 60))
 	end
 end
 
+-- refresh the lists once a minute, flip the page every 8 seconds
 task.spawn(function()
 	task.wait(5)
 	while true do
 		for _, b in ipairs(boards) do
 			local ok, err = pcall(function()
-				local list, global = topList(b)
-				renderBoard(b, list, global)
+				b.list, b.global = topList(b)
 			end)
 			if not ok then
-				warn("[Leaderboards] " .. tostring(err))
+				warn("[Leaderboard] " .. tostring(err))
 			end
 		end
 		task.wait(60)
+	end
+end)
+task.spawn(function()
+	task.wait(6)
+	local page = 0
+	while true do
+		page = page % #boards + 1
+		pcall(renderBoard, boards[page])
+		task.wait(8)
 	end
 end)

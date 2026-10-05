@@ -17,6 +17,8 @@ local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LaunchRemote = remotes:WaitForChild("Launch")
 local FlightEvent = remotes:WaitForChild("Flight")
 local CollectRemote = remotes:WaitForChild("Collect")
+local LaunchPowerRemote = remotes:WaitForChild("LaunchPower")
+local BoostRemote = remotes:WaitForChild("Boost")
 local UnlockStage = remotes:WaitForChild("UnlockStage")
 
 local player = Players.LocalPlayer
@@ -77,13 +79,53 @@ task.spawn(function()
 end)
 
 -- Flight HUD ----------------------------------------------------------------------------------
-local flightHud = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 60), Size = UDim2.fromOffset(420, 150), BackgroundTransparency = 1, Visible = false })
+local flightHud = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 60), Size = UDim2.fromOffset(420, 176), BackgroundTransparency = 1, Visible = false })
 local distanceLabel = label({ Parent = flightHud, Size = UDim2.new(1, 0, 0, 70), Text = "0m", StrokeThickness = 4 })
 local zoneLabel = label({ Parent = flightHud, Position = UDim2.fromOffset(0, 70), Size = UDim2.new(1, 0, 0, 28), Text = "", TextColor3 = Color3.fromRGB(255, 230, 120) })
 local fuelBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(40, 106), Size = UDim2.new(1, -80, 0, 30), BackgroundColor3 = Color3.fromRGB(60, 60, 80) }, { UIKit.corner(15), UIKit.stroke(3.5) })
 local fuelFill = make("Frame", { Parent = fuelBack, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(15), UIKit.gloss(Color3.fromRGB(255, 160, 30)) })
 label({ Parent = fuelBack, Size = UDim2.fromScale(1, 1), Text = "⛽ FUEL", ZIndex = 2 })
-local flightMoney = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 212), Size = UDim2.fromOffset(300, 30), Text = "", TextColor3 = Color3.fromRGB(130, 255, 130), Visible = false })
+-- boost bar under the fuel: filled by coins / gems / rings, used by holding SPACE / the BOOST button
+local BOOST_BLUE = Color3.fromRGB(60, 200, 255)
+local boostBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(70, 144), Size = UDim2.new(1, -140, 0, 24), BackgroundColor3 = Color3.fromRGB(50, 55, 80) }, { UIKit.corner(12), UIKit.stroke(3) })
+local boostFill = make("Frame", { Parent = boostBack, Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(12), UIKit.gloss(BOOST_BLUE) })
+local boostText = label({ Parent = boostBack, Size = UDim2.fromScale(1, 1), Text = "⚡ BOOST", ZIndex = 2, StrokeThickness = 2 })
+local flightMoney = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 240), Size = UDim2.fromOffset(300, 30), Text = "", TextColor3 = Color3.fromRGB(130, 255, 130), Visible = false })
+
+-- BOOST button (bottom right while flying): hold it, or hold SPACE
+local boostHolder = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -24, 1, -30), Size = UDim2.fromOffset(124, 124), BackgroundTransparency = 1, Visible = false })
+UIKit.hudScale(boostHolder) -- (its own UIScale: the button's hover scale lives on the button)
+local boostBtn = UIKit.button({ Parent = boostHolder, Text = "BOOST", Icon = "⚡", Color = BOOST_BLUE, Size = UDim2.fromScale(1, 1), Radius = 62 })
+local boostKeyHint = label({ Parent = boostBtn.Instance, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 1, 2), Size = UDim2.fromOffset(110, 22), Text = "hold SPACE", StrokeThickness = 2 })
+local boostHeld = false
+boostBtn.Instance.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		boostHeld = true
+	end
+end)
+boostBtn.Instance.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		boostHeld = false
+	end
+end)
+
+-- Combo meter (right side): the multiplier, the count and a bar that runs out as you fly on
+local comboFrame = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -30, 0.42, 0), Size = UDim2.fromOffset(190, 130), BackgroundTransparency = 1, Visible = false })
+UIKit.hudScale(comboFrame)
+local comboMultLabel = label({ Parent = comboFrame, Size = UDim2.new(1, 0, 0, 70), Text = "x1", TextColor3 = Color3.fromRGB(255, 200, 50), StrokeThickness = 4 })
+local comboCount = label({ Parent = comboFrame, Position = UDim2.fromOffset(0, 70), Size = UDim2.new(1, 0, 0, 30), Text = "", TextColor3 = Color3.fromRGB(255, 255, 255) })
+local comboBarBack = make("Frame", { Parent = comboFrame, Position = UDim2.fromOffset(20, 106), Size = UDim2.new(1, -40, 0, 14), BackgroundColor3 = Color3.fromRGB(50, 55, 80) }, { UIKit.corner(7), UIKit.stroke(2.5) })
+local comboBar = make("Frame", { Parent = comboBarBack, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(7), UIKit.gloss(Color3.fromRGB(255, 150, 40)) })
+
+-- Power bar during the countdown: stop the needle in the green for a stronger blast
+local powerFrame = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.66), Size = UDim2.fromOffset(460, 110), BackgroundTransparency = 1, Visible = false, ZIndex = 41 })
+UIKit.hudScale(powerFrame)
+local powerTitle = label({ Parent = powerFrame, Size = UDim2.new(1, 0, 0, 36), Text = "", ZIndex = 42, StrokeThickness = 3 })
+local powerBar = make("Frame", { Parent = powerFrame, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 41 }, { UIKit.corner(25), UIKit.stroke(4), UIKit.gloss(Color3.fromRGB(235, 80, 80)) })
+local goodZone = make("Frame", { Parent = powerBar, AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 42 }, { UIKit.gloss(Color3.fromRGB(255, 205, 50)) })
+local perfectZone = make("Frame", { Parent = powerBar, AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 43 }, { UIKit.gloss(Color3.fromRGB(80, 220, 90)) })
+local needle = make("Frame", { Parent = powerBar, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(0, 10, 1, 18), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 45 }, { UIKit.corner(5), UIKit.stroke(3) })
+local power = nil -- { t0, center, stopped } while the needle swings
 local hintLabel = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -24), Size = UDim2.fromOffset(620, 30), Text = "", Visible = false })
 
 -- Reticle that the rocket steers toward
@@ -366,9 +408,119 @@ local function popText(text, color)
 	end)
 end
 
+-- Power bar (countdown) -----------------------------------------------------------------------
+local WHITE, GOOD_YELLOW, GOOD_GREEN, BAD_RED = Color3.new(1, 1, 1), Color3.fromRGB(255, 215, 60), Color3.fromRGB(120, 255, 120), Color3.fromRGB(255, 110, 110)
+local function startPower()
+	local lp = Config.LaunchPower
+	local center = 0.3 + math.random() * 0.42
+	power = { t0 = os.clock() + 0.3, center = center, stopped = false }
+	goodZone.Position = UDim2.fromScale(center, 0)
+	goodZone.Size = UDim2.fromScale(lp.good.zone * 2, 1)
+	perfectZone.Position = UDim2.fromScale(center, 0)
+	perfectZone.Size = UDim2.fromScale(lp.perfect.zone * 2, 1)
+	needle.Position = UDim2.fromScale(0, 0.5)
+	local touch = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+	powerTitle.Text = (touch and "TAP" or "CLICK") .. " in the green for a POWER LAUNCH!"
+	powerTitle.TextColor3 = WHITE
+	powerFrame.Visible = true
+	UIKit.bounce(powerTitle)
+end
+
+local function stopPower()
+	if not power or power.stopped or os.clock() < power.t0 then
+		return
+	end
+	power.stopped = true
+	local x = Config.powerNeedle(os.clock() - power.t0)
+	needle.Position = UDim2.fromScale(x, 0.5)
+	local d = math.abs(x - power.center)
+	local lp = Config.LaunchPower
+	local quality = (d <= lp.perfect.zone and "perfect") or (d <= lp.good.zone and "good") or nil
+	if quality then
+		LaunchPowerRemote:FireServer(quality)
+		powerTitle.Text = lp[quality].text
+		powerTitle.TextColor3 = quality == "perfect" and GOOD_GREEN or GOOD_YELLOW
+		UIKit.sound("Win", 0.5, quality == "perfect" and 1.4 or 1.15)
+		addShake(quality == "perfect" and 0.8 or 0.4)
+	else
+		powerTitle.Text = "MISSED!"
+		powerTitle.TextColor3 = BAD_RED
+		UIKit.sound("Hit", 0.3, 1.5)
+	end
+	UIKit.bounce(powerTitle)
+end
+
+local function hidePower()
+	power = nil
+	powerFrame.Visible = false
+end
+
+-- Surprises in this flight (only on your screen): mystery crate, golden coin --------------------
+local extras = {} -- { id, kind, pos, model, alive }
+local function sparkles(parent, color, rate)
+	local e = Instance.new("ParticleEmitter")
+	e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	e.Color = ColorSequence.new(color)
+	e.Size = NumberSequence.new(1.2, 0)
+	e.Lifetime = NumberRange.new(0.6, 1.2)
+	e.Speed = NumberRange.new(3, 8)
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.LightEmission = 1
+	e.Rate = rate
+	e.Parent = parent
+	return e
+end
+
+local function buildExtra(e)
+	local m = Instance.new("Model")
+	m.Name = "Surprise" .. e.kind
+	local function p(props)
+		local part = Instance.new("Part")
+		part.Anchored, part.CanCollide, part.CanQuery, part.CanTouch, part.CastShadow = true, false, false, false, false
+		part.Material = Enum.Material.SmoothPlastic
+		for k, v in pairs(props) do
+			part[k] = v
+		end
+		part.Parent = m
+		return part
+	end
+	local core
+	if e.kind == "Crate" then
+		core = p({ Name = "Core", Size = Vector3.one * 6, Color = Color3.fromRGB(170, 110, 60), Material = Enum.Material.WoodPlanks })
+		for _, axis in ipairs({ Vector3.new(6.2, 0.9, 6.2), Vector3.new(0.9, 6.2, 6.2) }) do
+			p({ Size = axis, Color = Color3.fromRGB(255, 200, 50), Material = Enum.Material.Neon }).CFrame = core.CFrame
+		end
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.fromScale(5, 5)
+		bb.StudsOffset = Vector3.new(0, 6.5, 0)
+		bb.LightInfluence = 0
+		bb.Parent = core
+		label({ Parent = bb, Size = UDim2.fromScale(1, 1), Text = "?", TextColor3 = Color3.fromRGB(255, 220, 60), StrokeThickness = 4 })
+		sparkles(core, Color3.fromRGB(255, 230, 120), 12)
+	else
+		core = p({ Name = "Core", Shape = Enum.PartType.Cylinder, Size = Vector3.new(1.2, 8, 8), Color = Color3.fromRGB(255, 200, 30), Material = Enum.Material.Neon })
+		p({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(1.4, 5.6, 5.6), Color = Color3.fromRGB(255, 240, 140), Material = Enum.Material.Neon })
+		sparkles(core, Color3.fromRGB(255, 220, 80), 40)
+	end
+	for _, d in ipairs(m:GetChildren()) do
+		d.CFrame = CFrame.new(e.pos) * d.CFrame
+	end
+	m.PrimaryPart = core
+	m.Parent = workspace
+	return m
+end
+
+local function clearExtras()
+	for _, e in ipairs(extras) do
+		if e.model then
+			e.model:Destroy()
+		end
+	end
+	extras = {}
+end
+
 -- Flight ---------------------------------------------------------------------------------------
 local flight = nil
-local combo = 0
 local myRider = nil -- RiderAnimator for your own avatar while you're on the rocket
 
 local function noJump()
@@ -429,6 +581,11 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 UserInputService.InputBegan:Connect(function(input, processed)
+	-- countdown: click / tap / SPACE stops the power needle
+	local t = input.UserInputType
+	if power and not power.stopped and (t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch or input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonA) then
+		stopPower()
+	end
 	if input.UserInputType == Enum.UserInputType.Touch then
 		touchCount += 1
 		if not processed and not steerTouch then
@@ -502,7 +659,7 @@ local function keySteer()
 	end
 	local K = Enum.KeyCode
 	local side = (down(K.D, K.Right) and 1 or 0) - (down(K.A, K.Left) and 1 or 0)
-	local up = (down(K.W, K.Up, K.Space) and 1 or 0) - (down(K.S, K.Down, K.LeftShift) and 1 or 0)
+	local up = (down(K.W, K.Up) and 1 or 0) - (down(K.S, K.Down) and 1 or 0)
 	return side, up
 end
 
@@ -756,6 +913,10 @@ local function stopFlightFx()
 	hintLabel.Visible = false
 	reticle.Visible = false
 	linesFrame.Visible = false
+	boostHolder.Visible = false
+	comboFrame.Visible = false
+	boostHeld = false
+	hidePower()
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	UserInputService.MouseIconEnabled = true
 	setJumpBlocked(false)
@@ -786,7 +947,8 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		setJumpBlocked(true)
 		resultCard.Visible = false
 		resetPickups()
-		combo = 0
+		clearExtras()
+		startPower()
 		local body = info.rocket and info.rocket.PrimaryPart
 		if body then
 			launchFx = makeLaunchSmoke(body.Position - Vector3.new(0, 3, 0))
@@ -838,7 +1000,17 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		animateCannon("fire")
 		UIKit.sound("Launch", 0.8)
 		UIKit.sound("Hit", 0.9, 0.55) -- the cannon's BOOM
-		addShake(2)
+		addShake(info.power == "perfect" and 3 or 2)
+		if power and power.stopped then
+			local shown = power
+			task.delay(0.7, function()
+				if power == shown then
+					hidePower()
+				end
+			end)
+		else
+			hidePower()
+		end
 		if launchFx then
 			local e = launchFx:FindFirstChildOfClass("ParticleEmitter")
 			e:Emit(60)
@@ -893,16 +1065,38 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			aimCF = CFrame.new(),
 			focus = nil,
 			flameFx = nil,
+			boost = 0, -- boost bar 0..1 (coins / gems / rings fill it)
+			boostOn = false,
+			combo = 0,
+			comboX = Config.LAUNCH_X, -- x of the last pickup that kept the combo going
+			comboMult = 1,
 		}
 		local flame = body.Parent:FindFirstChild("Flame", true)
 		flight.flameFx = flame and flame:FindFirstChildOfClass("Fire")
 		flightHud.Visible = true
 		linesFrame.Visible = true
+		boostHolder.Visible = true
+		boostKeyHint.Visible = UserInputService.KeyboardEnabled
+		boostFill.Size = UDim2.fromScale(0, 1)
 		mouseDelta, touchDelta = Vector2.zero, Vector2.zero
 		if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
-			hintLabel.Text = "Drag anywhere to steer!  Keep dragging down to land."
+			hintLabel.Text = "Drag anywhere to steer!  Grab coins to fill BOOST, then hold the button."
 		else
-			hintLabel.Text = "WASD or hold left-click + drag to steer.  Right-click to look around (C = back).  Scroll to zoom."
+			hintLabel.Text = "WASD or hold left-click + drag to steer.  Grab coins to fill BOOST, then hold SPACE!"
+		end
+		-- surprises ahead
+		clearExtras()
+		for _, e in ipairs(info.extras or {}) do
+			table.insert(extras, { id = e.id, kind = e.kind, pos = e.pos, model = buildExtra(e), alive = true })
+			if e.kind == "Crate" then
+				task.delay(1.2, function()
+					UIKit.toast("📦 A MYSTERY CRATE is somewhere ahead! Grab it!", Color3.fromRGB(255, 210, 90))
+				end)
+			else
+				task.delay(1.4, function()
+					UIKit.toast("🌟 A GOLDEN COIN appeared ahead!!", Color3.fromRGB(255, 220, 60))
+				end)
+			end
 		end
 		hintLabel.Visible = true
 		task.delay(3, function()
@@ -916,7 +1110,44 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			flight.bonus += info.money
 			flightMoney.Text = "+$" .. abbreviate(flight.bonus) .. " bonus"
 			flightMoney.Visible = true
-			popText("+$" .. abbreviate(info.money), info.kind == "Gem" and Color3.fromRGB(120, 230, 255) or Color3.fromRGB(255, 220, 60))
+			if info.kind == "Coin" or info.kind == "Gem" then
+				popText("+$" .. abbreviate(info.money), info.kind == "Gem" and Color3.fromRGB(120, 230, 255) or Color3.fromRGB(255, 220, 60))
+			end
+		end
+		if info.kind == "Crate" then
+			if info.prize == "pet" then
+				local pet = Config.Pets[info.pet]
+				UIKit.celebrate("📦 FREE PET!", (pet and pet.name or "A new pet") .. " is following you!", Color3.fromRGB(255, 190, 90))
+			elseif info.prize == "boost" then
+				if flight then
+					flight.boost = 1
+				end
+				bigLabel.Text = "📦 SUPER BOOST!"
+				bigLabel.TextColor3 = BOOST_BLUE
+				bigLabel.Visible = true
+				UIKit.bounce(bigLabel)
+				UIKit.sound("Boost", 0.7, 1.2)
+				task.delay(1.2, function()
+					if bigLabel.Text == "📦 SUPER BOOST!" then
+						bigLabel.Visible = false
+					end
+				end)
+			else
+				bigLabel.Text = "📦 +$" .. abbreviate(info.money or 0)
+				bigLabel.TextColor3 = Color3.fromRGB(130, 255, 130)
+				bigLabel.Visible = true
+				UIKit.bounce(bigLabel)
+				UIKit.sound("Win", 0.6, 1.2)
+				local shown = bigLabel.Text
+				task.delay(1.2, function()
+					if bigLabel.Text == shown then
+						bigLabel.Visible = false
+					end
+				end)
+			end
+		elseif info.kind == "Golden" then
+			UIKit.celebrate("🌟 GOLDEN COIN!", "+$" .. abbreviate(info.money or 0), Color3.fromRGB(255, 215, 50))
+			addShake(1.2)
 		end
 	elseif kind == "outOfFuel" then
 		if flight then
@@ -957,6 +1188,10 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		resDistance.Text = "🚀 " .. meters(info.distance)
 		resMoney.Text = "+$" .. abbreviate(info.money)
 		resCoins.Text = (info.bonus or 0) > 0 and ("💰 " .. info.coins .. (info.coins == 1 and " coin: +$" or " coins: +$") .. abbreviate(info.bonus)) or ""
+		if (info.bestCombo or 0) >= Config.Combo.step then
+			resCoins.Text ..= "   🔥 combo " .. info.bestCombo
+		end
+		clearExtras()
 		resHint.Text = ({
 			fuel = "Out of fuel! Upgrade your Fuel Tank to fly farther.",
 			gate = "Stage locked! Unlock the next stage to keep going.",
@@ -990,6 +1225,8 @@ player:GetAttributeChangedSignal("Flying"):Connect(function()
 	if not player:GetAttribute("Flying") then
 		flight = nil
 		countdown = nil
+		clearExtras()
+		hidePower()
 		setLetterbox(false)
 		animateCannon("reset")
 		if myRider then
@@ -1015,13 +1252,48 @@ local function hitTest(p, rp)
 	return d.Magnitude < Config.PICKUP_RADIUS
 end
 
+-- Same rule as the server: coins, gems and rings keep the combo going (and fill the boost bar).
+local function addCombo(f, p)
+	if p.pos.X - f.comboX > Config.Combo.gap then
+		f.combo = 0
+	end
+	f.combo += 1
+	f.comboX = math.max(f.comboX, p.pos.X)
+	f.boost = math.min(1, f.boost + (Config.Boost[p.kind] or 0))
+	local mult = Config.comboMult(f.combo)
+	if f.combo >= 2 then
+		if not comboFrame.Visible then
+			comboFrame.Visible = true
+		end
+		comboMultLabel.Text = Config.multText(mult)
+		comboCount.Text = f.combo .. " COMBO"
+		UIKit.bounce(comboCount)
+	end
+	if mult > f.comboMult then
+		f.comboMult = mult
+		UIKit.bounce(comboMultLabel)
+		popText("🔥 COMBO " .. Config.multText(mult) .. "!", Color3.fromRGB(255, 170, 40))
+		UIKit.sound("Win", 0.35, 1.3 + mult * 0.05)
+	end
+end
+
+local function loseCombo(f, why)
+	if f.combo >= 2 then
+		popText(why, Color3.fromRGB(200, 200, 220))
+	end
+	f.combo, f.comboMult = 0, 1
+	comboFrame.Visible = false
+end
+
 local function collect(p)
 	setPickupVisible(p, false)
 	CollectRemote:FireServer(p.id)
 	local f = flight
+	if p.kind == "Coin" or p.kind == "Gem" or p.kind == "Ring" then
+		addCombo(f, p)
+	end
 	if p.kind == "Coin" or p.kind == "Gem" then
-		combo += 1
-		UIKit.sound("Coin", 0.45, math.min(1.6, 1 + combo * 0.04))
+		UIKit.sound("Coin", 0.45, math.min(1.6, 1 + f.combo * 0.04))
 	elseif p.kind == "Ring" then
 		f.boostUntil = os.clock() + Config.Pickups.Ring.boostTime
 		f.pull = math.max(f.pull, 7)
@@ -1032,7 +1304,7 @@ local function collect(p)
 		addShake(0.4)
 	elseif p.kind == "Obstacle" then
 		f.slowUntil = os.clock() + Config.Pickups.Obstacle.slowTime
-		combo = 0
+		loseCombo(f, "combo lost")
 		UIKit.sound("Hit", 0.5)
 		popText("OUCH! -FUEL", Color3.fromRGB(255, 90, 90))
 		addShake(1)
@@ -1108,6 +1380,11 @@ RunService.RenderStepped:Connect(function(dt)
 			end
 			addShake(0.8)
 		end
+	end
+
+	-- the power needle swings during the countdown
+	if power and not power.stopped then
+		needle.Position = UDim2.fromScale(Config.powerNeedle(math.max(0, now - power.t0)), 0.5)
 	end
 
 	local f = flight
@@ -1236,6 +1513,25 @@ RunService.RenderStepped:Connect(function(dt)
 		speedMul = Config.Pickups.Ring.boost
 	elseif now < f.slowUntil then
 		speedMul = Config.Pickups.Obstacle.slow
+	end
+	-- Boost: hold SPACE / the BOOST button / R2 while the boost bar has charge
+	local typing = UserInputService:GetFocusedTextBox() ~= nil
+	local wantBoost = (boostHeld or (not typing and UserInputService:IsKeyDown(Enum.KeyCode.Space)) or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonR2)) and not launching and not f.outOfFuel
+	local boostNow = wantBoost and f.boost > 0
+	if boostNow then
+		f.boost = math.max(0, f.boost - dt / Config.Boost.drainTime)
+	end
+	if boostNow ~= f.boostOn then
+		f.boostOn = boostNow
+		BoostRemote:FireServer(boostNow)
+		if boostNow then
+			UIKit.sound("Boost", 0.5, 1.25)
+			f.pull = math.max(f.pull, 4)
+			f.pullHold = now + 0.15
+		end
+	end
+	if f.boostOn then
+		speedMul *= Config.Boost.speed
 	end
 	local pathY = Config.pathY(pos.X)
 	local slope = Config.pathY(pos.X + 1) - pathY
@@ -1387,11 +1683,55 @@ RunService.RenderStepped:Connect(function(dt)
 			i += 1
 		end
 	end
+	-- Surprises: spin, and grab them when you fly through
+	for _, e in ipairs(extras) do
+		if e.alive and e.model then
+			e.model:PivotTo(CFrame.new(e.pos + Vector3.new(0, math.sin(now * 2) * 0.6, 0)) * CFrame.Angles(0, now * (e.kind == "Golden" and 3 or 1.5), 0))
+			if not f.outOfFuel and (e.pos - pos).Magnitude < (e.kind == "Golden" and 10 or 9.5) then
+				e.alive = false
+				CollectRemote:FireServer(e.id)
+				local core = e.model.PrimaryPart
+				local burst = sparkles(core, e.kind == "Golden" and Color3.fromRGB(255, 220, 60) or Color3.fromRGB(255, 200, 120), 0)
+				burst.Speed = NumberRange.new(15, 35)
+				burst:Emit(80)
+				for _, d in ipairs(e.model:GetDescendants()) do
+					if d:IsA("BasePart") then
+						d.Transparency = 1
+					elseif d:IsA("BillboardGui") then
+						d.Enabled = false
+					end
+				end
+				game:GetService("Debris"):AddItem(e.model, 2)
+				e.model = nil
+				UIKit.sound("Coin", 0.7, 0.8)
+				addShake(0.6)
+			end
+		end
+	end
 
 	-- HUD
 	distanceLabel.Text = meters(math.max(0, pos.X - f.startX))
 	local fuelLeft = f.outOfFuel and 0 or math.clamp(1 - (now - f.launchedAt) / f.fuel, 0, 1)
 	fuelFill.Size = UDim2.fromScale(fuelLeft, 1)
+	boostFill.Size = UDim2.fromScale(f.boost, 1)
+	boostFill.Visible = f.boost > 0.005
+	local ready = f.boost > 0
+	if ready ~= f.boostReady then
+		f.boostReady = ready
+		boostBtn.setColor(ready and BOOST_BLUE or Color3.fromRGB(140, 150, 175))
+		boostText.Text = ready and "⚡ BOOST" or "⚡ grab coins to charge BOOST"
+		if ready then
+			UIKit.bounce(boostBtn.Face)
+		end
+	end
+	if f.combo > 0 then
+		local left = 1 - (pos.X - f.comboX) / Config.Combo.gap
+		if left <= 0 then
+			loseCombo(f, "combo over")
+		else
+			comboBar.Size = UDim2.fromScale(left, 1)
+		end
+	end
 	local stage = Config.stageAt(pos.X)
 	if stage ~= f.stage then
 		f.stage = stage

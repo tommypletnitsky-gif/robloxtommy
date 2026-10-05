@@ -118,7 +118,7 @@ end
 
 -- Hatching --------------------------------------------------------------------------------------
 local function rollRarity(lucky)
-	local chance = Config.rarityChances(lucky)
+	local chance = Config.rarityChances(lucky, Config.activeEvent() == "Luck")
 	local roll = rng:NextNumber(0, 100)
 	local acc = 0
 	for i = #RARITY_ORDER, 1, -1 do -- rarest first so rounding never eats a Legendary
@@ -260,6 +260,37 @@ PetAction.OnServerInvoke = function(player, action, uid)
 		return true, name .. " deleted."
 	end
 	return false, "?"
+end
+
+-- Free pet (mystery crates): a normal roll from the best egg you've unlocked, put straight into an
+-- empty slot. ServerStorage.GivePet:Invoke(player) -> pet kind, or nil when your pets are full.
+local GivePet = game:GetService("ServerStorage"):FindFirstChild("GivePet") or Instance.new("BindableFunction")
+GivePet.Name = "GivePet"
+GivePet.Parent = game:GetService("ServerStorage")
+GivePet.OnInvoke = function(player)
+	local pets = getPets(player)
+	if #pets >= Config.MAX_PETS then
+		return nil
+	end
+	local egg = Config.Eggs[1]
+	for _, e in ipairs(Config.Eggs) do
+		if (player:GetAttribute("UnlockedStage") or 1) >= e.stage then
+			egg = e
+		end
+	end
+	local rarity = rollRarity(Config.hasPass(player, "LuckyEggs"))
+	local kind = egg.pets[rarity]
+	local uid = player:GetAttribute("NextPetId") or 1
+	table.insert(pets, { uid = uid, kind = kind })
+	player:SetAttribute("NextPetId", uid + 1)
+	setPets(player, pets)
+	local equipped = getEquipped(player, pets)
+	if #equipped < slots(player) then
+		table.insert(equipped, uid)
+		setEquipped(player, equipped)
+	end
+	refresh(player)
+	return kind
 end
 
 -- Players ---------------------------------------------------------------------------------------
