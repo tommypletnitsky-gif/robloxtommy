@@ -1,6 +1,7 @@
 -- Builds the map from Config: hub, launch pad, 30 stages, gates, distance signs, decor.
 -- Everything goes into Workspace.World. Safe to run again: it rebuilds from scratch.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Scenery = require(game:GetService("ServerScriptService").Scenery)
 local Lobby = require(game:GetService("ServerScriptService").Lobby)
@@ -112,6 +113,16 @@ local function buildPickups(folder, s)
 		local hit = newPart(m, { Name = "Center", Size = Vector3.one, CFrame = CFrame.new(center), Transparency = 1, CanCollide = false, CanQuery = false })
 		m.PrimaryPart = hit
 		m:SetAttribute("Pos", center)
+		-- a smooth glowing hoop (ServerStorage.PickupModels.Ring, built in Studio); blocks if it's missing
+		local hoop = ServerStorage:FindFirstChild("PickupModels") and ServerStorage.PickupModels:FindFirstChild("Ring")
+		if hoop then
+			for _, p in ipairs(hoop:GetChildren()) do
+				local c = p:Clone()
+				c.CFrame = CFrame.new(center) * p.CFrame
+				c.Parent = m
+			end
+			continue
+		end
 		for i = 0, 11 do
 			local a = i / 12 * math.pi * 2
 			newPart(m, { Size = Vector3.new(1, 1.2, 4), CFrame = CFrame.new(center) * CFrame.Angles(a, 0, 0) * CFrame.new(0, 7, 0), Color = i % 2 == 0 and Color3.fromRGB(255, 170, 30) or Color3.fromRGB(255, 240, 90), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false, CastShadow = false })

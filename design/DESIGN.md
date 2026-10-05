@@ -36,3 +36,17 @@ Buy = green #50C85A, can't afford = red #EB5A5A, owned/equip = blue, equipped/ma
 Affordable / not affordable / owned / equipped / maxed on every buy button; locked eggs and
 rebirth show the requirement; windows close when you walk away from the building.
 Phone: windows scale down to fit; bottom/side bars keep 90+ px touch targets.
+
+## World look pass (2026-10-05)
+Audit (Play mode screenshots) found: empty sky, black space sky, blocky boost rings, sparse Earth
+roadsides, flame + VIP tag cluttering the flight view. Fixed:
+- Clouds (Terrain.Clouds, set by RocketClient per zone / stage mood: thin over the desert, grey
+  in the Thunder Storm, none in Space).
+- Space uses the classic galaxy skybox (image ids 159454286-159454300 only; the Creator Store
+  model they came from had hidden backdoor scripts and was deleted). Space lighting moved to
+  ClockTime 13 because Roblox darkens skyboxes at night; planets sit farther out as backdrops.
+- Boost rings: one smooth hoop (ServerStorage.PickupModels.Ring, a solid-modeled disc minus a disc,
+  neon orange + gold inner band). Place-only asset: WorldBuilder falls back to blocks without it.
+- Earth roadside band: biome trees / props every 16-30 studs, 12-48 studs outside the lane.
+- Smaller engine flame; VIP tag hidden while flying. Pets stay in the lobby while you fly.
+- Tried generate_mesh for a coin and a torus: both came out wrong (blob / beige donut), not used.

@@ -1570,7 +1570,7 @@ RunService.RenderStepped:Connect(function(dt)
 
 	-- Flame grows while boosting
 	if f.flameFx then
-		f.flameFx.Size = (speedMul > 1 or blast > 1.3) and 11 or 6
+		f.flameFx.Size = (speedMul > 1 or blast > 1.3) and 8 or 4.5
 	end
 
 	-- Rider: holds the handlebar, leans into turns, tucks low on boosts, fist pump through rings,
@@ -1807,7 +1807,7 @@ end
 local ZONES = {
 	Earth = { lighting = { ClockTime = 14, Brightness = 2.2, Ambient = Color3.fromRGB(90, 90, 100), OutdoorAmbient = Color3.fromRGB(150, 150, 160) }, atmo = { Density = 0.25, Haze = 0, Glare = 0, Color = Color3.fromRGB(210, 225, 255) } },
 	Sky = { lighting = { ClockTime = 16.5, Brightness = 2.6, Ambient = Color3.fromRGB(120, 120, 140), OutdoorAmbient = Color3.fromRGB(170, 170, 200) }, atmo = { Density = 0.32, Haze = 1.2, Glare = 0, Color = Color3.fromRGB(210, 230, 255) } },
-	Space = { lighting = { ClockTime = 0, Brightness = 1, Ambient = Color3.fromRGB(130, 120, 160), OutdoorAmbient = Color3.fromRGB(150, 140, 180) }, atmo = { Density = 0, Haze = 0, Glare = 0, Color = Color3.fromRGB(0, 0, 0) } },
+	Space = { lighting = { ClockTime = 13, Brightness = 1.4, Ambient = Color3.fromRGB(110, 100, 150), OutdoorAmbient = Color3.fromRGB(130, 120, 170) }, atmo = { Density = 0, Haze = 0, Glare = 0, Color = Color3.fromRGB(0, 0, 0) } },
 }
 -- Some worlds get their own mood on top of the zone lighting.
 local STAGE_MOODS = {
@@ -1838,6 +1838,48 @@ local function moodFor(x)
 	return (stage and stage.name or "Lobby"), lighting, atmo
 end
 
+-- Sky: soft cartoon clouds over Earth and the Sky zone (thicker / greyer for some stages), and a
+-- starry galaxy skybox once you're in Space.
+local clouds = workspace.Terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
+clouds.Parent = workspace.Terrain
+local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky", Lighting)
+local SKYBOX_FACES = { "SkyboxBk", "SkyboxDn", "SkyboxFt", "SkyboxLf", "SkyboxRt", "SkyboxUp" }
+local DAY_SKY = {}
+for _, face in ipairs(SKYBOX_FACES) do
+	DAY_SKY[face] = sky[face]
+end
+local function asset(id)
+	return "rbxassetid://" .. id
+end
+local SPACE_SKY = { SkyboxBk = asset(159454299), SkyboxDn = asset(159454296), SkyboxFt = asset(159454293), SkyboxLf = asset(159454286), SkyboxRt = asset(159454300), SkyboxUp = asset(159454288) }
+local CLOUDS = {
+	Earth = { Cover = 0.6, Density = 0.45, Color = Color3.fromRGB(255, 255, 255) },
+	Sky = { Cover = 0.78, Density = 0.55, Color = Color3.fromRGB(255, 250, 255) },
+	Space = { Cover = 0, Density = 0, Color = Color3.fromRGB(255, 255, 255) },
+}
+local STAGE_CLOUDS = {
+	["Dusty Desert"] = { Cover = 0.3 },
+	["Red Canyon"] = { Cover = 0.35 },
+	["Volcano"] = { Cover = 0.75, Color = Color3.fromRGB(200, 170, 165) },
+	["Misty Swamp"] = { Cover = 0.8, Color = Color3.fromRGB(225, 235, 225) },
+	["Thunder Storm"] = { Cover = 0.95, Density = 0.8, Color = Color3.fromRGB(140, 145, 165) },
+	["Sunset Sky"] = { Color = Color3.fromRGB(255, 205, 175) },
+	["Edge of Space"] = { Cover = 0.4 },
+}
+local currentSky = "day"
+local function setSky(kind)
+	if kind == currentSky then
+		return
+	end
+	currentSky = kind
+	local faces = kind == "space" and SPACE_SKY or DAY_SKY
+	for face, id in pairs(faces) do
+		sky[face] = id
+	end
+	sky.StarCount = kind == "space" and 5000 or 3000
+	sky.CelestialBodiesShown = kind ~= "space"
+end
+
 local currentMood = nil
 RunService.Heartbeat:Connect(function()
 	local name, lighting, atmo = moodFor(camera.CFrame.Position.X)
@@ -1846,5 +1888,13 @@ RunService.Heartbeat:Connect(function()
 		local info = TweenInfo.new(2)
 		TweenService:Create(Lighting, info, lighting):Play()
 		TweenService:Create(atmosphere, info, atmo):Play()
+		local stage = camera.CFrame.Position.X >= Config.LAUNCH_X and Config.Stages[Config.stageAt(camera.CFrame.Position.X)] or nil
+		local zone = stage and stage.zone or "Earth"
+		local c = table.clone(CLOUDS[zone])
+		for k, v in pairs(stage and STAGE_CLOUDS[stage.name] or {}) do
+			c[k] = v
+		end
+		TweenService:Create(clouds, info, c):Play()
+		setSky(zone == "Space" and "space" or "day")
 	end
 end)

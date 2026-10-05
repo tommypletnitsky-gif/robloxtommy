@@ -337,6 +337,26 @@ local function decorateEarth(f, s)
 			end
 		end
 	end
+	-- roadside band: biome trees / props close to the runway on both sides, so flying low feels fast
+	-- and the stages don't look empty (just outside the flying lane, never in the river)
+	local ROADSIDE = {
+		{ "roundTree", "bush" }, { "roundTree", "hay" }, { "cactus", "rocks" }, { "cactus", "rocks" }, { "palm", "bush" },
+		{ "deadTree", "mushroom" }, { "pine", "rocks" }, { "pine", "iceSpikes" }, { "charredTree", "rocks" }, { "pine", "rocks" },
+	}
+	local EXTRA = { roundTree = s == 2 and "orchard" or "meadow", pine = s == 7 or s == 8, bush = s == 5 and C(50, 150, 60) or nil, rocks = ({ [3] = C(220, 180, 120), [4] = C(200, 105, 70), [7] = C(200, 210, 225), [9] = C(70, 60, 65) })[s] }
+	local kinds = ROADSIDE[s]
+	for _, side in ipairs({ -1, 1 }) do
+		local x = x0 + rng:NextNumber(4, 16)
+		while x < x0 + L - 6 do
+			local z = side * rng:NextNumber(Config.PATH_HALF_WIDTH + 12, Config.PATH_HALF_WIDTH + 48)
+			local pos, wet, h = ground(x, z)
+			if not wet and h < 30 then
+				local name = rng:NextNumber() < 0.65 and kinds[1] or kinds[2]
+				D[name](f, pos, rng, EXTRA[name])
+			end
+			x += rng:NextNumber(16, 30)
+		end
+	end
 	-- farm fences along the runway
 	if s == 2 then
 		for _, side in ipairs({ -1, 1 }) do
@@ -608,19 +628,19 @@ local function spaceScenery(f, s, st, rng)
 			ball(f, rng:NextNumber(60, 160), center + dir * 735, C(165, 165, 172), { CanCollide = false, CastShadow = false })
 		end
 	elseif name == "Mars" then
-		planet(f, Vector3.new(mid, y + 120, -820), 900, C(215, 100, 60), { glow = C(255, 160, 120) })
+		planet(f, Vector3.new(mid, y + 380, -1550), 1100, C(215, 100, 60), { glow = C(255, 160, 120) })
 	elseif name == "Jupiter" then
-		gasGiant(f, Vector3.new(mid, y + 150, 900), 480, { C(225, 180, 130), C(200, 140, 100), C(240, 215, 180), C(185, 120, 90) })
+		gasGiant(f, Vector3.new(mid, y + 420, 1550), 600, { C(225, 180, 130), C(200, 140, 100), C(240, 215, 180), C(185, 120, 90) })
 	elseif name == "Saturn Rings" then
-		planet(f, Vector3.new(mid, y + 100, -800), 620, C(235, 210, 150), { ring = C(220, 195, 150) })
+		planet(f, Vector3.new(mid, y + 360, -1450), 760, C(235, 210, 150), { ring = C(220, 195, 150) })
 	elseif name == "Purple Nebula" then
 		for _ = 1, 9 do
 			ball(f, rng:NextNumber(160, 340), Vector3.new(rng:NextNumber(x0, x0 + L), y + rng:NextNumber(-80, 260), (rng:NextNumber() < 0.5 and -1 or 1) * rng:NextNumber(250, 500)), pick(rng, { C(200, 90, 255), C(255, 100, 200), C(100, 140, 255) }), { Material = M.Neon, Transparency = 0.82, CanCollide = false, CastShadow = false })
 		end
 	elseif name == "Ice Giant" then
-		planet(f, Vector3.new(mid, y + 60, 850), 800, C(110, 210, 240), { glow = C(180, 240, 255), ring = C(170, 230, 250) })
+		planet(f, Vector3.new(mid, y + 330, 1500), 950, C(110, 210, 240), { glow = C(180, 240, 255), ring = C(170, 230, 250) })
 	elseif name == "Black Hole" then
-		local c = Vector3.new(mid, y + 140, -650)
+		local c = Vector3.new(mid, y + 320, -1250)
 		for i, col in ipairs({ C(255, 230, 120), C(255, 150, 50), C(220, 70, 40) }) do
 			cyl(f, 2 + i, 520 + i * 200, CFrame.new(c) * CFrame.Angles(0.3, 0, math.pi / 2 + 0.2), col, { Material = M.Neon, Transparency = 0.2 + i * 0.18, CanCollide = false, CastShadow = false })
 		end

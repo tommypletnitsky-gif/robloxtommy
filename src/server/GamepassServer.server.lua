@@ -43,6 +43,7 @@ local function vipTag(player)
 		return
 	end
 	if old then
+		old.Enabled = not player:GetAttribute("Flying") -- hidden while flying (it would sit in front of the rocket)
 		return
 	end
 	local bb = Instance.new("BillboardGui")
@@ -132,6 +133,9 @@ local function setup(player)
 		vipTag(player)
 	end)
 	player:GetAttributeChangedSignal("Pass_VIP"):Connect(function()
+		vipTag(player)
+	end)
+	player:GetAttributeChangedSignal("Flying"):Connect(function()
 		vipTag(player)
 	end)
 	task.spawn(check, player)
