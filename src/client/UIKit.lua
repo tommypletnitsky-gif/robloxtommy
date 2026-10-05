@@ -535,6 +535,18 @@ end
 -- A little red "!" bubble on a button (for things you can claim).
 function UIKit.badge(button)
 	local b = make("TextLabel", { Parent = button, Name = "Badge", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -6, 0, 6), Size = UDim2.fromOffset(28, 28), BackgroundColor3 = Color3.fromRGB(255, 60, 60), Font = UIKit.FONT, TextScaled = true, TextColor3 = Color3.new(1, 1, 1), Text = "!", Visible = false, ZIndex = 20 }, { UIKit.corner(14), UIKit.stroke(2.5) })
+	-- while the badge shows, its button gives a little wiggle every few seconds
+	task.spawn(function()
+		while button.Parent do
+			task.wait(3.5 + math.random() * 1.5)
+			if b.Visible and UIKit.shown(button) and not player:GetAttribute("Flying") then
+				for _, r in ipairs({ -8, 7, -5, 3, 0 }) do
+					TweenService:Create(button, TweenInfo.new(0.07, Enum.EasingStyle.Sine), { Rotation = r }):Play()
+					task.wait(0.07)
+				end
+			end
+		end
+	end)
 	return b
 end
 
