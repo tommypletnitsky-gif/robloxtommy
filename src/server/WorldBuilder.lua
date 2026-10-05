@@ -88,13 +88,38 @@ local function buildPickups(folder, s)
 		return Vector3.new(x, Config.pathY(x) + rng:NextNumber(Config.FLY_MIN_HEIGHT + 3, 42), rng:NextNumber(-HALF + 6, HALF - 6))
 	end
 	local first = s == 1 and 40 or 15
-	-- Coins come in short lines you can steer into
+	-- Coins come in groups of 5 you steer through: a straight line, an arc up and over, a left-right
+	-- wave, a corkscrew or a diagonal sweep. (Stage 1 keeps it simple: lines and arcs.)
+	local PATTERNS = {
+		function(i) -- line
+			return Vector3.new(i * 9, 0, 0)
+		end,
+		function(i) -- arc: up and over
+			return Vector3.new(i * 9, math.sin(i / 4 * math.pi) * 9, 0)
+		end,
+		function(i) -- wave: left - right - left
+			return Vector3.new(i * 9, 0, math.sin(i / 4 * math.pi * 2) * 9)
+		end,
+		function(i) -- corkscrew
+			local a = i / 4 * math.pi * 2
+			return Vector3.new(i * 9, math.sin(a) * 6, math.cos(a) * 6 - 6)
+		end,
+		function(i) -- diagonal sweep across the lane
+			return Vector3.new(i * 9, i * 1.5, i * 5 - 10)
+		end,
+	}
 	local made = 0
 	while made < Config.Pickups.Coin.perStage do
 		local base = spot(rng:NextNumber(x0 + first, x0 + L - 60))
+		local pattern = PATTERNS[rng:NextInteger(1, s == 1 and 2 or #PATTERNS)]
 		for i = 0, math.min(4, Config.Pickups.Coin.perStage - made - 1) do
 			local m = pickupModel(folder, "Coin", s)
-			local p = cyl(m, 0.6, 3.6, CFrame.new(base + Vector3.new(i * 9, 0, 0)), Color3.fromRGB(255, 205, 40), { CanCollide = false, CanQuery = false, CastShadow = false })
+			local off = pattern(i)
+			local at = base + off
+			-- stay inside the flying lane and above the lowest flying height
+			local floorY = Config.pathY(at.X)
+			at = Vector3.new(at.X, math.clamp(at.Y, floorY + Config.FLY_MIN_HEIGHT + 2, floorY + Config.FLY_MAX_HEIGHT - 6), math.clamp(at.Z, -HALF + 5, HALF - 5))
+			local p = cyl(m, 0.6, 3.6, CFrame.new(at), Color3.fromRGB(255, 205, 40), { CanCollide = false, CanQuery = false, CastShadow = false })
 			cyl(m, 0.7, 2.2, p.CFrame, Color3.fromRGB(255, 240, 120), { CanCollide = false, CanQuery = false, CastShadow = false })
 			m.PrimaryPart = p
 			m:SetAttribute("Pos", p.Position)
