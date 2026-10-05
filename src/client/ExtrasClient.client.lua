@@ -137,7 +137,9 @@ task.spawn(function()
 	until player:GetAttribute("DataLoaded")
 	task.wait(2)
 	refreshDaily()
-	if dailyReady() and not player:GetAttribute("Flying") then
+	-- returning players see their daily reward right away; brand-new players fly first (the "!"
+	-- badge on DAILY is enough until then)
+	if dailyReady() and not player:GetAttribute("Flying") and (player:GetAttribute("StatFlights") or 0) > 0 then
 		UIKit.toggle(dailyWindow)
 	end
 	while true do

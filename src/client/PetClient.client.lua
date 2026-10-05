@@ -285,13 +285,15 @@ local function playHatch(egg, results)
 				s.roll.Text = pet.name
 				s.roll.TextColor3 = Config.Rarities[pet.rarity].color
 			end
-			UIKit.sound("Click", 0.25, 0.9 + p * 0.6)
+			UIKit.sound("Tick", 0.35, 0.9 + p * 0.7)
 			nextTick = t + 0.05 + p * p * 0.3
 		end
 		RunService.RenderStepped:Wait()
 	end
 
 	-- crack!
+	UIKit.sound("Boom", 0.35, 1.6)
+	UIKit.sound("Pop", 0.7, 0.8)
 	flash.BackgroundTransparency = 0
 	TweenService:Create(flash, TweenInfo.new(0.45), { BackgroundTransparency = 1 }):Play()
 	local best = "Common"
@@ -317,12 +319,16 @@ local function playHatch(egg, results)
 		end
 		table.insert(spinning, { rays = s.rays, model = m, spin = true })
 	end
+	-- the rarer the pet, the bigger the sound
 	if best == "Legendary" then
-		UIKit.sound("Win", 0.9, 1.15)
+		UIKit.sound("Fanfare", 0.8)
+		UIKit.sound("Jingle", 0.5, 1.2)
 	elseif best == "Epic" then
-		UIKit.sound("Win", 0.7, 1)
+		UIKit.sound("Jingle", 0.65, 1)
+	elseif best == "Rare" then
+		UIKit.sound("Gem", 0.6, 1.1)
 	else
-		UIKit.sound("Coin", 0.6, 1.1)
+		UIKit.sound("Gem", 0.5, 0.95)
 	end
 
 	-- wait for a click (or a few seconds)

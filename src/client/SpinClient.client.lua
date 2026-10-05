@@ -211,13 +211,20 @@ for _, attr in ipairs({ "Spins", "SpinProgress", "UnlockedStage" }) do
 end
 refresh()
 
--- New players: show off the welcome spin once, a moment after they arrive
+-- New players: point out the welcome spin once, after their first flight (not before: the first
+-- thing a new player should do is fly)
 task.spawn(function()
 	repeat
 		task.wait(0.5)
 	until player:GetAttribute("DataLoaded")
-	task.wait(8)
-	if (player:GetAttribute("StatFlights") or 0) <= 1 and (player:GetAttribute("Spins") or 0) > 0 and not player:GetAttribute("Flying") then
+	if (player:GetAttribute("StatFlights") or 0) > 0 then
+		return
+	end
+	repeat
+		task.wait(0.5)
+	until (player:GetAttribute("StatFlights") or 0) > 0 and not player:GetAttribute("Flying")
+	task.wait(9) -- after the Flight Report
+	if (player:GetAttribute("Spins") or 0) > 0 and not player:GetAttribute("Flying") then
 		UIKit.toast("🎰 You have a FREE LUCKY SPIN! Press SPIN on the left.", Color3.fromRGB(230, 180, 255))
 		UIKit.bounce(spinBtn.Instance)
 	end
