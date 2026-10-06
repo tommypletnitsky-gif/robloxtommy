@@ -504,7 +504,7 @@ local function decor(hub)
 end
 
 -- Leaderboard beside the main path (ExtrasServer fills in the rows and flips between
--- Farthest Flights / Richest / Top Supporters).
+-- Farthest Flights / Most Earned / Most Rebirths / Top Supporters).
 local function topBoard(hub)
 	local m = Instance.new("Model")
 	m.Name = "TopBoard"

@@ -296,6 +296,8 @@ local function refreshStage()
 		unlockBtn.Instance.Visible = false
 		return
 	end
+	-- back after a rebirth from the last stage
+	unlockBtn.Instance.Visible = true
 	local goal = Config.stageEndX(unlocked) - Config.LAUNCH_X
 	local progress = math.clamp((best - (goal - Config.STAGE_LENGTH)) / Config.STAGE_LENGTH, 0, 1)
 	TweenService:Create(barFill, TweenInfo.new(0.4), { Size = UDim2.fromScale(math.max(progress, 0.04), 1) }):Play()
@@ -348,7 +350,7 @@ remotes:WaitForChild("Notify").OnClientEvent:Connect(UIKit.toast)
 
 -- Launching ---------------------------------------------------------------------------------
 local function requestLaunch()
-	if player:GetAttribute("Flying") then
+	if player:GetAttribute("Flying") or not player:GetAttribute("DataLoaded") then
 		return
 	end
 	Report.hide()
@@ -867,8 +869,24 @@ local function refreshCannonSkin(announce)
 		UIKit.sound("Win", 0.6, 1.2)
 	end
 end
+-- Toast only when a purchase moves you up a tier (not on join or rebirth, which swap quietly).
 player:GetAttributeChangedSignal("CannonLevel"):Connect(function()
-	refreshCannonSkin(true)
+	local l = player:GetAttribute("CannonLevel") or 0
+	if not player:GetAttribute("DataLoaded") then
+		refreshCannonSkin(false) -- save still loading
+		return
+	end
+	local up = cannon.lastLvl ~= nil and Config.cannonTierInfo(l).from > Config.cannonTierInfo(cannon.lastLvl).from
+	cannon.lastLvl = l
+	refreshCannonSkin(up)
+end)
+task.spawn(function()
+	repeat
+		task.wait(0.3)
+	until player:GetAttribute("DataLoaded")
+	if cannon.lastLvl == nil then
+		cannon.lastLvl = player:GetAttribute("CannonLevel") or 0
+	end
 end)
 task.spawn(function()
 	while true do
@@ -1030,6 +1048,11 @@ local function stopFlightFx()
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	UserInputService.MouseIconEnabled = true
 	setJumpBlocked(false)
+	-- boost ends with the flight (the server resets its own boost each flight)
+	player:SetAttribute("BoostFx", false)
+	if flight then
+		flight.boostOn = false
+	end
 	if flight and flight.engine then
 		flight.engine:Destroy()
 	end
@@ -1043,9 +1066,14 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		clearExtras()
 		startPower(info)
 		local body = info.rocket and info.rocket.PrimaryPart
+		local cd -- this countdown (an abort marks it, so it stops without LIFTOFF)
 		if body then
+			if launchFx then
+				launchFx:Destroy()
+			end
 			launchFx = makeLaunchSmoke(body.Position - Vector3.new(0, 3, 0))
 			countdown = { body = body, rocket = info.rocket, base = body.CFrame, t0 = os.clock(), dur = info.seconds }
+			cd = countdown
 			-- cutscene: wide shot from straight behind, slowly pushing in to the rider
 			camera.CameraType = Enum.CameraType.Scriptable
 			camera.FieldOfView = 56
@@ -1059,6 +1087,9 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		playMusic(nil) -- no music while flying (owner): only the engine + effects
 		bigLabel.Visible = true
 		for i = info.seconds, 1, -1 do
+			if cd and cd.aborted then
+				break
+			end
 			bigLabel.Text = tostring(i)
 			bigLabel.TextColor3 = ({ Color3.fromRGB(120, 255, 120), Color3.fromRGB(255, 220, 80), Color3.fromRGB(255, 110, 80) })[i] or Color3.new(1, 1, 1)
 			UIKit.bounce(bigLabel)
@@ -1066,12 +1097,14 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			addShake(0.15 * (4 - i))
 			task.wait(1)
 		end
-		bigLabel.Text = "LIFTOFF!"
-		bigLabel.TextColor3 = Color3.fromRGB(255, 200, 60)
-		UIKit.bounce(bigLabel)
-		task.delay(0.9, function()
-			bigLabel.Visible = false
-		end)
+		if not (cd and cd.aborted) then
+			bigLabel.Text = "LIFTOFF!"
+			bigLabel.TextColor3 = Color3.fromRGB(255, 200, 60)
+			UIKit.bounce(bigLabel)
+			task.delay(0.9, function()
+				bigLabel.Visible = false
+			end)
+		end
 	elseif kind == "start" then
 		local body = info.rocket and info.rocket.PrimaryPart
 		if not body then
@@ -1115,7 +1148,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		local engine = Instance.new("Sound")
 		engine.SoundId = Config.Sounds.Engine
 		engine.Looped = true
-		engine.Volume = 0.35
+		engine.Volume = player:GetAttribute("SoundOn") == false and 0 or 0.35 -- Settings: sound effects off
 		engine.Parent = body
 		engine:Play()
 		flight = {
@@ -1269,6 +1302,15 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			end)
 		end
 	elseif kind == "result" then
+		-- aborted on the pad: stop the countdown (no LIFTOFF) and clear its smoke
+		if countdown then
+			countdown.aborted = true
+			countdown = nil
+		end
+		if launchFx then
+			launchFx:Destroy()
+			launchFx = nil
+		end
 		stopFlightFx()
 		if flight then
 			flight.landed = true
@@ -1287,10 +1329,21 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 	end
 end)
 
+-- Sound effects toggled mid-flight: fade the engine out / back in (it stays silent once out of fuel)
+player:GetAttributeChangedSignal("SoundOn"):Connect(function()
+	if flight and flight.engine and flight.engine.Parent and not flight.outOfFuel then
+		TweenService:Create(flight.engine, TweenInfo.new(0.3), { Volume = player:GetAttribute("SoundOn") == false and 0 or 0.35 }):Play()
+	end
+end)
+
 player:GetAttributeChangedSignal("Flying"):Connect(function()
 	if not player:GetAttribute("Flying") then
 		flight = nil
 		countdown = nil
+		if launchFx then
+			launchFx:Destroy()
+			launchFx = nil
+		end
 		clearExtras()
 		hidePower()
 		setLetterbox(false)
@@ -1610,7 +1663,7 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 
 	local bt = now - f.launchedAt
-	local blast = bt < f.blastTime and 1 + (f.blastPower - 1) * (1 - bt / f.blastTime) ^ 1.4 or 1
+	local blast = Config.blastMult(bt, f.blastPower, f.blastTime)
 	local speedMul = 1
 	if now < f.boostUntil then
 		speedMul = Config.Pickups.Ring.boost
@@ -1645,7 +1698,7 @@ RunService.RenderStepped:Connect(function(dt)
 		local t = now - f.outOfFuel
 		local fall = pos.Y > pathY + 2.5 and (-8 - t * 6) or 0
 		f.vz *= math.exp(-dt * 1.5) -- keep drifting the way you were going, slowing down
-		vel = Vector3.new(f.speed * math.max(0.08, 0.3 - t * 0.1 + 0.7 * math.exp(-t * 3)), fall, f.vz)
+		vel = Vector3.new(f.speed * Config.glideMult(t), fall, f.vz)
 	else
 		local speed = f.speed * speedMul * blast
 		-- follow the smoothed path exactly (the correction terms pull back any physics drift)

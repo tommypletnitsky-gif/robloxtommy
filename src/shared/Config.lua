@@ -83,6 +83,15 @@ function Config.cannonBlast(level)
 	level = level or 0
 	return 2 + level * Config.Upgrades.Cannon.perLevel, 1.6 + level * 0.06 -- speed x, seconds
 end
+-- Speed x from the blast, t seconds after launch (fades from `power` back to 1 over `time`).
+-- The client flies with it and the server's distance cap follows it.
+function Config.blastMult(t, power, time)
+	return (time > 0 and t < time) and 1 + (power - 1) * (1 - t / time) ^ 1.4 or 1
+end
+-- Forward speed x while gliding, t seconds after the fuel ran out (client flight + server cap).
+function Config.glideMult(t)
+	return math.max(0.08, 0.3 - t * 0.1 + 0.7 * math.exp(-t * 3))
+end
 -- The cannon's look by level: a new cannon every 3 levels (models in ReplicatedStorage.CannonSkins).
 Config.CannonTiers = {
 	{ from = 0, name = "Wooden Cannon", skin = "Wooden" },
@@ -512,7 +521,7 @@ end
 -- Owning one sets the player attribute "Pass_<key>" (GamepassServer); in Studio you can test with
 -- the chat command  /pass all  (or /pass VIP).
 Config.Gamepasses = {
-	{ key = "DoubleMoney", id = 2006181522, name = "2x Money", icon = "MoneyBag", robux = 149, color = Color3.fromRGB(80, 200, 90), desc = "Earn double money from every flight, coin and reward!" },
+	{ key = "DoubleMoney", id = 2006181522, name = "2x Money", icon = "MoneyBag", robux = 149, color = Color3.fromRGB(80, 200, 90), desc = "Earn double money from every flight, coin and gem!" },
 	{ key = "VIP", id = 2008281539, name = "VIP", icon = "Crown", robux = 199, color = Color3.fromRGB(255, 190, 40), desc = "+25% money, +1 pet slot, gold VIP tag over your head and in chat." },
 	{ key = "RainbowPets", id = 2006865453, name = "Rainbow Pets", icon = "Rainbow", robux = 179, color = Color3.fromRGB(235, 90, 200), desc = "Your pets turn rainbow: their money boost is x1.5!" },
 	{ key = "LuckyEggs", id = 2005683456, name = "Lucky Eggs", icon = "Clover", robux = 99, color = Color3.fromRGB(60, 190, 110), desc = "Epic and Legendary pets are 3x more likely when you hatch." },

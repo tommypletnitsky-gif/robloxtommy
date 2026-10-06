@@ -19,6 +19,11 @@ local dailyBtn = UIKit.button({ Parent = side, LayoutOrder = 2, Icon3D = "Calend
 local giftBadge = UIKit.badge(giftsBtn.Instance)
 local dailyBadge = UIKit.badge(dailyBtn.Instance)
 
+-- server clock (JoinedAt / LastDaily are the server's os.time()), so a wrong PC clock can't skew the timers
+local function now()
+	return math.floor(workspace:GetServerTimeNow())
+end
+
 local function stage()
 	return player:GetAttribute("UnlockedStage") or 1
 end
@@ -53,7 +58,7 @@ for i, minutes in ipairs(Config.GiftMinutes) do
 end
 
 local function refreshGifts()
-	local played = os.time() - (player:GetAttribute("JoinedAt") or os.time())
+	local played = now() - (player:GetAttribute("JoinedAt") or now())
 	local claimed = string.split(player:GetAttribute("GiftsClaimed") or "", ",")
 	local anyReady, openedCount, nextLeft = false, 0, nil
 	for i, c in ipairs(giftCells) do
@@ -127,14 +132,14 @@ dailyClaim.Instance.Activated:Connect(function()
 end)
 
 local function dailyReady()
-	return os.time() - (player:GetAttribute("LastDaily") or 0) >= 20 * 3600
+	return now() - (player:GetAttribute("LastDaily") or 0) >= 20 * 3600
 end
 
 local function refreshDaily()
 	local last = player:GetAttribute("LastDaily") or 0
 	local streak = player:GetAttribute("DailyStreak") or 0
 	local ready = dailyReady()
-	local nextDay = ready and ((os.time() - last < 48 * 3600) and streak + 1 or 1) or streak
+	local nextDay = ready and ((now() - last < 48 * 3600) and streak + 1 or 1) or streak
 	local today = math.max(1, math.min(nextDay, 7))
 	for d, c in ipairs(dayCells) do
 		c.amount.Text = "$" .. abbreviate(Config.dailyReward(stage(), d))
@@ -157,12 +162,12 @@ local function refreshDaily()
 	if ready then
 		dailyClaim.setText("CLAIM DAY " .. today .. "!")
 	else
-		local left = 20 * 3600 - (os.time() - last)
+		local left = 20 * 3600 - (now() - last)
 		dailyClaim.setText(string.format("⏰ Next in %d:%02d:%02d", left // 3600, (left // 60) % 60, left % 60))
 		dailyClaim.setColor(GREY)
 	end
 	dailyBadge.Visible = ready
-	local wait = 20 * 3600 - (os.time() - last)
+	local wait = 20 * 3600 - (now() - last)
 	dailyBtn.setText(ready and "DAILY" or wait >= 3600 and string.format("%dh %02dm", wait // 3600, (wait // 60) % 60) or string.format("%d:%02d", wait // 60, wait % 60))
 end
 

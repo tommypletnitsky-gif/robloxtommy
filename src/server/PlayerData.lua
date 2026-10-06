@@ -60,6 +60,9 @@ PlayerData.DEFAULTS = {
 
 local store = ProfileStore.New("RocketSim_PS1", PlayerData.DEFAULTS)
 local profiles = {} -- [player] = profile
+local lastSave = {} -- [player] = os.clock() of the last forced save
+local pendingSave = {} -- [player] = true while a delayed save (saveSoon) is waiting
+local SAVE_GAP = 30 -- saveSoon: at most one forced save per player this often (seconds)
 
 -- One-time copy of progress saved by the old raw-DataStore version.
 local function migrateOld(player, data)
@@ -122,13 +125,42 @@ end
 function PlayerData.save(player)
 	local profile = profiles[player]
 	if profile and profile:IsActive() then
+		lastSave[player] = os.clock()
 		profile:Save()
 		return true
 	end
 	return false
 end
 
+-- Throttled save for things that happen in quick runs (hatching eggs back to back): saves now if
+-- the last save was over SAVE_GAP ago, otherwise once when the gap is up (one pending per player).
+function PlayerData.saveSoon(player)
+	if pendingSave[player] then
+		return
+	end
+	local since = os.clock() - (lastSave[player] or -math.huge)
+	if since > SAVE_GAP then
+		PlayerData.save(player)
+		return
+	end
+	pendingSave[player] = true
+	task.delay(SAVE_GAP - since, function()
+		if pendingSave[player] then -- (cleared if the player left meanwhile)
+			pendingSave[player] = nil
+			PlayerData.save(player)
+		end
+	end)
+end
+
+-- True while this player's profile is loaded and can still be saved.
+function PlayerData.isActive(player)
+	local profile = profiles[player]
+	return profile ~= nil and profile:IsActive()
+end
+
 function PlayerData.release(player)
+	lastSave[player] = nil
+	pendingSave[player] = nil
 	local profile = profiles[player]
 	if profile then
 		profiles[player] = nil

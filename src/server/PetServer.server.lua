@@ -143,6 +143,9 @@ local function eggIndex(id)
 end
 
 HatchEgg.OnServerInvoke = function(player, eggId, count)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	if typeof(eggId) ~= "string" or (count ~= 1 and count ~= 3) then
 		return false, "Unknown egg."
 	end
@@ -207,13 +210,16 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 	end
 	setEquipped(player, equipped)
 	refresh(player)
-	PlayerData.save(player)
+	PlayerData.saveSoon(player) -- (throttled: eggs get hatched back to back)
 	busy[player] = nil
 	return true, results
 end
 
 -- Inventory actions -----------------------------------------------------------------------------
 PetAction.OnServerInvoke = function(player, action, uid)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	if typeof(action) ~= "string" then
 		return false, "?"
 	end
@@ -317,7 +323,7 @@ PetAction.OnServerInvoke = function(player, action, uid)
 		setPets(player, kept)
 		setEquipped(player, newEquipped)
 		refresh(player)
-		PlayerData.save(player)
+		PlayerData.saveSoon(player)
 		local pet = Config.Pets[base.kind]
 		if pet.rarity == "Epic" or pet.rarity == "Legendary" then
 			Notify:FireAllClients("⭐ " .. player.DisplayName .. " made a GOLDEN " .. pet.name .. "!", Color3.fromRGB(255, 215, 60))

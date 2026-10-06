@@ -112,7 +112,7 @@ rebirthBtn.Instance.Activated:Connect(function()
 	armedAt = 0
 	local ok, msg = RebirthRemote:InvokeServer()
 	if ok then
-		window.Visible = false
+		UIKit.close(window)
 		celebrate(n + 1) -- (the attribute may not have arrived yet)
 	else
 		UIKit.result(false, msg)
@@ -157,7 +157,7 @@ RunService.Heartbeat:Connect(function()
 	if not window.Visible then
 		openedAt = nil
 	elseif root and openedAt.Parent and (root.Position - openedAt.Position).Magnitude > 24 then
-		window.Visible = false
+		UIKit.close(window)
 		openedAt = nil
 	end
 end)

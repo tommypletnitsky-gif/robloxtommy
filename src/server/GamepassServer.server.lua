@@ -85,18 +85,56 @@ local function give(player, pass, announce)
 	end
 end
 
+-- ownership check with retries (2 s, then 4 s); returns ok, owned
+local function owns(player, id)
+	for i = 1, 3 do
+		local ok, res = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, id)
+		if ok then
+			return true, res
+		end
+		if not player.Parent or i == 3 then
+			return false
+		end
+		task.wait(2 ^ i)
+	end
+	return false
+end
+
 local function check(player)
 	if player.UserId == game.CreatorId and not Config.OWNER_GETS_PASSES then
 		vipTag(player)
 		return -- (the owner plays without the free creator passes; /pass all to test them)
 	end
+	local pending = {} -- passes whose check failed every time
 	for _, pass in ipairs(Config.Gamepasses) do
 		if pass.id ~= 0 then
-			local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.id)
-			if ok and owns then
+			local ok, owned = owns(player, pass.id)
+			if not ok then
+				table.insert(pending, pass)
+			elseif owned then
 				give(player, pass, false)
 			end
 		end
+	end
+	if #pending > 0 and player.Parent then
+		warn("Gamepass check failed for " .. player.Name .. ", retrying every 60 s")
+		task.spawn(function()
+			while player.Parent and #pending > 0 do
+				task.wait(60)
+				for i = #pending, 1, -1 do
+					if not player.Parent then
+						return
+					end
+					local ok, owned = owns(player, pending[i].id)
+					if ok then
+						if owned then
+							give(player, pending[i], false)
+						end
+						table.remove(pending, i)
+					end
+				end
+			end
+		end)
 	end
 	vipTag(player)
 end

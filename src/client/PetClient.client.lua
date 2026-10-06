@@ -112,6 +112,7 @@ end
 
 -- A ViewportFrame showing `model` from the front (models face -Z, pivot at their feet).
 local viewports = {} -- re-parented once the meshes have downloaded
+local preloadDone = false -- after that, new viewports aren't tracked (no leak)
 local function viewport(parent, model, props)
 	local vp = make("ViewportFrame", props)
 	vp.Parent = parent
@@ -127,7 +128,9 @@ local function viewport(parent, model, props)
 	cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(d * 0.28, d * 0.18, -d), cf.Position)
 	cam.Parent = vp
 	vp.CurrentCamera = cam
-	table.insert(viewports, { vp = vp, model = model })
+	if not preloadDone then
+		table.insert(viewports, { vp = vp, model = model })
+	end
 	return vp
 end
 
@@ -149,6 +152,8 @@ task.spawn(function()
 			v.model.Parent = v.vp
 		end
 	end
+	preloadDone = true
+	table.clear(viewports)
 end)
 
 local function windowTitle(w)
@@ -436,7 +441,7 @@ RunService.Heartbeat:Connect(function()
 		eggPrompt = nil
 		currentEgg = nil
 	elseif root and eggPrompt.Parent and (root.Position - eggPrompt.Position).Magnitude > 22 then
-		eggWindow.Visible = false
+		UIKit.close(eggWindow)
 		eggPrompt = nil
 		currentEgg = nil
 	end

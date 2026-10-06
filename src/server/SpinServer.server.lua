@@ -77,6 +77,9 @@ local function grant(player, prize)
 end
 
 SpinRemote.OnServerInvoke = function(player)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	if busy[player] then
 		return false, "Wait for the roll to finish!"
 	end

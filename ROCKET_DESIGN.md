@@ -48,7 +48,8 @@ All tuning (speeds, fuel, prices, stage costs) lives in `Config.lua`.
 - UI: GLOSSY BUBBLY (thick outlines, gradients, bouncy buttons, cartoon font).
 - Rockets: TOOLBOX MODELS (strip every script on insert).
 - Extras: leaderboards = RICHEST + TOP ROBUX DONATORS (donate buttons, "support the game");
-  daily reward + free timed gifts; trails (+ skins).
+  daily reward + free timed gifts; trails (+ skins). (Boards later: Farthest / Most Earned /
+  Most Rebirths / Top Supporters.)
 - Owner will PUBLISH so donations/DataStores work (until then: "coming soon" / server-only boards).
 - Order: everything at once. Devices: PC + phone.
 
@@ -140,7 +141,8 @@ The creator automatically owns their own passes, so the owner always sees "OWNED
   prizes for top 3 + something for everyone, RaceWins stat, results window.
 - Server events every 15 min for 5 min: x2 Money / Lucky Eggs x2 / Fuel Frenzy +25%.
 - Friend boost +10% money per friend in the server (max +50%). Group boost ready (Config.GROUP_ID = 0).
-- Lobby leaderboard beside the main path flipping Farthest Flights / Richest / Top Supporters.
+- Lobby leaderboard beside the main path flipping Farthest Flights / Most Earned / Most Rebirths /
+  Top Supporters (was Farthest / Richest / Top Supporters; the Farthest record never goes down).
 - Donations are real developer products (10 / 50 / 100 / 500 / 1000 R$) inside the Store window;
   the SUPPORT side button is gone.
 - Owner test chat: /race, /event money|luck|fuel|off, /golden.

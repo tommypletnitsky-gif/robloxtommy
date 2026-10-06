@@ -1,4 +1,4 @@
--- Free timed gifts, daily login reward, global leaderboards (richest + top donators), Robux donations.
+-- Free timed gifts, daily login reward, global leaderboards (farthest, most earned, rebirths, top donators), Robux donations.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
@@ -26,6 +26,9 @@ end
 
 -- Free gifts --------------------------------------------------------------------------
 ClaimGift.OnServerInvoke = function(player, index)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	local minutes = typeof(index) == "number" and Config.GiftMinutes[index]
 	if not minutes then
 		return false, "Unknown gift."
@@ -48,6 +51,9 @@ end
 -- Daily reward ------------------------------------------------------------------------
 local DAY = 20 * 3600 -- can claim again 20h after the last claim
 ClaimDaily.OnServerInvoke = function(player)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	local now = os.time()
 	local last = player:GetAttribute("LastDaily") or 0
 	if now - last < DAY then
@@ -80,6 +86,9 @@ MarketplaceService.ProcessReceipt = function(receipt)
 	end
 	if not player or not player:GetAttribute("DataLoaded") then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	if not PlayerData.isActive(player) then
+		return Enum.ProductPurchaseDecision.NotProcessedYet -- no save (off or ended): Roblox retries later
 	end
 	local done = string.split(player:GetAttribute("Receipts") or "", ",")
 	if table.find(done, receipt.PurchaseId) then
@@ -145,11 +154,15 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 
 -- Leaderboard -------------------------------------------------------------------------
--- One board in the lobby (Hub.TopBoard) flips between three pages every few seconds.
+-- One board in the lobby (Hub.TopBoard) flips between four pages every few seconds.
+-- keepMax: the stored record only goes up (BestDistance itself resets on rebirth).
 local boards = {
-	{ title = "🚀 FARTHEST FLIGHTS", attr = "BestDistance", store = "BestDistance_v1", format = Config.meters },
-	{ title = "💰 RICHEST", attr = "Money", store = "Richest_v1", format = function(v)
+	{ title = "🚀 FARTHEST FLIGHTS", attr = "BestDistance", store = "BestDistance_v1", keepMax = true, format = Config.meters },
+	{ title = "💰 MOST EARNED", attr = "TotalEarned", store = "TotalEarned_v1", format = function(v)
 		return "$" .. Config.abbreviate(v)
+	end },
+	{ title = "🌟 MOST REBIRTHS", attr = "Rebirths", store = "Rebirths_v1", format = function(v)
+		return tostring(v) .. " 🌟"
 	end },
 	{ title = "❤ TOP SUPPORTERS", attr = "Donated", store = "Donated_v1", format = function(v)
 		return "R$ " .. Config.abbreviate(v)
@@ -176,14 +189,76 @@ local function nameOf(userId)
 	return nameCache[userId]
 end
 
+-- last value sent to each store, so unchanged values aren't written again: [store][userId]
+local lastWritten = {}
+-- keepMax boards: the best value seen this session, so a rebirth doesn't lower the
+-- "This server" list either (or a record set just before it): [store][userId]
+local sessionBest = {}
+Players.PlayerRemoving:Connect(function(player)
+	for _, written in pairs(lastWritten) do
+		written[player.UserId] = nil
+	end
+	for _, best in pairs(sessionBest) do
+		best[player.UserId] = nil
+	end
+end)
+local function watchBest(player)
+	for _, b in ipairs(boards) do
+		if b.keepMax then
+			sessionBest[b.store] = sessionBest[b.store] or {}
+			local best = sessionBest[b.store]
+			local function seen()
+				best[player.UserId] = math.max(best[player.UserId] or 0, player:GetAttribute(b.attr) or 0)
+			end
+			player:GetAttributeChangedSignal(b.attr):Connect(seen)
+			seen()
+		end
+	end
+end
+Players.PlayerAdded:Connect(watchBest)
+for _, player in ipairs(Players:GetPlayers()) do
+	watchBest(player)
+end
+
+-- a player's value for a board (keepMax boards: the session best)
+local function valueOf(b, p)
+	local v = p:GetAttribute(b.attr) or 0
+	if b.keepMax then
+		v = math.max(v, sessionBest[b.store] and sessionBest[b.store][p.UserId] or 0)
+	end
+	return v
+end
+
 -- Returns { {name=, value=}, ... } top 10, global if DataStores work, else this server.
 local function topList(b)
 	if b.ordered then
+		local written = lastWritten[b.store]
+		if not written then
+			written = {}
+			lastWritten[b.store] = written
+		end
 		for _, p in ipairs(Players:GetPlayers()) do
-			local v = math.floor(p:GetAttribute(b.attr) or 0)
-			if v > 0 and p:GetAttribute("DataLoaded") then
+			local uid = p.UserId
+			local v = math.floor(valueOf(b, p))
+			local last = written[uid]
+			-- records only need a write when beaten, other boards when the value changed
+			local changed = if b.keepMax then v > (last or 0) else v ~= last
+			if v > 0 and changed and p:GetAttribute("DataLoaded") then
 				pcall(function()
-					b.ordered:SetAsync(tostring(p.UserId), v)
+					if b.keepMax then
+						local best = v
+						b.ordered:UpdateAsync(tostring(uid), function(old)
+							best = math.max(old or 0, v)
+							if old and old >= v then
+								return nil -- stored record is already higher: no write
+							end
+							return v
+						end)
+						written[uid] = best
+					else
+						b.ordered:SetAsync(tostring(uid), v)
+						written[uid] = v
+					end
 				end)
 			end
 		end
@@ -200,8 +275,9 @@ local function topList(b)
 	end
 	local list = {}
 	for _, p in ipairs(Players:GetPlayers()) do
-		if (p:GetAttribute(b.attr) or 0) > 0 then
-			table.insert(list, { name = p.DisplayName, value = p:GetAttribute(b.attr) or 0 })
+		local v = valueOf(b, p)
+		if v > 0 then
+			table.insert(list, { name = p.DisplayName, value = v })
 		end
 	end
 	table.sort(list, function(a, c)
@@ -212,29 +288,19 @@ end
 
 local MEDALS = { Color3.fromRGB(255, 205, 60), Color3.fromRGB(205, 215, 230), Color3.fromRGB(225, 150, 90) }
 
-local function renderBoard(b)
-	local world = workspace:FindFirstChild("World")
-	local board = world and world:FindFirstChild("TopBoard", true)
-	local rows = board and board:FindFirstChild("Rows", true)
-	if not rows then
-		return
-	end
+-- The board's parts are looked up once (the World search walks hundreds of pickups) and the
+-- 10 rows are built once; a page flip only changes their text.
+local board, rows, title, sub
+local rowLabels = {} -- [i] = { rank =, name =, value = }
+
+local function buildRows()
 	for _, c in ipairs(rows:GetChildren()) do
 		if c:IsA("Frame") then
 			c:Destroy()
 		end
 	end
-	local title = board:FindFirstChild("Title", true)
-	if title then
-		title.Text = b.title
-	end
-	local sub = board:FindFirstChild("Subtitle", true)
-	if sub then
-		sub.Text = b.global and "All servers" or "This server"
-	end
-	local list = b.list or {}
+	table.clear(rowLabels)
 	for i = 1, 10 do
-		local entry = list[i]
 		local row = Instance.new("Frame")
 		row.Name = "Row" .. i
 		row.LayoutOrder = i
@@ -257,9 +323,39 @@ local function renderBoard(b)
 			l.Parent = row
 			return l
 		end
-		text("#" .. i, 0.03, 0.12, Enum.TextXAlignment.Left, MEDALS[i] and MEDALS[i]:Lerp(Color3.new(0, 0, 0), 0.25))
-		text(entry and entry.name or "---", 0.16, 0.5, Enum.TextXAlignment.Left)
-		text(entry and b.format(entry.value) or "", 0.62, 0.35, Enum.TextXAlignment.Right, Color3.fromRGB(40, 150, 60))
+		rowLabels[i] = {
+			rank = text("#" .. i, 0.03, 0.12, Enum.TextXAlignment.Left, MEDALS[i] and MEDALS[i]:Lerp(Color3.new(0, 0, 0), 0.25)),
+			name = text("---", 0.16, 0.5, Enum.TextXAlignment.Left),
+			value = text("", 0.62, 0.35, Enum.TextXAlignment.Right, Color3.fromRGB(40, 150, 60)),
+		}
+	end
+end
+
+local function renderBoard(b)
+	if board == nil or board.Parent == nil or not rows:IsDescendantOf(workspace) then
+		-- first render (or the board was rebuilt): find it again and build the rows
+		local world = workspace:FindFirstChild("World")
+		board = world and world:FindFirstChild("TopBoard", true)
+		rows = board and board:FindFirstChild("Rows", true)
+		if not rows then
+			board = nil
+			return
+		end
+		title = board:FindFirstChild("Title", true)
+		sub = board:FindFirstChild("Subtitle", true)
+		buildRows()
+	end
+	if title then
+		title.Text = b.title
+	end
+	if sub then
+		sub.Text = b.global and "All servers" or "This server"
+	end
+	local list = b.list or {}
+	for i, labels in ipairs(rowLabels) do
+		local entry = list[i]
+		labels.name.Text = entry and entry.name or "---"
+		labels.value.Text = entry and b.format(entry.value) or ""
 	end
 end
 

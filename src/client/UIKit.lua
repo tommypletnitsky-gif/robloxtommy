@@ -70,15 +70,15 @@ function UIKit.darker(c, f)
 end
 
 -- Vertical gloss gradient: light on top, deeper at the bottom.
-function UIKit.gloss(color)
-	return make("UIGradient", {
-		Rotation = 90,
-		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, UIKit.lighter(color, 0.35)),
-			ColorSequenceKeypoint.new(0.5, color),
-			ColorSequenceKeypoint.new(1, UIKit.darker(color, 0.18)),
-		}),
+local function glossSeq(color)
+	return ColorSequence.new({
+		ColorSequenceKeypoint.new(0, UIKit.lighter(color, 0.35)),
+		ColorSequenceKeypoint.new(0.5, color),
+		ColorSequenceKeypoint.new(1, UIKit.darker(color, 0.18)),
 	})
+end
+function UIKit.gloss(color)
+	return make("UIGradient", { Rotation = 90, Color = glossSeq(color) })
 end
 
 -- Text with a dark outline (the cartoon look).
@@ -356,15 +356,15 @@ end)
 -- 3D icon that pops out over the top edge, a drop shadow, and the name on a dark tag across the
 -- bottom edge. Wide tiles (LAUNCH) keep the icon on the left and the text inside.
 local TAG = 14 -- (half the name tag hangs below the tile)
-local function tileGradient(color)
-	return make("UIGradient", {
-		Rotation = 90,
-		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, UIKit.lighter(color, 0.42)),
-			ColorSequenceKeypoint.new(0.45, UIKit.lighter(color, 0.06)),
-			ColorSequenceKeypoint.new(1, UIKit.darker(color, 0.24)),
-		}),
+local function tileSeq(color)
+	return ColorSequence.new({
+		ColorSequenceKeypoint.new(0, UIKit.lighter(color, 0.42)),
+		ColorSequenceKeypoint.new(0.45, UIKit.lighter(color, 0.06)),
+		ColorSequenceKeypoint.new(1, UIKit.darker(color, 0.24)),
 	})
+end
+local function tileGradient(color)
+	return make("UIGradient", { Rotation = 90, Color = tileSeq(color) })
 end
 local function tagColors(color)
 	return ColorSequence.new(UIKit.darker(color, 0.25), UIKit.darker(color, 0.5))
@@ -505,10 +505,14 @@ function UIKit.button(opts)
 			iconApi = a
 		end
 	end
+	-- recolor in place (called a lot, e.g. on every money change): skip if unchanged
+	local currentColor = color
 	function api.setColor(c)
-		grad:Destroy()
-		grad = tile and tileGradient(c) or UIKit.gloss(c)
-		grad.Parent = face
+		if c == currentColor then
+			return
+		end
+		currentColor = c
+		grad.Color = tile and tileSeq(c) or glossSeq(c)
 		if lip then
 			lip.BackgroundColor3 = UIKit.darker(c, 0.35)
 		end
@@ -1038,6 +1042,17 @@ function UIKit.closeAll()
 		closeWindow(w)
 	end
 	topBar(true)
+	refreshDim()
+end
+
+-- Close one window (walking away from its stand): it shrinks away and the event bar comes back
+-- unless another window is still open.
+function UIKit.close(w)
+	if not w.Visible or closing[w] then
+		return
+	end
+	closeWindow(w)
+	topBar(not anyOpen())
 	refreshDim()
 end
 

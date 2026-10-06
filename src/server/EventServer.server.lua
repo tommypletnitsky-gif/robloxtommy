@@ -48,6 +48,9 @@ local function setInRace(player, on)
 end
 
 RaceJoin.OnServerInvoke = function(player)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	if not race or workspace:GetAttribute("RaceState") ~= "join" then
 		return false, "No race to join right now."
 	end

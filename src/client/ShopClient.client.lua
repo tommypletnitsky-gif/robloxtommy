@@ -278,9 +278,22 @@ local function refreshUpgrades()
 end
 
 for _, attr in ipairs({ "Money", "Rocket", "OwnedRockets", "Trail", "OwnedTrails", "FuelLevel", "SpeedLevel", "MoneyLevel", "CannonLevel" }) do
+	-- only redraw an open window; a closed one refreshes when it opens
 	player:GetAttributeChangedSignal(attr):Connect(function()
-		refreshRockets()
-		refreshUpgrades()
+		if rocketsWindow.Visible then
+			refreshRockets()
+		end
+		if upgradesWindow.Visible then
+			refreshUpgrades()
+		end
+	end)
+end
+-- every way of opening a window (shop prompt, HUD button, Flight Report) refreshes it here
+for w, refresh in pairs({ [rocketsWindow] = refreshRockets, [upgradesWindow] = refreshUpgrades }) do
+	w:GetPropertyChangedSignal("Visible"):Connect(function()
+		if w.Visible then
+			refresh()
+		end
 	end)
 end
 refreshRockets()
@@ -308,8 +321,8 @@ RunService.Heartbeat:Connect(function()
 	if not stillOpen then
 		openedAt = nil
 	elseif root and openedAt.Parent and (root.Position - openedAt.Position).Magnitude > 24 then
-		rocketsWindow.Visible = false
-		upgradesWindow.Visible = false
+		UIKit.close(rocketsWindow)
+		UIKit.close(upgradesWindow)
 		openedAt = nil
 	end
 end)
@@ -323,12 +336,10 @@ local rocketsHud = UIKit.button({ Parent = bottom, LayoutOrder = 4, Icon3D = "Ro
 local upgradeBadge = UIKit.badge(upgradeHud.Instance)
 local rocketsBadge = UIKit.badge(rocketsHud.Instance)
 upgradeHud.Instance.Activated:Connect(function()
-	refreshUpgrades()
 	openedAt = nil
 	UIKit.toggle(upgradesWindow)
 end)
 rocketsHud.Instance.Activated:Connect(function()
-	refreshRockets()
 	openedAt = nil
 	UIKit.toggle(rocketsWindow)
 end)

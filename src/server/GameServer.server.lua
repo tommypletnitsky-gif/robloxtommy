@@ -266,6 +266,9 @@ local function rollExtras(player, f)
 end
 
 local function startFlight(player)
+	if not player:GetAttribute("DataLoaded") then -- no launching before the save has loaded
+		return false
+	end
 	if flights[player] or player:GetAttribute("Flying") then
 		return false
 	end
@@ -354,6 +357,9 @@ local function startFlight(player)
 		body:SetNetworkOwner(player)
 		model:SetAttribute("InCannon", false)
 		RocketModel.setThrust(model, true)
+		-- the client's flight reaches us about one ping late: the distance cap runs this far behind
+		local okP, ping = pcall(player.GetNetworkPing, player)
+		f.lag = math.clamp(okP and ping or 0.2, 0.1, 0.6) + 0.15
 		f.launchedAt = os.clock()
 		f.maxX = math.max(f.startX, body.Position.X) + 15
 		-- BOOM: the cannon blast (stronger + longer with Cannon Power upgrades)
@@ -456,6 +462,41 @@ local function openCrate(player, f, p)
 	return { prize = "money", money = amount }
 end
 
+-- The client owns its rocket, so check it moves believably: inside the lane, not too high, and no
+-- faster sideways / up-down than the client's steering allows (it clamps vz to 32, vy to -50..45).
+-- A flag only blocks pickups for a second. It never ends the flight, so lag spikes can't hurt anyone.
+local MOVE_WINDOW = 0.25 -- measure speed over at least this long (physics updates arrive in bursts)
+local function checkMove(player, f, body, now)
+	if now - f.launchedAt <= 0.5 + (f.lag or 0.3) then
+		return -- the client moves the body to the cannon's muzzle on launch
+	end
+	local p = body.Position
+	local h = p.Y - Config.pathY(p.X) -- height above the path (the path climbs in the Sky)
+	local why = (math.abs(p.Z) > Config.PATH_HALF_WIDTH + 5 and "out of lane") or (h > Config.FLY_MAX_HEIGHT + 12 and "too high")
+	if f.lastPos then
+		local dtm = now - f.lastT
+		local span = math.max(dtm, MOVE_WINDOW)
+		-- top steering speed plus slack: a late burst of physics updates can pack ~0.4 s of
+		-- movement into one window, so only clear jumps get flagged
+		if math.abs(p.Z - f.lastPos.Z) > 32 * span + 15 then
+			why = why or "fast sideways"
+		elseif math.abs(h - f.lastH) > 50 * span + 20 then
+			why = why or "fast up/down"
+		end
+		if dtm >= MOVE_WINDOW then
+			f.lastPos, f.lastH, f.lastT = p, h, now
+		end
+	else
+		f.lastPos, f.lastH, f.lastT = p, h, now
+	end
+	if why then
+		if workspace:GetAttribute("DebugCap") and not (f.suspectUntil and now < f.suspectUntil) then
+			warn("move flag", player.Name, why, p) -- tuning only
+		end
+		f.suspectUntil = now + 1
+	end
+end
+
 CollectRemote.OnServerEvent:Connect(function(player, id)
 	local f = flights[player]
 	if not f or f.ended or not f.launchedAt or typeof(id) ~= "number" or f.collected[id] then
@@ -466,14 +507,31 @@ CollectRemote.OnServerEvent:Connect(function(player, id)
 	if not p or not body then
 		return
 	end
+	-- the rocket just jumped or left the lane: no pickups for a second
+	local now = os.clock()
+	checkMove(player, f, body, now)
+	if f.suspectUntil and now < f.suspectUntil then
+		if workspace:GetAttribute("DebugCap") then
+			warn("pickup refused (move flag)", player.Name, p.kind) -- tuning only
+		end
+		return
+	end
+	-- the client stops grabbing things once it hears it's out of fuel (about one ping later)
+	if f.outOfFuel and now - f.outOfFuel > (f.lag or 0.3) + 0.2 then
+		if workspace:GetAttribute("DebugCap") then
+			warn("pickup refused (out of fuel)", player.Name, p.kind, now - f.outOfFuel) -- tuning only
+		end
+		return
+	end
 	-- The server sees the rocket a little behind where the client is, so allow some lag.
 	local d = p.pos - body.Position
+	-- height is measured from the path: in the Sky it climbs, so a rocket seen behind is also lower
+	local dy = d.Y - (Config.pathY(p.pos.X) - Config.pathY(body.Position.X))
 	local reach = (p.kind == "Ring" and 7.5) or (p.kind == "Obstacle" and 6) or (p.kind == "Golden" and 10) or (p.kind == "Crate" and 9.5) or Config.PICKUP_RADIUS
-	if d.X < -20 or d.X > f.speed * 0.6 + 25 or math.abs(d.Y) > reach + 12 or math.abs(d.Z) > reach + 10 or p.pos.X > f.maxX + 20 then
+	if d.X < -20 or d.X > f.speed * 0.6 + 25 or math.abs(dy) > reach + 9 or math.abs(d.Z) > reach + 7 or p.pos.X > f.maxX + 20 then
 		return
 	end
 	f.collected[id] = true
-	local now = os.clock()
 	-- Halloween: every coin / gem / ring / golden coin also gives candy
 	local candy = Config.halloweenActive() and Config.Candy[p.kind]
 	if candy then
@@ -529,6 +587,7 @@ RunService.Heartbeat:Connect(function(dt)
 			continue
 		end
 		local elapsed = now - f.launchedAt
+		checkMove(player, f, body, now)
 		-- the boost bar drains while you hold boost
 		if f.boostOn then
 			f.boost -= dt / Config.Boost.drainTime
@@ -541,11 +600,18 @@ RunService.Heartbeat:Connect(function(dt)
 		if f.boostOn or now < f.boostGrace then
 			mult *= Config.Boost.speed
 		end
-		local cap = math.max(1.15, mult * 1.1)
-		if f.blastTime and elapsed < f.blastTime + 0.5 then
-			cap = math.max(cap, f.blastPower * mult * 1.1) -- the cannon blast
+		-- The cap follows the client's own speed curves (cannon blast fade, glide slow-down), shifted
+		-- back by the player's lag, plus 10-15%.
+		local cap
+		if f.outOfFuel then
+			cap = math.max(0.12, Config.glideMult(math.max(0, now - f.outOfFuel - f.lag))) * 1.15
+		else
+			cap = math.max(1.15, Config.blastMult(math.max(0, elapsed - f.lag), f.blastPower or 1, f.blastTime or 0) * mult * 1.1)
 		end
 		f.maxX += f.speed * cap * dt
+		if body.Position.X > f.maxX + 5 and workspace:GetAttribute("DebugCap") then
+			warn("cap clamp", player.Name, body.Position.X - f.maxX) -- tuning only
+		end
 		local x = math.min(body.Position.X, f.maxX)
 		f.distance = math.max(f.distance, x - f.startX)
 
@@ -571,6 +637,9 @@ end)
 
 -- Stage unlocking ---------------------------------------------------------------------
 UnlockStage.OnServerInvoke = function(player)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	local unlocked = player:GetAttribute("UnlockedStage") or 1
 	local nextStage = unlocked + 1
 	if nextStage > Config.NUM_STAGES then
@@ -613,6 +682,9 @@ end
 
 -- Buy (if not owned) then equip. Used for rockets and trails.
 local function buyOrEquip(player, list, ownedAttr, equipAttr, id)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	if typeof(id) ~= "string" then
 		return false, "Unknown item."
 	end
@@ -643,6 +715,9 @@ BuyTrail.OnServerInvoke = function(player, id)
 end
 
 BuyUpgrade.OnServerInvoke = function(player, key)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	local u = typeof(key) == "string" and Config.Upgrades[key]
 	if not u then
 		return false, "Unknown upgrade."
@@ -664,6 +739,9 @@ end
 -- Unlock far enough, then start over for a permanent money bonus and one more pet slot.
 -- Resets money, stages, best distance, rockets and upgrades; keeps pets, trails and rewards.
 RebirthRemote.OnServerInvoke = function(player)
+	if not player:GetAttribute("DataLoaded") then
+		return false, "Loading your save..."
+	end
 	if player:GetAttribute("Flying") then
 		return false, "Land first, then rebirth!"
 	end
