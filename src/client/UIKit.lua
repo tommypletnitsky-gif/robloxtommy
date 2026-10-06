@@ -93,12 +93,33 @@ function UIKit.label(props)
 end
 
 -- Sounds ------------------------------------------------------------------------------
+-- Sound rules (owner: "too much sound on almost everything"):
+--   * everything plays at MASTER volume
+--   * button clicks and window pops are silent
+--   * the same sound can't repeat faster than its cooldown (coin bursts, ticks...)
+--   * small sounds don't stack: if one just started, another small one is skipped
+--     (big moments - BIG - always play)
 local soundCache = {}
+local MASTER = 0.6
+local MUTED = { Click = true, Pop = true }
+local COOLDOWN = { Tick = 0.16, Coin = 0.15, Gem = 0.25, Whoosh = 0.3, Boost = 0.3, Beep = 0.2 }
+local BIG = { Hit = true, Boom = true, Jingle = true, Fanfare = true, Win = true, Launch = true, PowerDown = true }
+local lastPlayed = {}
+local lastAny = 0
 function UIKit.sound(name, volume, pitch)
 	local id = Config.Sounds[name]
-	if not id or player:GetAttribute("SoundOn") == false then
+	if not id or MUTED[name] or player:GetAttribute("SoundOn") == false then
 		return
 	end
+	local now = os.clock()
+	if now - (lastPlayed[name] or 0) < (COOLDOWN[name] or 0.1) then
+		return
+	end
+	if not BIG[name] and now - lastAny < 0.06 then
+		return
+	end
+	lastPlayed[name] = now
+	lastAny = now
 	local s = soundCache[name]
 	if not s then
 		s = Instance.new("Sound")
@@ -106,7 +127,7 @@ function UIKit.sound(name, volume, pitch)
 		s.Parent = SoundService
 		soundCache[name] = s
 	end
-	s.Volume = volume or 0.5
+	s.Volume = (volume or 0.5) * MASTER
 	s.PlaybackSpeed = pitch or 1
 	SoundService:PlayLocalSound(s)
 	return s

@@ -2,7 +2,7 @@
 --   The distance counts up, each earning line pops in (distance money, money boost, coins, best
 --   combo), then the TOTAL slams in and coins fly into your money counter. A "next goal" line
 --   tells you what to do next, with FLY AGAIN (queues an instant relaunch if you're still
---   landing) and UPGRADE (opens the Upgrades window) buttons. Tap the card to close it.
+--   landing) and UPGRADE (opens the Upgrades window) buttons. It stays until you press its X.
 -- RocketClient sets Report.launch (start a flight) and Report.shake (camera shake).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -66,14 +66,9 @@ end
 -- counts a label up from 0 with ticks; fmt(n) -> text
 local function countUp(lbl, to, dur, fmt)
 	local t0 = os.clock()
-	local lastTick = 0
 	while true do
 		local a = math.min(1, (os.clock() - t0) / dur)
 		lbl.Text = fmt(to * (1 - (1 - a) ^ 3))
-		if os.clock() - lastTick > 0.07 and a < 1 then
-			lastTick = os.clock()
-			UIKit.sound("Tick", 0.3, 0.9 + a * 0.6)
-		end
 		if a >= 1 then
 			return
 		end
@@ -207,19 +202,16 @@ function Report.backHome()
 		end)
 		return
 	end
-	local mine = token
-	task.delay(7, function()
-		if token == mine and not player:GetAttribute("Flying") then
-			card.Visible = false
-		end
-	end)
+	-- otherwise the report stays up until you press X (or launch again)
 end
 
--- tapping the card (anywhere but its buttons) closes it: an invisible button behind the content
--- (closing on mouse-down would hide FLY AGAIN before its click finishes)
-local closeHit = make("TextButton", { Parent = card, Name = "CloseHit", BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Size = UDim2.fromScale(1, 1), ZIndex = 20 })
-closeHit.Activated:Connect(function()
+-- the report only goes away with its X (top-left corner), FLY AGAIN, UPGRADE or a new launch
+local closeBtn = UIKit.button({ Parent = card, Text = "X", Color = Color3.fromRGB(240, 70, 70), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(18, 18), Size = UDim2.fromOffset(54, 54), Radius = 27, ZIndex = 26 })
+closeBtn.Instance.Name = "Close"
+closeBtn.Instance.Activated:Connect(function()
 	card.Visible = false
+	queued = false
+	againBtn.setText("🚀 FLY AGAIN")
 end)
 againBtn.Instance.Activated:Connect(function()
 	if player:GetAttribute("Flying") then
