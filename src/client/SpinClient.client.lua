@@ -139,6 +139,7 @@ local function refresh()
 	local spins = player:GetAttribute("Spins") or 0
 	spinBadge.Visible = spins > 0
 	spinBadge.Text = tostring(spins)
+	UIKit.claimable(goBtn, spins > 0 and not rolling)
 	if rolling then
 		goBtn.setText("ROLLING...")
 		goBtn.setColor(GREY)

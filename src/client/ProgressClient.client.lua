@@ -69,7 +69,7 @@ local function lobbyText(best, g, unlocked)
 		return best >= g - 5 and "🏁 You reached the end of the galaxy!" or ("🏆 Best " .. Config.meters(best) .. " / " .. Config.meters(g))
 	end
 	if best >= g - 5 then
-		return "✅ Gate reached! Unlock Stage " .. (unlocked + 1) .. " for $" .. Config.abbreviate(Config.stageCost(unlocked + 1))
+		return "✅ Gate reached! Stage " .. (unlocked + 1) .. ": $" .. Config.abbreviate(Config.stageCost(unlocked + 1))
 	end
 	return "🏆 Best " .. Config.meters(best) .. "  •  " .. Config.meters(g - best) .. " to Stage " .. (unlocked + 1)
 end

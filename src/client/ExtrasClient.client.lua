@@ -24,65 +24,98 @@ local function stage()
 end
 
 -- Gifts --------------------------------------------------------------------------------------
-local giftsWindow, giftsList = UIKit.window("Free Gifts", PINK, UDim2.fromOffset(680, 500), "Gift")
-local grid = make("Frame", { Parent = giftsList, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
+-- A grid of presents. Ready ones sit on turning sun rays with a pulsing OPEN! button; waiting
+-- ones show a grey timer; opened ones get a green check stamp.
+local GREEN, GREY = Color3.fromRGB(80, 200, 90), Color3.fromRGB(160, 165, 185)
+local giftsWindow, giftsList = UIKit.window("Free Gifts", PINK, UDim2.fromOffset(680, 530), "Gift")
+local giftHead = make("Frame", { Parent = giftsList, LayoutOrder = 0, Size = UDim2.new(1, -12, 0, 40), BackgroundTransparency = 1, ZIndex = 11 })
+local _, giftHeadText = UIKit.pill(giftHead, { Text = "", Color = UIKit.darker(PINK, 0.1), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(470, 36), ZIndex = 12 })
+local grid = make("Frame", { Parent = giftsList, LayoutOrder = 1, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
 	make("UIGridLayout", { CellSize = UDim2.fromOffset(116, 170), CellPadding = UDim2.fromOffset(10, 12), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
 local giftCells = {}
 for i, minutes in ipairs(Config.GiftMinutes) do
 	local cell = UIKit.card(grid, { LayoutOrder = i, ZIndex = 11, Tint = Color3.fromRGB(255, 228, 242) })
+	local rays = UIKit.rays(cell, { Position = UDim2.fromOffset(58, 42), Size = UDim2.fromOffset(130, 130), Color = Color3.fromRGB(255, 200, 80), ZIndex = 11 })
 	local iconBox = make("Frame", { Parent = cell, Position = UDim2.fromOffset(8, 4), Size = UDim2.new(1, -16, 0, 72), BackgroundTransparency = 1, ZIndex = 12 })
-	UIKit.icon3D(iconBox, "Gift", { ZIndex = 12 })
+	local vp = UIKit.icon3D(iconBox, "Gift", { ZIndex = 12 })
 	local reward = label({ Parent = cell, Position = UDim2.fromOffset(4, 78), Size = UDim2.new(1, -8, 0, 26), Text = "", TextColor3 = Color3.fromRGB(60, 170, 80), StrokeThickness = 0, ZIndex = 12 })
-	local btn = UIKit.button({ Parent = cell, Text = "", Color = GOLD, Position = UDim2.fromOffset(8, 110), Size = UDim2.new(1, -16, 0, 50), ZIndex = 12, Radius = 14 })
+	local btn = UIKit.button({ Parent = cell, Text = "", Color = GREY, Position = UDim2.fromOffset(8, 110), Size = UDim2.new(1, -16, 0, 50), ZIndex = 12, Radius = 14 })
+	btn.Instance.Name = "Gift" .. i
+	local opened = UIKit.pill(cell, { Text = "OPENED", Color = GREEN, Position = UDim2.fromOffset(12, 116), Size = UDim2.new(1, -24, 0, 34), ZIndex = 12 })
+	local check = make("Frame", { Parent = cell, Name = "Check", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(58, 42), Size = UDim2.fromOffset(52, 52), BackgroundColor3 = GREEN, Rotation = -10, ZIndex = 14 }, { UIKit.corner(26), UIKit.stroke(3.5) })
+	label({ Parent = check, Size = UDim2.fromScale(1, 1), Text = "✔", ZIndex = 15 })
 	btn.Instance.Activated:Connect(function()
 		local ok, msg = ClaimGift:InvokeServer(i)
 		UIKit.result(ok, msg)
 	end)
-	giftCells[i] = { minutes = minutes, reward = reward, btn = btn }
+	giftCells[i] = { minutes = minutes, reward = reward, btn = btn, rays = rays, vp = vp, opened = opened, check = check, stroke = cell:FindFirstChildOfClass("UIStroke") }
 end
 
 local function refreshGifts()
 	local played = os.time() - (player:GetAttribute("JoinedAt") or os.time())
 	local claimed = string.split(player:GetAttribute("GiftsClaimed") or "", ",")
-	local anyReady = false
+	local anyReady, openedCount, nextLeft = false, 0, nil
 	for i, c in ipairs(giftCells) do
 		c.reward.Text = "$" .. abbreviate(Config.giftReward(stage(), i))
-		if table.find(claimed, tostring(i)) then
-			c.btn.setText("✓")
-			c.btn.setColor(Color3.fromRGB(160, 165, 185))
+		local isOpened = table.find(claimed, tostring(i)) ~= nil
+		local left = c.minutes * 60 - played
+		local ready = not isOpened and left <= 0
+		c.btn.Instance.Visible = not isOpened
+		c.opened.Visible = isOpened
+		c.check.Visible = isOpened
+		c.vp.ImageTransparency = isOpened and 0.55 or 0
+		c.rays.Visible = ready
+		c.stroke.Color = ready and Color3.fromRGB(255, 170, 30) or Color3.fromRGB(190, 200, 225)
+		c.stroke.Thickness = ready and 4.5 or 3
+		UIKit.claimable(c.btn, ready)
+		if isOpened then
+			openedCount += 1
+		elseif ready then
+			anyReady = true
+			c.btn.setText("OPEN!")
 		else
-			local left = c.minutes * 60 - played
-			if left <= 0 then
-				c.btn.setText("OPEN!")
-				c.btn.setColor(Color3.fromRGB(80, 200, 90))
-				anyReady = true
-			else
-				c.btn.setText(string.format("%d:%02d", left // 60, left % 60))
-				c.btn.setColor(GOLD)
-			end
+			c.btn.setText(string.format("⏰ %d:%02d", left // 60, left % 60))
+			c.btn.setColor(GREY)
+			nextLeft = nextLeft and math.min(nextLeft, left) or left
 		end
+	end
+	if anyReady then
+		giftHeadText.Text = "🎁 A gift is ready! Open it!   (" .. openedCount .. "/" .. #giftCells .. ")"
+	elseif nextLeft then
+		giftHeadText.Text = string.format("⏰ Next gift in %d:%02d  •  stay in the game!   (%d/%d)", nextLeft // 60, nextLeft % 60, openedCount, #giftCells)
+	else
+		giftHeadText.Text = "⭐ All gifts opened! New ones next time you join"
 	end
 	giftBadge.Visible = anyReady
 end
 
 -- Daily reward --------------------------------------------------------------------------------
-local dailyWindow, dailyList = UIKit.window("Daily Reward", GOLD, UDim2.fromOffset(700, 400), "Calendar")
-local dayRow = make("Frame", { Parent = dailyList, Size = UDim2.new(1, -12, 0, 170), BackgroundTransparency = 1, ZIndex = 11 }, {
+-- 7 day cards: claimed days dimmed with a green check, today's card bigger on turning gold rays
+-- with a TODAY tag, day 7 a big gift. Streak pill on top; the button pulses when it's ready.
+local dailyWindow, dailyList = UIKit.window("Daily Reward", GOLD, UDim2.fromOffset(720, 430), "Calendar")
+local streakRow = make("Frame", { Parent = dailyList, LayoutOrder = 0, Size = UDim2.new(1, -12, 0, 40), BackgroundTransparency = 1, ZIndex = 11 })
+local _, streakText = UIKit.pill(streakRow, { Text = "", Color = Color3.fromRGB(255, 120, 40), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(440, 36), ZIndex = 12 })
+local dayRow = make("Frame", { Parent = dailyList, LayoutOrder = 1, Size = UDim2.new(1, -12, 0, 190), BackgroundTransparency = 1, ZIndex = 11 }, {
 	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
 local dayCells = {}
 for d = 1, 7 do
 	local big = d == 7
-	local cell = UIKit.card(dayRow, { LayoutOrder = d, Size = UDim2.fromOffset(big and 100 or 82, big and 160 or 140), ZIndex = 11, Tint = big and Color3.fromRGB(255, 236, 190) or Color3.fromRGB(240, 244, 255) })
-	label({ Parent = cell, Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 24), Text = "Day " .. d, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-	local iconBox = make("Frame", { Parent = cell, Position = UDim2.fromOffset(4, 30), Size = UDim2.new(1, -8, 0, big and 74 or 60), BackgroundTransparency = 1, ZIndex = 12 })
-	UIKit.icon3D(iconBox, big and "Gift" or "Coin", { ZIndex = 12 })
+	local cell = UIKit.card(dayRow, { LayoutOrder = d, Size = UDim2.fromOffset(big and 104 or 82, big and 164 or 144), ZIndex = 11, Tint = big and Color3.fromRGB(255, 236, 190) or Color3.fromRGB(240, 244, 255) })
+	local scale = make("UIScale", { Parent = cell })
+	local rays = UIKit.rays(cell, { Position = UDim2.new(0.5, 0, 0, big and 66 or 60), Size = UDim2.fromOffset(150, 150), Color = Color3.fromRGB(255, 190, 40), ZIndex = 11 })
+	label({ Parent = cell, Position = UDim2.fromOffset(0, 8), Size = UDim2.new(1, 0, 0, 24), Text = "Day " .. d, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+	local iconBox = make("Frame", { Parent = cell, Position = UDim2.fromOffset(4, 32), Size = UDim2.new(1, -8, 0, big and 78 or 62), BackgroundTransparency = 1, ZIndex = 12 })
+	local vp = UIKit.icon3D(iconBox, big and "Gift" or "Coin", { ZIndex = 12 })
 	local amount = label({ Parent = cell, AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 2, 1, -10), Size = UDim2.new(1, -4, 0, 26), Text = "", TextColor3 = Color3.fromRGB(60, 170, 80), StrokeThickness = 0, ZIndex = 12 })
-	local check = UIKit.pill(cell, { Text = "✔", Color = Color3.fromRGB(80, 200, 90), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 6, 0, -6), Size = UDim2.fromOffset(30, 30), ZIndex = 14 })
-	dayCells[d] = { cell = cell, amount = amount, check = check, stroke = cell:FindFirstChildOfClass("UIStroke") }
+	local today = UIKit.pill(cell, { Text = "TODAY", Color = Color3.fromRGB(255, 120, 40), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, -11), Size = UDim2.fromOffset(78, 26), ZIndex = 14 })
+	local check = make("Frame", { Parent = cell, Name = "Check", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 64), Size = UDim2.fromOffset(48, 48), BackgroundColor3 = GREEN, Rotation = -10, ZIndex = 14 }, { UIKit.corner(24), UIKit.stroke(3.5) })
+	label({ Parent = check, Size = UDim2.fromScale(1, 1), Text = "✔", ZIndex = 15 })
+	dayCells[d] = { cell = cell, scale = scale, rays = rays, vp = vp, amount = amount, today = today, check = check, stroke = cell:FindFirstChildOfClass("UIStroke"), grad = cell:FindFirstChildOfClass("UIGradient"), big = big }
 end
-local dailyClaim = UIKit.button({ Parent = dailyList, LayoutOrder = 2, Text = "CLAIM!", Color = Color3.fromRGB(80, 200, 90), Size = UDim2.fromOffset(300, 76), Radius = 24 })
+local dailyClaim = UIKit.button({ Parent = dailyList, LayoutOrder = 2, Text = "CLAIM!", Color = GREEN, Size = UDim2.fromOffset(330, 72), Radius = 24 })
+dailyClaim.Instance.Name = "DailyClaim"
 dailyClaim.Instance.Activated:Connect(function()
 	local ok, msg = ClaimDaily:InvokeServer()
 	UIKit.result(ok, msg)
@@ -100,23 +133,31 @@ local function refreshDaily()
 	local streak = player:GetAttribute("DailyStreak") or 0
 	local ready = dailyReady()
 	local nextDay = ready and ((os.time() - last < 48 * 3600) and streak + 1 or 1) or streak
+	local today = math.max(1, math.min(nextDay, 7))
 	for d, c in ipairs(dayCells) do
 		c.amount.Text = "$" .. abbreviate(Config.dailyReward(stage(), d))
-		local today = math.min(nextDay, 7)
-		local highlight = d == today
-		c.check.Visible = d < today
-		if c.stroke then
-			c.stroke.Color = highlight and Color3.fromRGB(255, 170, 30) or Color3.fromRGB(190, 200, 225)
-			c.stroke.Thickness = highlight and 5 or 3
-		end
+		local isToday = d == today
+		-- claimed days: everything before today, and today itself once it's been claimed
+		local claimed = d < today or (not ready and d == today)
+		local glowing = isToday and ready
+		c.check.Visible = claimed
+		c.vp.ImageTransparency = claimed and 0.5 or 0
+		c.today.Visible = isToday
+		c.rays.Visible = glowing
+		c.scale.Scale = glowing and 1.08 or 1
+		c.stroke.Color = glowing and Color3.fromRGB(255, 150, 20) or claimed and Color3.fromRGB(110, 200, 120) or Color3.fromRGB(190, 200, 225)
+		c.stroke.Thickness = glowing and 5 or 3
+		c.grad.Color = ColorSequence.new(Color3.new(1, 1, 1), claimed and Color3.fromRGB(215, 245, 215) or c.big and Color3.fromRGB(255, 236, 190) or Color3.fromRGB(240, 244, 255))
 	end
+	local shown = ready and nextDay - 1 or streak
+	streakText.Text = shown > 0 and ("🔥 " .. shown .. " day streak!  Day 7 = a BIG gift") or "🔥 Come back every day: Day 7 = a BIG gift"
+	UIKit.claimable(dailyClaim, ready)
 	if ready then
-		dailyClaim.setText("CLAIM!")
-		dailyClaim.setColor(Color3.fromRGB(80, 200, 90))
+		dailyClaim.setText("CLAIM DAY " .. today .. "!")
 	else
 		local left = 20 * 3600 - (os.time() - last)
-		dailyClaim.setText(string.format("Next in %d:%02d:%02d", left // 3600, (left // 60) % 60, left % 60))
-		dailyClaim.setColor(Color3.fromRGB(160, 165, 185))
+		dailyClaim.setText(string.format("⏰ Next in %d:%02d:%02d", left // 3600, (left // 60) % 60, left % 60))
+		dailyClaim.setColor(GREY)
 	end
 	dailyBadge.Visible = ready
 end

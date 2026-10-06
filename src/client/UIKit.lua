@@ -420,71 +420,276 @@ end
 -- Windows -----------------------------------------------------------------------------
 local windows = {}
 UIKit.windows = windows
+local windowTitles = {} -- [window] = its title label
+local windowIcons = {} -- [window] = function(source) that swaps its ribbon icon
 
--- A big bright window: drop shadow, colored header ribbon with a 3D icon and title, round red
--- close button, and a scrolling list. Returns window, list.
---   UIKit.window(title, color, size, icon3D)
+-- Patterns (uploaded images, assets/ui/*.png in the repo): tiled on window panels / headers.
+UIKit.PATTERN = {
+	dots = "rbxassetid://104522712949109",
+	stripes = "rbxassetid://115102900411200",
+	rays = "rbxassetid://124716479109747",
+	glow = "rbxassetid://83385000925606",
+}
+
+-- A tiled pattern over a rounded frame (UICorner on the image clips it to the same shape).
+function UIKit.pattern(parent, name, props)
+	props = props or {}
+	return make("ImageLabel", {
+		Parent = parent,
+		Name = "Pattern",
+		BackgroundTransparency = 1,
+		Image = UIKit.PATTERN[name],
+		ScaleType = Enum.ScaleType.Tile,
+		TileSize = UDim2.fromOffset(props.Tile or 48, props.Tile or 48),
+		ImageColor3 = props.Color or Color3.new(1, 1, 1),
+		ImageTransparency = props.Transparency or 0.6,
+		Size = props.Size or UDim2.fromScale(1, 1),
+		Position = props.Position or UDim2.new(),
+		ZIndex = props.ZIndex or (parent.ZIndex or 1),
+	}, { UIKit.corner(props.Radius or 28) })
+end
+
+-- A big bright window: patterned panel in the window's color, a glossy title ribbon sticking out
+-- above the top edge with the 3D icon breaking out of it, a round red X on the corner, and a
+-- scrolling list. Returns window, list.   UIKit.window(title, color, size, icon3D)
 function UIKit.window(title, color, size, icon)
 	local w = make("Frame", {
 		Parent = UIKit.gui(),
 		Name = "Window_" .. title,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 14),
 		Size = size or UDim2.fromOffset(620, 450),
 		BackgroundTransparency = 1,
 		Visible = false,
 		ZIndex = 10,
 	}, { make("UIScale", { Name = "OpenScale" }) })
 	-- drop shadow, then the panel (siblings, so the shadow stays behind)
-	make("Frame", { Parent = w, Name = "Shadow", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.6, Position = UDim2.fromOffset(0, 10), Size = UDim2.fromScale(1, 1), ZIndex = 9 }, { UIKit.corner(28) })
-	local panel = make("Frame", { Parent = w, Name = "Panel", BackgroundColor3 = Color3.fromRGB(250, 250, 255), Size = UDim2.fromScale(1, 1), ZIndex = 10 }, { UIKit.corner(28), UIKit.stroke(5) })
-	make("UIGradient", { Parent = panel, Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), UIKit.lighter(color, 0.82)) })
-	local header = make("Frame", { Parent = w, Name = "Header", Size = UDim2.new(1, 0, 0, 70), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 11 }, { UIKit.corner(28), UIKit.gloss(color) })
-	-- square off the header's bottom corners, then a darker band under it
-	make("Frame", { Parent = header, Position = UDim2.new(0, 0, 1, -28), Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 11 }, { make("UIGradient", { Rotation = 90, Color = ColorSequence.new(color, UIKit.darker(color, 0.18)) }) })
-	make("Frame", { Parent = header, Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 5), BackgroundColor3 = UIKit.darker(color, 0.35), BorderSizePixel = 0, ZIndex = 11 })
-	-- sparkle dots on the header
-	for i = 1, 6 do
-		make("Frame", { Parent = header, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.75, Position = UDim2.new(0.35 + i * 0.075, 0, 0.18 + (i % 2) * 0.42, 0), Size = UDim2.fromOffset(8 + (i % 3) * 3, 8 + (i % 3) * 3), ZIndex = 11 }, { UIKit.corner(20) })
+	make("Frame", { Parent = w, Name = "Shadow", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, Position = UDim2.fromOffset(0, 10), Size = UDim2.fromScale(1, 1), ZIndex = 9 }, { UIKit.corner(30) })
+	local panel = make("Frame", { Parent = w, Name = "Panel", BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.fromScale(1, 1), ZIndex = 10 }, { UIKit.corner(30), UIKit.stroke(5) })
+	make("UIGradient", { Parent = panel, Rotation = 90, Color = ColorSequence.new(UIKit.lighter(color, 0.72), UIKit.lighter(color, 0.5)) })
+	UIKit.pattern(panel, "dots", { Tile = 44, Transparency = 0.55, ZIndex = 10, Radius = 30 })
+	-- colored band along the top, with stripes
+	local band = make("Frame", { Parent = panel, Name = "Band", BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 0, 58), ZIndex = 10 }, { UIKit.corner(30), UIKit.gloss(color) })
+	make("Frame", { Parent = band, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -30), Size = UDim2.new(1, 0, 0, 30), ZIndex = 10 }, { make("UIGradient", { Rotation = 90, Color = ColorSequence.new(color, UIKit.darker(color, 0.15)) }) })
+	UIKit.pattern(band, "stripes", { Tile = 40, Transparency = 0.86, ZIndex = 10, Radius = 30 })
+	make("Frame", { Parent = band, BackgroundColor3 = UIKit.darker(color, 0.4), BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 4), ZIndex = 10 })
+
+	-- the title ribbon: two darker tails behind a glossy banner, centered over the top edge
+	local TextService = game:GetService("TextService")
+	local ribbon = make("Frame", { Parent = w, Name = "Ribbon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 4), Size = UDim2.fromOffset(300, 64), BackgroundTransparency = 1, ZIndex = 13 })
+	for _, side in ipairs({ -1, 1 }) do
+		make("Frame", { Parent = ribbon, Name = "Tail", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(side < 0 and 0 or 1, side * 6, 0.5, 10), Size = UDim2.fromOffset(60, 46), Rotation = side * -8, BackgroundColor3 = UIKit.darker(color, 0.35), ZIndex = 13 }, { UIKit.corner(12), UIKit.stroke(4) })
 	end
-	local titleX = 24
-	if icon then
-		local holder = make("Frame", { Parent = header, BackgroundTransparency = 1, Position = UDim2.fromOffset(10, -22), Size = UDim2.fromOffset(92, 92), ZIndex = 13 })
-		UIKit.icon3D(holder, icon, { ZIndex = 13 })
-		titleX = 104
+	local banner = make("Frame", { Parent = ribbon, Name = "Banner", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 14 }, { UIKit.corner(22), UIKit.stroke(4.5), UIKit.gloss(UIKit.lighter(color, 0.12)) })
+	make("Frame", { Parent = banner, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.68, Position = UDim2.new(0.05, 0, 0.1, 0), Size = UDim2.new(0.9, 0, 0.32, 0), ZIndex = 14 }, { UIKit.corner(10) })
+	local titleLabel = UIKit.label({ Parent = banner, Name = "Title", Position = UDim2.fromOffset(16, 8), Size = UDim2.new(1, -32, 1, -16), Text = title, ZIndex = 15, StrokeThickness = 3.5 })
+	windowTitles[w] = titleLabel
+	local hasIcon = icon ~= nil
+	local function fitRibbon()
+		local t = TextService:GetTextSize(titleLabel.Text, 40, UIKit.FONT, Vector2.new(2000, 100))
+		local width = math.clamp(t.X + (hasIcon and 112 or 60), 220, math.max(240, w.Size.X.Offset - 150))
+		ribbon.Size = UDim2.fromOffset(width, 64)
+		titleLabel.Position = UDim2.fromOffset(hasIcon and 78 or 18, 8)
+		titleLabel.Size = UDim2.new(1, hasIcon and -96 or -36, 1, -16)
 	end
-	UIKit.label({ Parent = header, Name = "Title", Position = UDim2.fromOffset(titleX, 10), Size = UDim2.new(1, -titleX - 80, 1, -20), TextXAlignment = Enum.TextXAlignment.Left, Text = title, ZIndex = 12, StrokeThickness = 3.5 })
-	local close = UIKit.button({ Parent = header, Text = "X", Color = Color3.fromRGB(240, 70, 70), Size = UDim2.fromOffset(54, 54), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), ZIndex = 13, Radius = 27 })
+	titleLabel:GetPropertyChangedSignal("Text"):Connect(fitRibbon)
+	local holder = nil
+	windowIcons[w] = function(source)
+		if holder then
+			holder:Destroy()
+			holder = nil
+		end
+		hasIcon = source ~= nil
+		if source then
+			holder = make("Frame", { Parent = ribbon, Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 26, 0.5, -4), Size = UDim2.fromOffset(90, 90), BackgroundTransparency = 1, ZIndex = 16 })
+			UIKit.icon3D(holder, source, { ZIndex = 16 })
+		end
+		fitRibbon()
+	end
+	windowIcons[w](icon)
+	local close = UIKit.button({ Parent = w, Text = "X", Color = Color3.fromRGB(240, 70, 70), Size = UDim2.fromOffset(58, 58), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -16, 0, 16), ZIndex = 17, Radius = 29 })
+	close.Instance.Name = "Close"
 	close.Instance.Activated:Connect(function()
 		UIKit.closeAll()
 	end)
 	local list = make("ScrollingFrame", {
 		Parent = w,
 		Name = "List",
-		Position = UDim2.fromOffset(16, 88),
-		Size = UDim2.new(1, -32, 1, -102),
+		Position = UDim2.fromOffset(16, 62),
+		Size = UDim2.new(1, -32, 1, -76),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 8,
-		ScrollBarImageColor3 = UIKit.darker(color, 0.1),
+		ScrollBarImageColor3 = UIKit.darker(color, 0.2),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		CanvasSize = UDim2.new(),
 		ZIndex = 11,
-	}, { make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center }), make("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 10) }) })
+	}, { make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center }), make("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 10) }) })
 	table.insert(windows, w)
 	return w, list
+end
+
+function UIKit.windowTitle(w)
+	return windowTitles[w]
+end
+
+-- Swap a window's ribbon icon (UIIcons name / Model / nil), e.g. the egg you're looking at.
+function UIKit.setWindowIcon(w, source)
+	windowIcons[w](source)
+end
+
+-- Pill tabs under a window's top band. tabs = { { key, text, color } }. Each tab gets its own
+-- content frame inside the list (auto height); only the selected tab's frame shows.
+-- api.frames[key], api.select(key), api.badge(key, on), api.current, api.changed (callback)
+function UIKit.tabs(w, list, tabs)
+	local bar = make("Frame", { Parent = w, Name = "Tabs", Position = UDim2.fromOffset(16, 64), Size = UDim2.new(1, -32, 0, 54), BackgroundTransparency = 1, ZIndex = 12 }, {
+		make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }),
+	})
+	list.Position = UDim2.fromOffset(16, 120)
+	list.Size = UDim2.new(1, -32, 1, -134)
+	local api = { frames = {}, buttons = {}, badges = {}, current = nil, changed = nil }
+	local OFF = Color3.fromRGB(175, 180, 200)
+	for i, t in ipairs(tabs) do
+		local b = UIKit.button({ Parent = bar, LayoutOrder = i, Text = t.text, Color = OFF, Size = UDim2.fromOffset(t.width or 210, 50), Radius = 25, ZIndex = 13 })
+		b.Instance.Name = "Tab_" .. t.key
+		api.buttons[t.key] = b
+		api.badges[t.key] = UIKit.badge(b.Instance)
+		local frame = make("Frame", { Parent = list, Name = "Tab_" .. t.key, LayoutOrder = 1, Size = UDim2.new(1, -8, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Visible = false, ZIndex = 11 }, {
+			make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center }),
+		})
+		api.frames[t.key] = frame
+		b.Instance.Activated:Connect(function()
+			api.select(t.key)
+		end)
+	end
+	function api.select(key)
+		api.current = key
+		for _, t in ipairs(tabs) do
+			local on = t.key == key
+			api.frames[t.key].Visible = on
+			api.buttons[t.key].setColor(on and t.color or OFF)
+		end
+		list.CanvasPosition = Vector2.zero
+		if api.changed then
+			api.changed(key)
+		end
+	end
+	function api.badge(key, on)
+		local b = api.badges[key]
+		if on and not b.Visible then
+			bounce(b)
+		end
+		b.Visible = on
+	end
+	api.select(tabs[1].key)
+	return api
+end
+
+-- A reward chip: white pill with a 3D icon (Coin by default) and an amount.
+-- Returns frame, setText(text)
+function UIKit.rewardChip(parent, props)
+	local z = props.ZIndex or 12
+	local chip = make("Frame", { Parent = parent, Name = "Reward", AnchorPoint = props.AnchorPoint or Vector2.zero, Position = props.Position or UDim2.new(), Size = props.Size or UDim2.fromOffset(150, 40), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = z }, { UIKit.corner(20), UIKit.stroke(3, props.Border or Color3.fromRGB(70, 170, 80)) })
+	make("UIGradient", { Parent = chip, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(225, 250, 225)) })
+	local h = (props.Size and props.Size.Y.Offset > 0) and props.Size.Y.Offset or 40
+	local iconBox = make("Frame", { Parent = chip, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -10, 0.5, 0), Size = UDim2.fromOffset(h * 1.45, h * 1.45), BackgroundTransparency = 1, ZIndex = z + 1 })
+	if iconTemplate(props.Icon or "Coin") then
+		UIKit.icon3D(iconBox, props.Icon or "Coin", { ZIndex = z + 1 })
+	else
+		UIKit.label({ Parent = iconBox, Size = UDim2.fromScale(1, 1), Text = "💰", ZIndex = z + 1, StrokeThickness = 0 })
+	end
+	local text = UIKit.label({ Parent = chip, Name = "Amount", Position = UDim2.new(0.34, 0, 0.12, 0), Size = UDim2.new(0.62, 0, 0.76, 0), Text = props.Text or "", TextColor3 = Color3.fromRGB(50, 160, 60), StrokeThickness = 0, ZIndex = z + 1 })
+	return chip, function(t)
+		text.Text = t
+	end
+end
+
+-- A rotated stamp ("CLAIMED", "DONE") over a card.
+function UIKit.stamp(parent, text, color, props)
+	props = props or {}
+	color = color or Color3.fromRGB(70, 180, 80)
+	local z = props.ZIndex or 20
+	local st = make("Frame", { Parent = parent, Name = "Stamp", AnchorPoint = Vector2.new(0.5, 0.5), Position = props.Position or UDim2.fromScale(0.5, 0.45), Size = props.Size or UDim2.fromOffset(170, 52), Rotation = props.Rotation or -12, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.15, Visible = false, ZIndex = z }, { UIKit.corner(12), make("UIStroke", { Thickness = 5, Color = color }) })
+	UIKit.label({ Parent = st, Position = UDim2.fromScale(0.06, 0.1), Size = UDim2.fromScale(0.88, 0.8), Text = text, TextColor3 = color, StrokeThickness = 0, ZIndex = z + 1 })
+	return st
+end
+
+-- Sun rays behind something special (today's reward, a ready gift); they turn slowly.
+local spinningRays = {}
+function UIKit.rays(parent, props)
+	props = props or {}
+	local r = make("ImageLabel", { Parent = parent, Name = "Rays", AnchorPoint = Vector2.new(0.5, 0.5), Position = props.Position or UDim2.fromScale(0.5, 0.5), Size = props.Size or UDim2.fromScale(1.3, 1.3), BackgroundTransparency = 1, Image = UIKit.PATTERN.rays, ImageColor3 = props.Color or Color3.new(1, 1, 1), ImageTransparency = props.Transparency or 0.3, ZIndex = props.ZIndex or 12 }, { make("UIAspectRatioConstraint", { AspectRatio = 1 }) })
+	table.insert(spinningRays, r)
+	r.Destroying:Connect(function()
+		local i = table.find(spinningRays, r)
+		if i then
+			table.remove(spinningRays, i)
+		end
+	end)
+	return r
+end
+
+-- "Claimable" look on a UIKit.button: green, gently pulsing, with a shine sweeping across.
+local claimables = {}
+function UIKit.claimable(btn, on)
+	local face = btn.Face
+	local info = claimables[btn]
+	if not info then
+		local pulse = make("UIScale", { Parent = face, Name = "Pulse" })
+		face.ClipsDescendants = true
+		local shine = make("Frame", { Parent = face, Name = "ShineSweep", BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.new(0.28, 0, 1.4, 0), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(-0.3, 0.5), Rotation = 18, Visible = false, ZIndex = face.ZIndex + 1 }, {
+			make("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.45), NumberSequenceKeypoint.new(1, 1) }) }),
+		})
+		info = { pulse = pulse, shine = shine, on = false, phase = math.random() * 3 }
+		claimables[btn] = info
+		btn.Instance.Destroying:Connect(function()
+			claimables[btn] = nil
+		end)
+	end
+	info.on = on
+	info.shine.Visible = on
+	if on then
+		btn.setColor(Color3.fromRGB(70, 205, 85))
+	else
+		info.pulse.Scale = 1
+	end
+end
+RunService.RenderStepped:Connect(function()
+	local t = os.clock()
+	for _, r in ipairs(spinningRays) do
+		if r.Visible then
+			r.Rotation = (t * 24) % 360
+		end
+	end
+	for btn, info in pairs(claimables) do
+		if info.on and btn.Instance.Parent and btn.Instance.AbsoluteSize.X > 0 then
+			local p = (t + info.phase) % 2.2
+			info.pulse.Scale = 1 + math.sin((t + info.phase) * 5) * 0.035
+			info.shine.Position = UDim2.fromScale(-0.3 + (p / 0.9) * 1.6, 0.5)
+		end
+	end
+end)
+
+-- the event pills at the top hide while a window is open (the title ribbon sits there)
+local function topBar(show)
+	local bar = UIKit.gui():FindFirstChild("EventBar")
+	if bar then
+		bar.Visible = show
+	end
 end
 
 function UIKit.closeAll()
 	for _, w in ipairs(windows) do
 		w.Visible = false
 	end
+	topBar(true)
 end
 
 function UIKit.toggle(w)
 	local open = not w.Visible
 	UIKit.closeAll()
 	w.Visible = open
+	topBar(not open)
 	if open then
 		UIKit.sound("Pop", 0.5, 1.05)
 		local s = w:FindFirstChild("OpenScale") or w:FindFirstChildOfClass("UIScale")
@@ -493,7 +698,7 @@ function UIKit.toggle(w)
 		local size = w.Size
 		local px = Vector2.new(size.X.Offset + size.X.Scale * view.X, size.Y.Offset + size.Y.Scale * view.Y)
 		if px.X > 10 and view.X > 300 and view.Y > 200 then -- (right after joining the screen size can still read 1x1)
-			fit = math.clamp(math.min((view.X - 24) / px.X, (view.Y - 90) / px.Y), 0.45, 1)
+			fit = math.clamp(math.min((view.X - 24) / px.X, (view.Y - 110) / px.Y), 0.45, 1.15)
 		end
 		s.Scale = 0.6 * fit
 		spr.target(s, 0.55, 3.5, { Scale = fit }) -- windows spring open
@@ -599,24 +804,48 @@ local function placeToasts()
 end
 player:GetAttributeChangedSignal("Flying"):Connect(placeToasts)
 
+-- Toasts are dark pills with colored text; at most 3 show at once, the rest wait their turn.
+local MAX_TOASTS = 3
+local toastQueue = {}
+local toastsShown = 0
+local function showToast(text, color)
+	color = color or Color3.new(1, 1, 1)
+	toastsShown += 1
+	local width = math.min(game:GetService("TextService"):GetTextSize(text, 27, UIKit.FONT, Vector2.new(2000, 100)).X + 48, 640)
+	local pill = make("Frame", { Parent = toastHolder, Name = "Toast", Size = UDim2.fromOffset(width, 42), BackgroundColor3 = Color3.fromRGB(28, 26, 48), BackgroundTransparency = 0.2, ZIndex = 30 }, { UIKit.corner(21), UIKit.stroke(3, color) })
+	local l = UIKit.label({ Parent = pill, Position = UDim2.fromOffset(18, 5), Size = UDim2.new(1, -36, 1, -10), Text = text, TextColor3 = color, ZIndex = 31, StrokeThickness = 2.5 })
+	bounce(pill)
+	task.delay(3, function()
+		local fade = TweenInfo.new(0.35)
+		TweenService:Create(pill, fade, { BackgroundTransparency = 1 }):Play()
+		TweenService:Create(l, fade, { TextTransparency = 1 }):Play()
+		for _, st in ipairs({ pill:FindFirstChildOfClass("UIStroke"), l:FindFirstChildOfClass("UIStroke") }) do
+			TweenService:Create(st, fade, { Transparency = 1 }):Play()
+		end
+		task.wait(0.4)
+		if pill.Parent then
+			pill:Destroy()
+			toastsShown -= 1
+		end
+		local nextToast = table.remove(toastQueue, 1)
+		if nextToast then
+			showToast(nextToast[1], nextToast[2])
+		end
+	end)
+end
+
 function UIKit.toast(text, color)
 	if not toastHolder then
-		toastHolder = make("Frame", { Parent = UIKit.gui(), Name = "Toasts", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 70), Size = UDim2.fromOffset(620, 200), BackgroundTransparency = 1, ZIndex = 30 }, {
+		toastHolder = make("Frame", { Parent = UIKit.gui(), Name = "Toasts", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 70), Size = UDim2.fromOffset(660, 160), BackgroundTransparency = 1, ZIndex = 30 }, {
 			make("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
 	end
 	placeToasts()
-	local l = UIKit.label({ Parent = toastHolder, Size = UDim2.fromOffset(600, 40), Text = text, TextColor3 = color or Color3.new(1, 1, 1), ZIndex = 31, StrokeThickness = 3 })
-	bounce(l)
-	task.delay(3, function()
-		TweenService:Create(l, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
-		local st = l:FindFirstChildOfClass("UIStroke")
-		if st then
-			TweenService:Create(st, TweenInfo.new(0.4), { Transparency = 1 }):Play()
-		end
-		task.wait(0.45)
-		l:Destroy()
-	end)
+	if toastsShown >= MAX_TOASTS then
+		table.insert(toastQueue, { text, color })
+		return
+	end
+	showToast(text, color)
 end
 
 -- Money display hold: while true the money counter waits (e.g. a Lucky Spin roll that was
@@ -678,9 +907,11 @@ end
 -- Clear all toasts at once (e.g. flight hints when you land).
 function UIKit.clearToasts()
 	if toastHolder then
+		table.clear(toastQueue)
 		for _, c in ipairs(toastHolder:GetChildren()) do
-			if c:IsA("TextLabel") then
+			if c.Name == "Toast" then
 				c:Destroy()
+				toastsShown -= 1
 			end
 		end
 	end

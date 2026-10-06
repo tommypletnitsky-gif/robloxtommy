@@ -152,15 +152,11 @@ task.spawn(function()
 end)
 
 local function windowTitle(w)
-	for _, d in ipairs(w:GetDescendants()) do
-		if d:IsA("TextLabel") and d.Parent and d.Parent.Parent == w and d.TextXAlignment == Enum.TextXAlignment.Left then
-			return d
-		end
-	end
+	return UIKit.windowTitle(w)
 end
 
 -- Egg window --------------------------------------------------------------------------------------
-local eggWindow, eggList = UIKit.window("Egg", GREEN, UDim2.fromOffset(640, 440))
+local eggWindow, eggList = UIKit.window("Egg", GREEN, UDim2.fromOffset(640, 400))
 local eggTitle = windowTitle(eggWindow)
 local currentEgg = nil -- the egg def while its window is open
 local eggPrompt = nil -- the prompt's part (window closes when you walk away)
@@ -174,6 +170,9 @@ for i, rarity in ipairs(RARITIES) do
 	local color = Config.Rarities[rarity].color
 	local card = make("Frame", { Parent = cardsRow, LayoutOrder = i, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(16), UIKit.stroke(4, color) })
 	make("UIGradient", { Parent = card, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), UIKit.lighter(color, 0.7)) })
+	if rarity == "Legendary" then
+		UIKit.rays(card, { Position = UDim2.fromOffset(64, 52), Size = UDim2.fromOffset(124, 124), Color = color, Transparency = 0.2, ZIndex = 12 })
+	end
 	local holder = make("Frame", { Parent = card, Position = UDim2.fromOffset(9, 6), Size = UDim2.fromOffset(110, 92), BackgroundTransparency = 1, ZIndex = 13 })
 	local name = label({ Parent = card, Position = UDim2.fromOffset(4, 98), Size = UDim2.new(1, -8, 0, 24), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
 	label({ Parent = card, Position = UDim2.fromOffset(4, 122), Size = UDim2.new(1, -8, 0, 20), Text = rarity, TextColor3 = color, StrokeThickness = 1.5, ZIndex = 13 })
@@ -213,6 +212,8 @@ local function openEgg(egg, promptPart)
 	currentEgg = egg
 	eggPrompt = promptPart
 	eggTitle.Text = egg.name
+	local eggModel = promptPart and promptPart.Parent and promptPart.Parent:FindFirstChild("Egg")
+	UIKit.setWindowIcon(eggWindow, eggModel and eggModel:IsA("Model") and eggModel or nil)
 	for rarity, c in pairs(eggCards) do
 		local kind = egg.pets[rarity]
 		local pet = Config.Pets[kind]
@@ -480,7 +481,7 @@ local indexBtn = UIKit.button({ Parent = topRow, Text = "📖 Index", Color = Co
 
 -- Pet Index: every pet by egg (event eggs too); ones you've never had are black silhouettes. A full egg set
 -- gives +10% money forever (server: PetServer / GameServer).
-local indexWindow, indexList = UIKit.window("Pet Index", Color3.fromRGB(110, 140, 240), UDim2.fromOffset(700, 520))
+local indexWindow, indexList = UIKit.window("Pet Index", Color3.fromRGB(110, 140, 240), UDim2.fromOffset(700, 520), "Paw")
 local indexHead = UIKit.row(indexList, 0, 56)
 local indexHeadText = label({ Parent = indexHead, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 1, -16), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 local indexCards = {} -- [kind] = { vp, name }
@@ -543,7 +544,14 @@ end)
 equipBest.Instance.Activated:Connect(function()
 	UIKit.result(PetAction:InvokeServer("equipBest"))
 end)
-local emptyLabel = label({ Parent = petsList, LayoutOrder = 1, Size = UDim2.new(1, -12, 0, 80), Text = "No pets yet! Hatch eggs in the Egg Garden next to the spawn 🥚", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 12 })
+-- empty state: a puppy on rays, "No pets yet!" and where to get one
+local emptyLabel = UIKit.row(petsList, 1, 210)
+emptyLabel.Name = "NoPets"
+local emptyIcon = make("Frame", { Parent = emptyLabel, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 6), Size = UDim2.fromOffset(120, 110), BackgroundTransparency = 1, ZIndex = 13 })
+UIKit.rays(emptyLabel, { Position = UDim2.new(0.5, 0, 0, 62), Size = UDim2.fromOffset(170, 170), Color = Color3.fromRGB(255, 160, 210), ZIndex = 12 })
+UIKit.icon3D(emptyIcon, petFolder and petFolder:FindFirstChild("Puppy") or "Paw", { ZIndex = 13 })
+label({ Parent = emptyLabel, Position = UDim2.fromOffset(14, 120), Size = UDim2.new(1, -28, 0, 40), Text = "No pets yet!", TextColor3 = UIKit.darker(PINK, 0.15), StrokeThickness = 0, ZIndex = 13 })
+label({ Parent = emptyLabel, Position = UDim2.fromOffset(14, 162), Size = UDim2.new(1, -28, 0, 30), Text = "🥚 Hatch eggs in the Egg Garden next to the spawn", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
 local grid = make("Frame", { Parent = petsList, LayoutOrder = 2, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
 	make("UIGridLayout", { CellSize = UDim2.fromOffset(100, 126), CellPadding = UDim2.fromOffset(8, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
