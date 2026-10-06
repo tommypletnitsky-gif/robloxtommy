@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local TextChatService = game:GetService("TextChatService")
+local SocialService = game:GetService("SocialService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
@@ -69,6 +70,27 @@ for i, d in ipairs(Config.Donations) do
 		end
 	end)
 end
+
+-- Invite friends: every friend in your server gives +money (Config.FRIEND_BOOST, GameServer).
+local friendRow = UIKit.row(list, 4, 70)
+label({ Parent = friendRow, Position = UDim2.fromOffset(6, 2), Size = UDim2.fromOffset(66, 66), Text = "👥", StrokeThickness = 0, ZIndex = 12 })
+local each = math.round(Config.FRIEND_BOOST * 100)
+label({ Parent = friendRow, Position = UDim2.fromOffset(80, 8), Size = UDim2.new(1, -236, 1, -16), TextXAlignment = Enum.TextXAlignment.Left, Text = "Play with friends: +" .. each .. "% money each (up to +" .. each * Config.FRIEND_BOOST_MAX .. "%)", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+local inviteBtn = UIKit.button({ Parent = friendRow, Text = "INVITE", Color = TEAL, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(136, 54), ZIndex = 12 })
+local inviting = false
+inviteBtn.Instance.Activated:Connect(function()
+	if inviting then
+		return
+	end
+	inviting = true -- (CanSendGameInviteAsync yields)
+	local ok, can = pcall(SocialService.CanSendGameInviteAsync, SocialService, player)
+	if ok and can then
+		pcall(SocialService.PromptGameInvite, SocialService, player)
+	else
+		UIKit.toast("Invites aren't available right now", Color3.fromRGB(255, 230, 120))
+	end
+	inviting = false
+end)
 
 local function refresh()
 	for key, c in pairs(cards) do

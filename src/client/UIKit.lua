@@ -533,13 +533,26 @@ function UIKit.pill(parent, props)
 	return p, l
 end
 
--- A rounded progress bar. Returns frame, set(fraction, text?)
+-- A rounded progress bar. Returns frame, set(fraction, text?, animate?)
+-- animate: the fill springs to its new width (a level up); otherwise it snaps.
 function UIKit.bar(parent, props)
 	local back = make("Frame", { Parent = parent, Name = props.Name or "Bar", Position = props.Position or UDim2.new(), Size = props.Size or UDim2.new(1, 0, 0, 16), BackgroundColor3 = Color3.fromRGB(225, 228, 240), ZIndex = props.ZIndex or 12 }, { UIKit.corner(40), UIKit.stroke(2, Color3.fromRGB(170, 175, 200)) })
 	local fill = make("Frame", { Parent = back, Name = "Fill", Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = (props.ZIndex or 12) + 1 }, { UIKit.corner(40), UIKit.gloss(props.Color or Color3.fromRGB(90, 180, 255)) })
 	local l = props.ShowText and UIKit.label({ Parent = back, Size = UDim2.fromScale(1, 1), Text = "", ZIndex = (props.ZIndex or 12) + 2, StrokeThickness = 2 }) or nil
-	return back, function(fraction, text)
-		fill.Size = UDim2.fromScale(math.clamp(fraction, 0, 1), 1)
+	local tween, target = nil, nil
+	return back, function(fraction, text, animate)
+		local f = math.clamp(fraction, 0, 1)
+		if animate then
+			tween = TweenService:Create(fill, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromScale(f, 1) })
+			tween:Play()
+		elseif f ~= target then -- (a redraw with the same value lets a running spring finish)
+			if tween then
+				tween:Cancel()
+				tween = nil
+			end
+			fill.Size = UDim2.fromScale(f, 1)
+		end
+		target = f
 		fill.Visible = fraction > 0.005
 		if l and text then
 			l.Text = text
@@ -604,7 +617,9 @@ function UIKit.window(title, color, size, icon)
 	}, { make("UIScale", { Name = "OpenScale" }) })
 	-- drop shadow, then the panel (siblings, so the shadow stays behind)
 	make("Frame", { Parent = w, Name = "Shadow", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, Position = UDim2.fromOffset(0, 10), Size = UDim2.fromScale(1, 1), ZIndex = 9 }, { UIKit.corner(30) })
-	local panel = make("Frame", { Parent = w, Name = "Panel", BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.fromScale(1, 1), ZIndex = 10 }, { UIKit.corner(30), UIKit.stroke(5) })
+	-- (the panel is a do-nothing button: frames don't stop clicks, so a tap on a card's empty
+	-- space went through to the backdrop behind and closed the window)
+	local panel = make("TextButton", { Parent = w, Name = "Panel", Text = "", AutoButtonColor = false, BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.fromScale(1, 1), ZIndex = 10 }, { UIKit.corner(30), UIKit.stroke(5) })
 	make("UIGradient", { Parent = panel, Rotation = 90, Color = ColorSequence.new(UIKit.lighter(color, 0.72), UIKit.lighter(color, 0.5)) })
 	UIKit.pattern(panel, "dots", { Tile = 44, Transparency = 0.55, ZIndex = 10, Radius = 30 })
 	-- colored band along the top, with stripes
@@ -1393,23 +1408,26 @@ function UIKit.clearToasts()
 end
 
 -- Big moment: white flash, confetti, a bouncing title and subtitle (rebirth, stage unlock...).
-function UIKit.celebrate(title, sub, color, subColor)
+-- opts.flight: a lighter version that keeps the flight view clear (faint gold tint, less
+-- confetti, a smaller title above the centre, a shorter hold).
+function UIKit.celebrate(title, sub, color, subColor, opts)
 	local gui = UIKit.gui()
-	local flash = make("Frame", { Parent = gui, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 250, 240), BackgroundTransparency = 0.1, ZIndex = 70 })
+	local fly = opts and opts.flight
+	local flash = make("Frame", { Parent = gui, Size = UDim2.fromScale(1, 1), BackgroundColor3 = fly and Color3.fromRGB(255, 215, 60) or Color3.fromRGB(255, 250, 240), BackgroundTransparency = fly and 0.75 or 0.1, ZIndex = 70 })
 	TweenService:Create(flash, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
 	game:GetService("Debris"):AddItem(flash, 1)
-	local t = UIKit.label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.38), Size = UDim2.fromOffset(700, 100), Text = title, TextColor3 = color or Color3.fromRGB(255, 200, 50), StrokeThickness = 5, ZIndex = 72 })
-	local st = UIKit.label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(600, 44), Text = sub or "", TextColor3 = subColor or Color3.fromRGB(150, 255, 150), StrokeThickness = 3, ZIndex = 72 })
+	local t = UIKit.label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = fly and UDim2.fromScale(0.5, 0.3) or UDim2.fromScale(0.5, 0.38), Size = fly and UDim2.fromOffset(520, 70) or UDim2.fromOffset(700, 100), Text = title, TextColor3 = color or Color3.fromRGB(255, 200, 50), StrokeThickness = 5, ZIndex = 72 })
+	local st = UIKit.label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = fly and UDim2.new(0.5, 0, 0.3, 62) or UDim2.fromScale(0.5, 0.5), Size = fly and UDim2.fromOffset(440, 36) or UDim2.fromOffset(600, 44), Text = sub or "", TextColor3 = subColor or Color3.fromRGB(150, 255, 150), StrokeThickness = 3, ZIndex = 72 })
 	bounce(t)
 	UIKit.sound("Win", 0.9, 1.1)
 	local colors = { Color3.fromRGB(255, 190, 40), Color3.fromRGB(165, 105, 245), Color3.fromRGB(255, 120, 190), Color3.fromRGB(90, 200, 255), Color3.fromRGB(130, 230, 110) }
-	for i = 1, 60 do
+	for i = 1, fly and 20 or 60 do
 		local c = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(math.random(), -0.05), Size = UDim2.fromOffset(math.random(10, 18), math.random(6, 10)), BackgroundColor3 = colors[i % #colors + 1], Rotation = math.random(0, 360), BorderSizePixel = 0, ZIndex = 71 })
 		local dur = 1.6 + math.random() * 1.4
 		TweenService:Create(c, TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.fromScale(c.Position.X.Scale + (math.random() - 0.5) * 0.3, 1.1), Rotation = c.Rotation + math.random(-540, 540) }):Play()
 		game:GetService("Debris"):AddItem(c, dur + 0.1)
 	end
-	task.delay(2.6, function()
+	task.delay(fly and 1.5 or 2.6, function()
 		for _, l in ipairs({ t, st }) do
 			TweenService:Create(l, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
 			local s2 = l:FindFirstChildOfClass("UIStroke")
@@ -1443,7 +1461,8 @@ end
 
 -- Coins burst out from a screen point and fly into the money counter (a HUD frame named
 -- "MoneyPill"), each landing with a rising little "ding". Used for every money reward.
-function UIKit.coinBurst(count, from)
+-- quiet: no dings (in flight, where the moment already has its own sound).
+function UIKit.coinBurst(count, from, quiet)
 	local gui = UIKit.gui()
 	local pill = gui:FindFirstChild("MoneyPill")
 	local view = workspace.CurrentCamera.ViewportSize
@@ -1461,13 +1480,67 @@ function UIKit.coinBurst(count, from)
 			t:Play()
 			t.Completed:Wait()
 			c:Destroy()
-			UIKit.sound("Coin", 0.22, 0.95 + i * 0.035)
+			if not quiet then
+				UIKit.sound("Coin", 0.22, 0.95 + i * 0.035)
+			end
 			local amount = pill and pill:FindFirstChild("Amount")
 			if amount then
 				bounce(amount)
 			end
 		end)
 	end
+end
+
+-- A short gain label ("+8% fuel") that pops, rises 60px and fades. absPos: a screen point
+-- (an AbsolutePosition); the label's bottom center starts there.
+function UIKit.floatText(text, color, absPos)
+	local p = UIKit.toGui(absPos)
+	local k = hudFactor()
+	local l = UIKit.label({ Parent = UIKit.gui(), Name = "FloatText", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromOffset(p.X, p.Y), Size = UDim2.fromOffset(240 * k, 40 * k), Text = text, TextColor3 = color or Color3.fromRGB(130, 255, 130), ZIndex = 40, StrokeThickness = 3 })
+	bounce(l)
+	local fade = TweenInfo.new(0.8, Enum.EasingStyle.Quad)
+	TweenService:Create(l, fade, { Position = l.Position - UDim2.fromOffset(0, 60), TextTransparency = 1 }):Play()
+	TweenService:Create(l:FindFirstChildOfClass("UIStroke"), fade, { Transparency = 1 }):Play()
+	task.delay(0.9, function()
+		l:Destroy()
+	end)
+end
+
+-- One "+$" label that sums quick pickups (a line of coins) instead of a stack of labels: a pickup
+-- within 0.6 s of the last one adds to it and bounces it; 0.9 s after the last one it rises and
+-- fades. It sits beside the rocket; `below` (optional) is a GuiObject it keeps under, so it stays
+-- clear of the flight dashboard on phones.
+local sums = {} -- [key] = { label, amount, at }
+function UIKit.popSum(key, amount, color, below)
+	local now = os.clock()
+	local s = sums[key]
+	if not (s and s.label.Parent and now - s.at < 0.6) then
+		local gui = UIKit.gui()
+		local k = hudFactor()
+		local h, rise = 44 * k, 50 * k
+		local pos = UDim2.fromScale(0.62, 0.4)
+		if below and UIKit.shown(below) then
+			local minY = UIKit.toGui(below.AbsolutePosition).Y + below.AbsoluteSize.Y + rise + h / 2 + 6
+			pos = UDim2.new(0.62, 0, 0, math.max(minY, gui.AbsoluteSize.Y * 0.4))
+		end
+		local l = UIKit.label({ Parent = gui, Name = "PopSum", AnchorPoint = Vector2.new(0.5, 0.5), Position = pos, Size = UDim2.fromOffset(220 * k, h), Text = "", TextColor3 = color or Color3.fromRGB(255, 220, 60), ZIndex = 15, StrokeThickness = 3 })
+		s = { label = l, amount = 0, at = now }
+		sums[key] = s
+		task.spawn(function()
+			repeat
+				task.wait(0.2)
+			until os.clock() - s.at > 0.9 or sums[key] ~= s
+			local fade = TweenInfo.new(0.5, Enum.EasingStyle.Quad)
+			TweenService:Create(l, fade, { Position = l.Position - UDim2.fromOffset(0, rise), TextTransparency = 1 }):Play()
+			TweenService:Create(l:FindFirstChildOfClass("UIStroke"), fade, { Transparency = 1 }):Play()
+			task.wait(0.55)
+			l:Destroy()
+		end)
+	end
+	s.at = now
+	s.amount += amount
+	s.label.Text = "+$" .. Config.abbreviate(s.amount)
+	bounce(s.label)
 end
 
 function UIKit.result(ok, msg)

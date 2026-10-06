@@ -186,7 +186,6 @@ local function endFlight(player, reason)
 	local base = Config.moneyForDistance(distance)
 	local mult = moneyMultiplier(player)
 	local money = math.floor(base * mult)
-	addMoney(player, money)
 	-- quest stats
 	player:SetAttribute("StatFlights", (player:GetAttribute("StatFlights") or 0) + 1)
 	player:SetAttribute("StatDistance", (player:GetAttribute("StatDistance") or 0) + distance)
@@ -208,6 +207,8 @@ local function endFlight(player, reason)
 		base = math.floor(base), -- distance money before multipliers (Flight Report)
 		mult = mult,
 	})
+	-- paid after the result: the Flight Report holds the money counter until its coins land
+	addMoney(player, money)
 	FlightEnded:Fire(player, distance, reason)
 
 	-- Keep the rocket where it landed for a moment (landing celebration), then go home.
@@ -566,7 +567,11 @@ CollectRemote.OnServerEvent:Connect(function(player, id)
 		local amount = math.floor(Config.moneyPerStud(p.stage) * Config.GoldenCoin.studs * moneyMultiplier(player))
 		addMoney(player, amount)
 		f.bonus += amount
-		Notify:FireAllClients("🌟 " .. player.DisplayName .. " found a GOLDEN COIN! +$" .. Config.abbreviate(amount), Color3.fromRGB(255, 215, 60))
+		for _, other in ipairs(Players:GetPlayers()) do -- (the finder gets their own celebration)
+			if other ~= player then
+				Notify:FireClient(other, "🌟 " .. player.DisplayName .. " found a GOLDEN COIN! +$" .. Config.abbreviate(amount), Color3.fromRGB(255, 215, 60))
+			end
+		end
 		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Golden", money = amount })
 	end
 end)
@@ -760,7 +765,11 @@ RebirthRemote.OnServerInvoke = function(player)
 	end
 	player:SetAttribute("Rebirths", rebirths + 1)
 	PlayerData.save(player)
-	Notify:FireAllClients("🌟 " .. player.DisplayName .. " rebirthed! (Rebirth " .. (rebirths + 1) .. ")", Color3.fromRGB(255, 210, 90))
+	for _, other in ipairs(Players:GetPlayers()) do -- (the rebirther gets their own celebration)
+		if other ~= player then
+			Notify:FireClient(other, "🌟 " .. player.DisplayName .. " rebirthed! (Rebirth " .. (rebirths + 1) .. ")", Color3.fromRGB(255, 210, 90))
+		end
+	end
 	return true, "Rebirth " .. (rebirths + 1) .. "! Money x" .. Config.rebirthMultiplier(rebirths + 1) .. " forever"
 end
 

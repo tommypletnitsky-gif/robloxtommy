@@ -1,5 +1,6 @@
 -- Rebirth (client): the window at the Rebirth Portal (walk up, press E), a rebirth badge on the HUD
--- and the celebration when you rebirth. The server does the actual reset (GameServer "Rebirth").
+-- (gold + one toast when you can rebirth) and the celebration when you rebirth. The server does the
+-- actual reset (GameServer "Rebirth").
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -120,14 +121,39 @@ rebirthBtn.Instance.Activated:Connect(function()
 	refresh()
 end)
 
--- HUD badge (lobby only): your rebirths and their money bonus ------------------------------------
+-- HUD badge (lobby only): your rebirths and their money bonus, gold once you can rebirth -----------
 local badge = make("Frame", { Parent = gui, Name = "RebirthBadge", Position = UDim2.fromOffset(256, 139), Size = UDim2.fromOffset(170, 44), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false }, { UIKit.corner(22), UIKit.stroke(3.5), UIKit.gloss(PURPLE) })
 local badgeText = label({ Parent = badge, Position = UDim2.fromOffset(12, 5), Size = UDim2.new(1, -24, 1, -10), Text = "", StrokeThickness = 3 })
-UIKit.hudScale(badge) -- (RocketClient places it beside the best pill)
+local badgeScale = UIKit.hudScale(badge) -- (RocketClient places it beside the best pill)
+local badgeGloss = badge:FindFirstChildOfClass("UIGradient")
+local PURPLE_GLOSS, GOLD_GLOSS = badgeGloss.Color, UIKit.gloss(GOLD).Color
+local wasReady = nil -- (nil until your save has loaded: a save that loads ready gets no cue)
+
+-- just became ready: once the screen is free, pop the badge and say it once (silent toast)
+local function readyCue(n)
+	UIKit.whenFree(function()
+		if rebirths() ~= n or (player:GetAttribute("UnlockedStage") or 1) < Config.rebirthStage(n) then
+			return -- (rebirthed or reset meanwhile)
+		end
+		badgeScale.Scale = UIKit.hudFactor() * 0.75 -- (bounce the HudScale: it is the badge's only UIScale)
+		UIKit.spr.target(badgeScale, 0.4, 4, { Scale = UIKit.hudFactor() })
+		UIKit.toast("🌟 REBIRTH unlocked! Visit the portal by the spawn: money x" .. Config.rebirthMultiplier(n + 1) .. " forever", GOLD)
+	end)
+end
+
 local function refreshBadge()
 	local n = rebirths()
-	badge.Visible = n > 0 and not player:GetAttribute("Flying")
-	badgeText.Text = "🌟 " .. n .. "  •  x" .. Config.rebirthMultiplier(n)
+	local ready = (player:GetAttribute("UnlockedStage") or 1) >= Config.rebirthStage(n)
+	badge.Visible = (n > 0 or ready) and not player:GetAttribute("Flying")
+	badgeText.Text = n == 0 and "🌟 REBIRTH READY" or ("🌟 " .. n .. "  •  x" .. Config.rebirthMultiplier(n) .. (ready and " ✨" or ""))
+	badgeGloss.Color = ready and GOLD_GLOSS or PURPLE_GLOSS
+	-- (only a real change after your save loaded; the stage drops back to 1 when you rebirth)
+	if ready and wasReady == false then
+		readyCue(n)
+	end
+	if wasReady ~= nil then
+		wasReady = ready
+	end
 end
 
 for _, attr in ipairs({ "Rebirths", "UnlockedStage" }) do
@@ -139,6 +165,13 @@ end
 player:GetAttributeChangedSignal("Flying"):Connect(refreshBadge)
 refresh()
 refreshBadge()
+-- the loaded save is the baseline (its values and DataLoaded arrive together, so no join cue)
+task.spawn(function()
+	repeat
+		task.wait(0.2)
+	until player:GetAttribute("DataLoaded")
+	wasReady = (player:GetAttribute("UnlockedStage") or 1) >= Config.rebirthStage(rebirths())
+end)
 
 -- Open at the portal, close when you walk away -----------------------------------------------------
 local openedAt = nil

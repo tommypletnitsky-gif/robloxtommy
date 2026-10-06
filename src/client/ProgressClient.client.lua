@@ -69,7 +69,14 @@ local function lobbyText(best, g, unlocked)
 		return best >= g - 5 and "🏁 You reached the end of the galaxy!" or ("🏆 Best " .. Config.meters(best) .. " / " .. Config.meters(g))
 	end
 	if best >= g - 5 then
-		return "✅ Gate reached! Stage " .. (unlocked + 1) .. ": $" .. Config.abbreviate(Config.stageCost(unlocked + 1))
+		local need = Config.stageCost(unlocked + 1) - (player:GetAttribute("Money") or 0)
+		if need <= 0 then
+			return "✅ Unlock Stage " .. (unlocked + 1) .. " now!"
+		end
+		-- saving up: roughly how many flights like your last one (RocketClient sets LastFlightEarn)
+		local per = player:GetAttribute("LastFlightEarn") or 0
+		local flights = per > 0 and math.ceil(need / per) or 0
+		return "✅ Stage " .. (unlocked + 1) .. ": $" .. Config.abbreviate(need) .. " more" .. (flights > 0 and (" • ~" .. flights .. (flights == 1 and " flight" or " flights")) or "")
 	end
 	return "🏆 Best " .. Config.meters(best) .. "  •  " .. Config.meters(g - best) .. " to Stage " .. (unlocked + 1)
 end

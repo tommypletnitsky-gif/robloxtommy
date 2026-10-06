@@ -299,19 +299,25 @@ local function refreshStage()
 	-- back after a rebirth from the last stage
 	unlockBtn.Instance.Visible = true
 	local goal = Config.stageEndX(unlocked) - Config.LAUNCH_X
-	local progress = math.clamp((best - (goal - Config.STAGE_LENGTH)) / Config.STAGE_LENGTH, 0, 1)
-	TweenService:Create(barFill, TweenInfo.new(0.4), { Size = UDim2.fromScale(math.max(progress, 0.04), 1) }):Play()
-	barText.Text = meters(math.min(best, goal)) .. " / " .. meters(goal)
 	local cost = Config.stageCost(unlocked + 1)
+	local progress = math.clamp((best - (goal - Config.STAGE_LENGTH)) / Config.STAGE_LENGTH, 0, 1)
+	barText.Text = meters(math.min(best, goal)) .. " / " .. meters(goal)
 	if best < goal - 5 then
 		unlockBtn.setText("Reach " .. meters(goal) .. "!")
 		unlockBtn.setColor(Color3.fromRGB(150, 155, 180))
 	elseif money < cost then
-		unlockBtn.setText("Stage " .. (unlocked + 1) .. ": $" .. abbreviate(cost))
+		-- at the gate but saving up: the bar shows your money, the button roughly how many flights to go
+		progress = money / cost
+		barText.Text = "$" .. abbreviate(money) .. " / $" .. abbreviate(cost)
+		local per = player:GetAttribute("LastFlightEarn") or 0
+		local need = cost - money
+		local flights = per > 0 and math.ceil(need / per) or 0
+		unlockBtn.setText("$" .. abbreviate(need) .. " more" .. (flights > 0 and (" • ~" .. flights .. (flights == 1 and " flight" or " flights")) or ""))
 		unlockBtn.setColor(Color3.fromRGB(230, 120, 80))
 	else
 		unlockBtn.setText("UNLOCK $" .. abbreviate(cost))
 	end
+	TweenService:Create(barFill, TweenInfo.new(0.4), { Size = UDim2.fromScale(math.max(progress, 0.04), 1) }):Play()
 	UIKit.claimable(unlockBtn, best >= goal - 5 and money >= cost)
 end
 
@@ -320,6 +326,7 @@ player:GetAttributeChangedSignal("Money"):Connect(function()
 	refreshStage()
 end)
 player:GetAttributeChangedSignal("BestDistance"):Connect(refreshStage)
+player:GetAttributeChangedSignal("LastFlightEarn"):Connect(refreshStage)
 player:GetAttributeChangedSignal("UnlockedStage"):Connect(function()
 	refreshStage()
 	refreshGates()
@@ -1050,6 +1057,7 @@ local function stopFlightFx()
 	setJumpBlocked(false)
 	-- boost ends with the flight (the server resets its own boost each flight)
 	player:SetAttribute("BoostFx", false)
+	player:SetAttribute("StageFx", nil) -- so the next flight's stage 2 fires again
 	if flight then
 		flight.boostOn = false
 	end
@@ -1240,8 +1248,8 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			flight.bonus += info.money
 			flightMoney.Text = "+$" .. abbreviate(flight.bonus) .. " bonus"
 			flightMoney.Visible = true
-			if info.kind == "Coin" or info.kind == "Gem" then
-				popText("+$" .. abbreviate(info.money), info.kind == "Gem" and Color3.fromRGB(120, 230, 255) or Color3.fromRGB(255, 220, 60))
+			if info.kind == "Coin" or info.kind == "Gem" then -- (one summed label per coin line, kept under the dashboard)
+				UIKit.popSum("coins", info.money, info.kind == "Gem" and Color3.fromRGB(120, 230, 255) or Color3.fromRGB(255, 220, 60), flightMoney)
 			end
 		end
 		if info.kind == "Crate" then
@@ -1276,7 +1284,8 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 				end)
 			end
 		elseif info.kind == "Golden" then
-			UIKit.celebrate("🌟 GOLDEN COIN!", "+$" .. abbreviate(info.money or 0), Color3.fromRGB(255, 215, 50))
+			UIKit.celebrate("🌟 GOLDEN COIN!", "+$" .. abbreviate(info.money or 0), Color3.fromRGB(255, 215, 50), nil, { flight = true })
+			UIKit.coinBurst(14, nil, true) -- (into the money pill, which stays up in flight; quiet: celebrate plays "Win")
 			addShake(1.2)
 		end
 	elseif kind == "outOfFuel" then
@@ -1320,11 +1329,18 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 				e:Emit(35)
 				game:GetService("Debris"):AddItem(dust, 3)
 				addShake(info.reason == "landed" and 1.2 or 0.5)
+				camera.FieldOfView -= 8 -- impact punch (camera only), eases back to 70 while landed
 				UIKit.sound("Boom", 0.4, 1.2)
 			end
 		end
 		bigLabel.Visible = false
 		clearExtras()
+		-- what a flight earns you now (client-only: the "~N flights" estimates on the stage card,
+		-- progress bar and report); an abort on the pad earns nothing and keeps the last one
+		local earned = (info.money or 0) + (info.bonus or 0)
+		if earned > 0 then
+			player:SetAttribute("LastFlightEarn", earned)
+		end
 		Report.show(info)
 	end
 end)
@@ -1561,7 +1577,11 @@ RunService.RenderStepped:Connect(function(dt)
 	if f.landed then
 		local dist = CAM_DIST * camZoom * 0.9
 		local focus = f.focus or pos
-		camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(focus + Vector3.new(-dist, dist * 0.25 + 1, 0), focus + Vector3.new(dist * 0.8, 0, 0)), math.min(1, dt * 2))
+		-- the base frame is kept apart from the shake so it doesn't build up
+		local target = CFrame.lookAt(focus + Vector3.new(-dist, dist * 0.25 + 1, 0), focus + Vector3.new(dist * 0.8, 0, 0))
+		f.landCF = (f.landCF or camera.CFrame):Lerp(target, math.min(1, dt * 2))
+		camera.CFrame = f.landCF * shakeOffset
+		camera.FieldOfView += (70 - camera.FieldOfView) * (1 - math.exp(-dt * 2))
 		if myRider then
 			myRider:update(dt, { lean = -0.15, shake = 0 })
 		end
@@ -1893,9 +1913,19 @@ RunService.RenderStepped:Connect(function(dt)
 	local stage = Config.stageAt(pos.X)
 	if stage ~= f.stage then
 		f.stage = stage
-		zoneLabel.Text = "Stage " .. stage .. " - " .. Config.Stages[stage].name
+		zoneLabel.Text = "Stage " .. stage .. " - " .. Config.Stages[stage].name .. "  •  " .. Config.multText(Config.moneyPerStud(stage)) .. " $/m"
 		if stage > 1 then
 			UIKit.bounce(zoneLabel) -- (no big banner: it covered half the screen; the stage name above the fuel bar updates)
+			-- a silent beat: gold hoop (FlightFxClient), a small FOV kick, the label flashes gold for 2 s
+			player:SetAttribute("StageFx", stage) -- (client-only, like BoostFx)
+			f.pull = math.max(f.pull, 5)
+			f.pullHold = now + 0.2
+			TweenService:Create(zoneLabel, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(255, 200, 60) }):Play()
+			task.delay(2, function()
+				if f.stage == stage then
+					TweenService:Create(zoneLabel, TweenInfo.new(0.5), { TextColor3 = Color3.fromRGB(255, 230, 120) }):Play()
+				end
+			end)
 		end
 	end
 end)
@@ -1944,7 +1974,8 @@ flights.ChildAdded:Connect(function(m)
 	if not body then
 		return
 	end
+	local owner = Players:FindFirstChild(m.Name) -- (name + the stage they've reached)
 	local bb = make("BillboardGui", { Parent = body, Size = UDim2.fromOffset(160, 36), StudsOffset = Vector3.new(0, 6, 0), AlwaysOnTop = true, MaxDistance = 300 })
-	label({ Parent = bb, Size = UDim2.fromScale(1, 1), Text = m.Name, TextColor3 = Color3.fromRGB(255, 230, 120) })
+	label({ Parent = bb, Size = UDim2.fromScale(1, 1), Text = (owner and owner.DisplayName or m.Name) .. (owner and (" • S" .. (owner:GetAttribute("UnlockedStage") or 1)) or ""), TextColor3 = Color3.fromRGB(255, 230, 120) })
 end)
 

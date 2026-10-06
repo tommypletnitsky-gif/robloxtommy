@@ -57,6 +57,14 @@ upgradeBtn.Instance.Name = "Upgrade"
 local token = 0
 local queued = false -- FLY AGAIN pressed while still landing
 
+-- The landing money is paid while the report counts up: the money counter waits until the
+-- report's coins reach it. "report" marks our hold, so we never end a Lucky Spin roll's hold early.
+local function release()
+	if UIKit.moneyHold == "report" then
+		UIKit.releaseMoney()
+	end
+end
+
 -- one "label ... value" line
 local function row(order, left, right, color)
 	local r = make("Frame", { Parent = rows, LayoutOrder = order, Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, ZIndex = 21 })
@@ -79,7 +87,7 @@ local function countUp(lbl, to, dur, fmt)
 	end
 end
 
-local function nextGoal()
+local function nextGoal(info)
 	local money = player:GetAttribute("Money") or 0
 	local unlocked = player:GetAttribute("UnlockedStage") or 1
 	local best = player:GetAttribute("BestDistance") or 0
@@ -88,29 +96,54 @@ local function nextGoal()
 	end
 	local goal = Config.stageEndX(unlocked) - Config.LAUNCH_X
 	local cost = Config.stageCost(unlocked + 1)
-	if best >= goal - 5 then
+	local capped = Config.isCapped(player)
+	-- stuck at the gate and short of the next stage, but a rebirth is ready
+	local rebirths = player:GetAttribute("Rebirths") or 0
+	if unlocked >= Config.rebirthStage(rebirths) and capped and money < cost then
+		return "🌟 You can REBIRTH: money x" .. Config.rebirthMultiplier(rebirths + 1) .. " forever (portal by the spawn)"
+	end
+	if capped then
 		if money >= cost then
 			return "✅ You can unlock Stage " .. (unlocked + 1) .. " now!"
 		end
-		return "🎯 Stage " .. (unlocked + 1) .. " costs $" .. abbreviate(cost) .. ": keep flying!"
-	end
-	for key, u in pairs(Config.Upgrades) do
-		local lvl = player:GetAttribute(key .. "Level") or 0
-		if lvl < u.maxLevel and money >= Config.upgradeCost(key, lvl) then
-			return "⬆ You can afford an upgrade: fly even farther!"
+		-- at the gate more distance pays nothing: Money Boost is the upgrade that still helps
+		local moneyLvl = player:GetAttribute("MoneyLevel") or 0
+		if moneyLvl < Config.Upgrades.Money.maxLevel and money >= Config.upgradeCost("Money", moneyLvl) then
+			return "💰 Money Boost makes every flight pay more!"
 		end
+		-- saving up: how many more flights like this one
+		local per = (info.money or 0) + (info.bonus or 0)
+		if per <= 0 then
+			return "🎯 Stage " .. (unlocked + 1) .. ": $" .. abbreviate(cost - money) .. " more: keep flying!"
+		end
+		local flights = math.ceil((cost - money) / per)
+		return "🎯 Stage " .. (unlocked + 1) .. ": $" .. abbreviate(cost - money) .. " more • ~" .. flights .. (flights == 1 and " flight like this" or " flights like this")
+	end
+	-- the Upgrades window's BEST PICK, once you can afford it
+	local pick, gain = Config.bestUpgrade(player)
+	if pick and money >= Config.upgradeCost(pick, player:GetAttribute(pick .. "Level") or 0) then
+		return "⬆ " .. Config.Upgrades[pick].name .. " ≈ +" .. meters(gain) .. " per flight"
 	end
 	return "🎯 " .. meters(goal - best) .. " more to reach Stage " .. (unlocked + 1)
 end
 
 function Report.hide()
 	card.Visible = false
+	release()
 end
 
 function Report.show(info)
 	token += 1
 	local mine = token
 	queued = false
+	if not UIKit.moneyHold then
+		UIKit.moneyHold = "report"
+	end
+	task.delay(6, function() -- (safety net)
+		if token == mine then
+			release()
+		end
+	end)
 	againBtn.setText("🚀 FLY AGAIN")
 	for _, c in ipairs(rows:GetChildren()) do
 		if c:IsA("Frame") then
@@ -142,10 +175,16 @@ function Report.show(info)
 		local function alive()
 			return token == mine and card.Visible
 		end
+		local function stop() -- (show the money now; a newer report keeps its own hold)
+			if token == mine then
+				release()
+			end
+		end
 		countUp(distanceText, info.distance, 0.6, function(n)
 			return "🚀 " .. meters(n)
 		end)
 		if not alive() then
+			stop()
 			return
 		end
 		if info.newBest then
@@ -178,12 +217,14 @@ function Report.show(info)
 			line("Best combo", "🔥 " .. info.bestCombo, Color3.fromRGB(255, 120, 40))
 		end
 		if not alive() then
+			stop()
 			return
 		end
 		countUp(totalText, (info.money or 0) + (info.bonus or 0), 0.7, function(n)
 			return "+$" .. abbreviate(n)
 		end)
 		if not alive() then
+			stop()
 			return
 		end
 		local ts = totalText:FindFirstChildOfClass("UIScale")
@@ -191,7 +232,8 @@ function Report.show(info)
 		UIKit.spr.target(ts, 0.35, 4, { Scale = 1 })
 		UIKit.sound("Gem", 0.6, 1)
 		UIKit.coinBurst(info.newBest and 18 or 12, totalText.AbsolutePosition + totalText.AbsoluteSize / 2)
-		hintText.Text = nextGoal()
+		task.delay(0.75, stop) -- (as the first coins reach the money counter)
+		hintText.Text = nextGoal(info)
 		UIKit.bounce(hintText)
 	end)
 end
@@ -217,8 +259,10 @@ closeBtn.Instance.Activated:Connect(function()
 	card.Visible = false
 	queued = false
 	againBtn.setText("🚀 FLY AGAIN")
+	release()
 end)
 againBtn.Instance.Activated:Connect(function()
+	release()
 	if player:GetAttribute("Flying") then
 		queued = true
 		againBtn.setText("⏳ GET READY...")
@@ -229,6 +273,7 @@ end)
 upgradeBtn.Instance.Activated:Connect(function()
 	card.Visible = false
 	queued = false
+	release()
 	local w = gui:FindFirstChild("Window_Upgrades")
 	if w and not w.Visible then
 		UIKit.toggle(w)

@@ -65,8 +65,20 @@ ClaimDaily.OnServerInvoke = function(player)
 	player:SetAttribute("DailyStreak", streak)
 	player:SetAttribute("LastDaily", now)
 	player:SetAttribute("Spins", (player:GetAttribute("Spins") or 0) + 1) -- + a Lucky Spin
+	local extra = " and a LUCKY SPIN!"
+	if streak % 7 == 0 then -- every Day 7: a free pet (owner: no extra spins, keep balance v3)
+		local give = game:GetService("ServerStorage"):FindFirstChild("GivePet") -- PetServer
+		local ok, kind = false, nil
+		if give then
+			ok, kind = pcall(give.Invoke, give, player)
+		end
+		kind = ok and Config.Pets[kind] and kind or nil
+		extra = kind and (", a LUCKY SPIN and a FREE " .. Config.Pets[kind].name .. "!") or " and a LUCKY SPIN! (pets full!)"
+	end
 	PlayerData.save(player)
-	return true, "Day " .. streak .. " reward: +$" .. Config.abbreviate(reward) .. " and a LUCKY SPIN!"
+	-- named like the calendar: day 8 is Week 2 Day 1
+	local week, day = (streak - 1) // 7 + 1, (streak - 1) % 7 + 1
+	return true, (week > 1 and ("Week " .. week .. " Day ") or "Day ") .. day .. " reward: +$" .. Config.abbreviate(reward) .. extra
 end
 
 -- Donations ---------------------------------------------------------------------------

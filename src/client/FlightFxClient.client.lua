@@ -2,6 +2,7 @@
 --   * Wind streaks: two thin white trails off the sides of every flying rocket (yours and other
 --     players'), stronger the faster it goes - turning draws curves in the air.
 --   * Sonic boom: when you start boosting, a ring bursts out around your rocket with a whoosh.
+--   * Stage beat: entering a new stage bursts a big gold ring around your rocket (silent).
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -76,40 +77,56 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
--- Sonic boom when your boost kicks in
-local function sonicBoom()
-	local m = flights:FindFirstChild(player.Name)
-	local body = m and m.PrimaryPart
-	if not body then
-		return
-	end
-	-- a hoop of glowing pieces that bursts outward around the rocket (a solid disc would cover the
-	-- whole screen: the camera sits right behind the rocket)
-	local forward = body.CFrame.XVector -- rockets point along their +X
-	local frame = CFrame.lookAt(body.Position, body.Position + forward)
-	local N = 18
-	for i = 1, N do
-		local a = (i / N) * math.pi * 2
+-- A hoop of glowing pieces that bursts outward around `center` (a solid disc would cover the whole
+-- screen: the camera sits right behind the rocket). Every other piece is white.
+local function hoop(center, forward, r0, r1, color, n, life)
+	local frame = CFrame.lookAt(center, center + forward)
+	local k = r1 / 17 -- bigger hoops get longer pieces so they don't look dotted
+	for i = 1, n do
+		local a = (i / n) * math.pi * 2
 		local dir = frame.RightVector * math.cos(a) + frame.UpVector * math.sin(a)
 		local piece = Instance.new("Part")
 		piece.Name = "SonicBoom"
 		piece.Anchored, piece.CanCollide, piece.CanQuery, piece.CanTouch, piece.CastShadow = true, false, false, false, false
 		piece.Material = Enum.Material.Neon
-		piece.Color = (i % 2 == 0) and Color3.fromRGB(150, 230, 255) or Color3.new(1, 1, 1)
+		piece.Color = (i % 2 == 0) and color or Color3.new(1, 1, 1)
 		piece.Transparency = 0.15
-		piece.Size = Vector3.new(0.5, 0.5, 2.2)
-		local from = body.Position + dir * 3.5
+		piece.Size = Vector3.new(0.5, 0.5, 2.2 * k)
+		local from = center + dir * r0
 		piece.CFrame = CFrame.lookAt(from, from + frame.LookVector:Cross(dir)) -- lies along the hoop
 		piece.Parent = workspace
-		local to = body.Position + dir * 17 + forward * 4
-		TweenService:Create(piece, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = CFrame.lookAt(to, to + frame.LookVector:Cross(dir)), Transparency = 1, Size = Vector3.new(0.25, 0.25, 4) }):Play()
-		game:GetService("Debris"):AddItem(piece, 0.45)
+		local to = center + dir * r1 + forward * 4
+		TweenService:Create(piece, TweenInfo.new(life, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = CFrame.lookAt(to, to + frame.LookVector:Cross(dir)), Transparency = 1, Size = Vector3.new(0.25, 0.25, 4 * k) }):Play()
+		game:GetService("Debris"):AddItem(piece, life + 0.03)
 	end
+end
+
+local function myBody()
+	local m = flights:FindFirstChild(player.Name)
+	return m and m.PrimaryPart
+end
+
+-- Sonic boom when your boost kicks in
+local function sonicBoom()
+	local body = myBody()
+	if not body then
+		return
+	end
+	hoop(body.Position, body.CFrame.XVector, 3.5, 17, Color3.fromRGB(150, 230, 255), 18, 0.42) -- rockets point along their +X
 	UIKit.sound("Whoosh", 0.55, 1.35)
 end
 
 player:GetAttributeChangedSignal("BoostFx"):Connect(function()
 	if player:GetAttribute("BoostFx") then
 		sonicBoom()
+	end
+end)
+
+-- Stage beat: a big gold hoop (no sound) when you fly into a new stage (RocketClient sets StageFx)
+player:GetAttributeChangedSignal("StageFx"):Connect(function()
+	local stage = player:GetAttribute("StageFx")
+	local body = myBody()
+	if stage and stage > 1 and body then
+		hoop(body.Position, Vector3.xAxis, 8, 34, Color3.fromRGB(255, 200, 60), 24, 0.55)
 	end
 end)

@@ -1,6 +1,7 @@
 -- Gamepasses (Config.Gamepasses): checks what each player owns, gives it right after a purchase,
--- and puts a gold VIP tag over VIP players' heads. Owning a pass = attribute "Pass_<key>" = true;
--- the effects live where they apply (GameServer money / fuel, PetServer slots / luck / rainbow).
+-- and puts the rank tag (rebirths, stage, VIP) over players' heads.
+-- Owning a pass = attribute "Pass_<key>" = true; the effects live where they apply
+-- (GameServer money / fuel, PetServer slots / luck / rainbow).
 -- Studio / owner test command in chat:  /pass all   /pass VIP   /pass none
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,51 +29,85 @@ local function passById(id)
 	end
 end
 
--- gold "VIP" tag over the head
-local function vipTag(player)
+-- tag over the head: rebirth stars + stage, and a gold VIP pill under it.
+-- New players (stage 1-2, no rebirths, no VIP) get no tag, so the lobby isn't cluttered.
+local INK = Color3.fromRGB(30, 30, 50)
+
+local function headTag(player)
 	local char = player.Character
 	local head = char and char:FindFirstChild("Head")
 	if not head then
 		return
 	end
-	local old = head:FindFirstChild("VIPTag")
-	if not Config.hasPass(player, "VIP") then
-		if old then
-			old:Destroy()
+	local legacy = head:FindFirstChild("VIPTag") -- (the old VIP-only tag)
+	if legacy then
+		legacy:Destroy()
+	end
+	local r = player:GetAttribute("Rebirths") or 0
+	local stage = player:GetAttribute("UnlockedStage") or 1
+	local vip = Config.hasPass(player, "VIP")
+	local bb = head:FindFirstChild("RankTag")
+	if not (r > 0 or stage >= 3 or vip) then
+		if bb then
+			bb:Destroy()
 		end
 		return
 	end
-	if old then
-		old.Enabled = not player:GetAttribute("Flying") -- hidden while flying (it would sit in front of the rocket)
-		return
+	if not bb then
+		bb = Instance.new("BillboardGui")
+		bb.Name = "RankTag"
+		bb.Size = UDim2.fromOffset(150, 48)
+		bb.StudsOffset = Vector3.new(0, 2.8, 0)
+		bb.MaxDistance = 120
+		bb.LightInfluence = 0
+		local list = Instance.new("UIListLayout")
+		list.SortOrder = Enum.SortOrder.LayoutOrder
+		list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		list.VerticalAlignment = Enum.VerticalAlignment.Bottom -- the rank line drops down to the head when there's no VIP line
+		list.Padding = UDim.new(0, 2)
+		list.Parent = bb
+		-- line 1: rebirths + stage
+		local rank = Instance.new("TextLabel")
+		rank.Name = "Rank"
+		rank.LayoutOrder = 1
+		rank.Size = UDim2.new(1, 0, 0.5, -1)
+		rank.BackgroundTransparency = 1
+		rank.Font = Enum.Font.FredokaOne
+		rank.TextScaled = true
+		rank.TextColor3 = Color3.new(1, 1, 1)
+		local rs = Instance.new("UIStroke")
+		rs.Thickness = 2.5
+		rs.Color = INK
+		rs.Parent = rank
+		rank.Parent = bb
+		-- line 2: gold VIP pill
+		local l = Instance.new("TextLabel")
+		l.Name = "VIP"
+		l.LayoutOrder = 2
+		l.Size = UDim2.new(0.72, 0, 0.5, -1)
+		l.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+		l.Font = Enum.Font.FredokaOne
+		l.TextScaled = true
+		l.Text = "👑 VIP"
+		l.TextColor3 = Color3.new(1, 1, 1)
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(1, 0)
+		c.Parent = l
+		local s = Instance.new("UIStroke")
+		s.Thickness = 2.5
+		s.Color = INK
+		s.Parent = l
+		local ts = Instance.new("UIStroke")
+		ts.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		ts.Thickness = 3
+		ts.Color = INK
+		ts.Parent = l
+		l.Parent = bb
+		bb.Parent = head
 	end
-	local bb = Instance.new("BillboardGui")
-	bb.Name = "VIPTag"
-	bb.Size = UDim2.fromOffset(110, 34)
-	bb.StudsOffset = Vector3.new(0, 2.6, 0)
-	bb.MaxDistance = 120
-	bb.LightInfluence = 0
-	local l = Instance.new("TextLabel")
-	l.Size = UDim2.fromScale(1, 1)
-	l.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
-	l.Font = Enum.Font.FredokaOne
-	l.TextScaled = true
-	l.Text = "👑 VIP"
-	l.TextColor3 = Color3.new(1, 1, 1)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(1, 0)
-	c.Parent = l
-	local s = Instance.new("UIStroke")
-	s.Thickness = 2.5
-	s.Color = Color3.fromRGB(30, 30, 50)
-	s.Parent = l
-	local ts = Instance.new("UIStroke")
-	ts.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	ts.Thickness = 3
-	ts.Color = Color3.fromRGB(30, 30, 50)
-	ts.Parent = l
-	l.Parent = bb
-	bb.Parent = head
+	bb.Enabled = not player:GetAttribute("Flying") -- hidden while flying (it would sit in front of the rocket)
+	bb.Rank.Text = (r > 0 and ("🌟" .. r .. " • ") or "") .. "Stage " .. stage
+	bb.VIP.Visible = vip
 end
 
 local function give(player, pass, announce)
@@ -102,7 +137,7 @@ end
 
 local function check(player)
 	if player.UserId == game.CreatorId and not Config.OWNER_GETS_PASSES then
-		vipTag(player)
+		headTag(player)
 		return -- (the owner plays without the free creator passes; /pass all to test them)
 	end
 	local pending = {} -- passes whose check failed every time
@@ -136,14 +171,14 @@ local function check(player)
 			end
 		end)
 	end
-	vipTag(player)
+	headTag(player)
 end
 
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, id, bought)
 	local pass = bought and passById(id)
 	if pass then
 		give(player, pass, true)
-		vipTag(player)
+		headTag(player)
 	end
 end)
 
@@ -162,7 +197,7 @@ local function onChat(player, msg)
 			player:SetAttribute("Pass_" .. pass.key, nil)
 		end
 	end
-	vipTag(player)
+	headTag(player)
 	Notify:FireClient(player, "Test passes: " .. arg, Color3.fromRGB(130, 255, 130))
 end
 
@@ -172,14 +207,16 @@ local function setup(player)
 	end)
 	player.CharacterAdded:Connect(function()
 		task.wait(0.5)
-		vipTag(player)
+		headTag(player)
 	end)
 	player:GetAttributeChangedSignal("Pass_VIP"):Connect(function()
-		vipTag(player)
+		headTag(player)
 	end)
-	player:GetAttributeChangedSignal("Flying"):Connect(function()
-		vipTag(player)
-	end)
+	for _, attr in ipairs({ "Flying", "Rebirths", "UnlockedStage", "DataLoaded" }) do
+		player:GetAttributeChangedSignal(attr):Connect(function()
+			headTag(player)
+		end)
+	end
 	task.spawn(check, player)
 end
 Players.PlayerAdded:Connect(setup)

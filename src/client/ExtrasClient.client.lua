@@ -98,11 +98,12 @@ local function refreshGifts()
 end
 
 -- Daily reward --------------------------------------------------------------------------------
--- 7 day cards: claimed days dimmed with a green check, today's card bigger on turning gold rays
--- with a TODAY tag, day 7 a big gift. Streak pill on top; the button pulses when it's ready.
+-- 7 day cards (one week; the streak keeps going into Week 2, 3...): claimed days dimmed with a
+-- green check, today's card bigger on turning gold rays with a TODAY tag, day 7 a big gift with a
+-- free pet. Streak pill on top; the button pulses when it's ready.
 local dailyWindow, dailyList = UIKit.window("Daily Reward", GOLD, UDim2.fromOffset(720, 430), "Calendar")
 local streakRow = make("Frame", { Parent = dailyList, LayoutOrder = 0, Size = UDim2.new(1, -12, 0, 40), BackgroundTransparency = 1, ZIndex = 11 })
-local _, streakText = UIKit.pill(streakRow, { Text = "", Color = Color3.fromRGB(255, 120, 40), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(440, 36), ZIndex = 12 })
+local _, streakText = UIKit.pill(streakRow, { Text = "", Color = Color3.fromRGB(255, 120, 40), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(540, 36), ZIndex = 12 })
 local dayRow = make("Frame", { Parent = dailyList, LayoutOrder = 1, Size = UDim2.new(1, -12, 0, 190), BackgroundTransparency = 1, ZIndex = 11 }, {
 	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
@@ -140,9 +141,11 @@ local function refreshDaily()
 	local streak = player:GetAttribute("DailyStreak") or 0
 	local ready = dailyReady()
 	local nextDay = ready and ((now() - last < 48 * 3600) and streak + 1 or 1) or streak
-	local today = math.max(1, math.min(nextDay, 7))
+	-- the calendar cycles by week: day 8 is Week 2 Day 1 (cards show what the server pays)
+	local week = math.floor((math.max(nextDay, 1) - 1) / 7) + 1
+	local today = ((math.max(nextDay, 1) - 1) % 7) + 1
 	for d, c in ipairs(dayCells) do
-		c.amount.Text = "$" .. abbreviate(Config.dailyReward(stage(), d))
+		c.amount.Text = "$" .. abbreviate(Config.dailyReward(stage(), (week - 1) * 7 + d)) .. (c.big and " + 🥚" or "")
 		local isToday = d == today
 		-- claimed days: everything before today, and today itself once it's been claimed
 		local claimed = d < today or (not ready and d == today)
@@ -157,7 +160,7 @@ local function refreshDaily()
 		c.grad.Color = ColorSequence.new(Color3.new(1, 1, 1), claimed and Color3.fromRGB(215, 245, 215) or c.big and Color3.fromRGB(255, 236, 190) or Color3.fromRGB(240, 244, 255))
 	end
 	local shown = ready and nextDay - 1 or streak
-	streakText.Text = shown > 0 and ("🔥 " .. shown .. " day streak!  Day 7 = a BIG gift") or "🔥 Come back every day: Day 7 = a BIG gift"
+	streakText.Text = shown > 0 and ("🔥 " .. shown .. " day streak • WEEK " .. week .. "  •  Day 7 = FREE PET") or "🔥 Come back every day: Day 7 = FREE PET"
 	UIKit.claimable(dailyClaim, ready)
 	if ready then
 		dailyClaim.setText("CLAIM DAY " .. today .. "!")

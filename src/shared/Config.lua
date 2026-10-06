@@ -666,6 +666,57 @@ function Config.upgradeCost(key, level)
 	return math.floor(u.baseCost * u.costGrowth ^ level)
 end
 
+-- Stuck at the locked gate: flights already end there, so more distance pays nothing more.
+function Config.isCapped(player)
+	local unlocked = player:GetAttribute("UnlockedStage") or 1
+	local best = player:GetAttribute("BestDistance") or 0
+	return unlocked < Config.NUM_STAGES and best >= Config.stageEndX(unlocked) - Config.LAUNCH_X - 5
+end
+
+-- About how many studs the next level of an upgrade adds to a flight (before rings / boost).
+-- def = the rocket, lv = { Fuel = n, Speed = n, Cannon = n, Money = n }
+function Config.upgradeGain(key, def, lv)
+	local fuelPer, speedPer = Config.Upgrades.Fuel.perLevel, Config.Upgrades.Speed.perLevel
+	if key == "Fuel" then
+		return def.fuel * fuelPer * def.speed * (1 + lv.Speed * speedPer)
+	elseif key == "Speed" then
+		return def.speed * speedPer * def.fuel * (1 + lv.Fuel * fuelPer)
+	elseif key == "Cannon" then
+		-- the blast adds speed * (power - 1) * time / 2.4 studs (it fades out with ^1.4)
+		local p0, t0 = Config.cannonBlast(lv.Cannon)
+		local p1, t1 = Config.cannonBlast(lv.Cannon + 1)
+		return def.speed * (1 + lv.Speed * speedPer) * ((p1 - 1) * t1 - (p0 - 1) * t0) / 2.4
+	end
+	return 0
+end
+
+-- The upgrade to buy next: Money Boost while stuck at the gate, otherwise the distance upgrade
+-- with the most studs per $. Returns key, studs gained (nil when nothing fits).
+function Config.bestUpgrade(player)
+	local lv = {}
+	for key in pairs(Config.Upgrades) do
+		lv[key] = player:GetAttribute(key .. "Level") or 0
+	end
+	if Config.isCapped(player) then
+		if lv.Money < Config.Upgrades.Money.maxLevel then
+			return "Money", 0
+		end
+		return nil, 0
+	end
+	local def = Config.getRocket(player:GetAttribute("Rocket"))
+	local pick, gain, bestValue = nil, 0, -1
+	for _, key in ipairs({ "Fuel", "Speed", "Cannon" }) do
+		if lv[key] < Config.Upgrades[key].maxLevel then
+			local g = Config.upgradeGain(key, def, lv)
+			local value = g / Config.upgradeCost(key, lv[key])
+			if value > bestValue then
+				pick, gain, bestValue = key, g, value
+			end
+		end
+	end
+	return pick, gain
+end
+
 local SUFFIXES = { "", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc" }
 function Config.abbreviate(n)
 	n = math.floor(n)

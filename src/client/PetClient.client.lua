@@ -262,6 +262,23 @@ local function makeSlot(count)
 	return { slot = slot, rays = rays, holder = holder, roll = roll, sub = sub, new = new }
 end
 
+-- 8 bits of white shell fly out of the egg as it cracks
+local function crackShells(s)
+	local ar = s.slot.AbsoluteSize.X / math.max(s.slot.AbsoluteSize.Y, 1) -- keeps the burst round
+	local from = s.holder.Position
+	for i = 1, 8 do
+		local a = (i / 8 + math.random() * 0.06) * math.pi * 2
+		local d = 0.35 + math.random() * 0.2
+		local piece = make("Frame", { Parent = s.slot, AnchorPoint = Vector2.new(0.5, 0.5), Position = from, Size = UDim2.fromScale(0.07, 0.07), Rotation = math.random(0, 90), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 53 }, {
+			make("UIAspectRatioConstraint", { AspectRatio = 1.3 }),
+			make("UICorner", { CornerRadius = UDim.new(0.35, 0) }),
+		})
+		local to = from + UDim2.fromScale(math.cos(a) * d, math.sin(a) * d * ar)
+		TweenService:Create(piece, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = to, Rotation = piece.Rotation + math.random(-200, 200), BackgroundTransparency = 1 }):Play()
+		game:GetService("Debris"):AddItem(piece, 0.6)
+	end
+end
+
 local spinning = {} -- models spinning in the show
 RunService.RenderStepped:Connect(function(dt)
 	if not overlay.Visible then
@@ -309,7 +326,7 @@ local function playHatch(egg, results)
 		local s = makeSlot(#results)
 		s.result = r
 		s.eggModel = eggModel(egg)
-		viewport(s.holder, s.eggModel, { Size = UDim2.fromScale(1, 1), ZIndex = 52 })
+		s.eggVp = viewport(s.holder, s.eggModel, { Size = UDim2.fromScale(1, 1), ZIndex = 52 })
 		slots[i] = s
 		UIKit.bounce(s.holder)
 	end
@@ -319,6 +336,17 @@ local function playHatch(egg, results)
 	for _, rarity in ipairs(RARITIES) do
 		table.insert(kinds, egg.pets[rarity])
 	end
+	-- the best rarity in this hatch: Epic / Legendary eggs tease it at the end of the roll
+	local best = "Common"
+	for _, r in ipairs(results) do
+		local rarity = Config.Pets[r.kind].rarity
+		if Config.Rarities[rarity].order > Config.Rarities[best].order then
+			best = rarity
+		end
+	end
+	local bestColor = Config.Rarities[best].color
+	local tease = Config.Rarities[best].order >= 3
+	local ambient = slots[1].eggVp.Ambient
 	local t0 = os.clock()
 	local DUR = 2.1
 	local nextTick, idx = 0, 0
@@ -326,8 +354,16 @@ local function playHatch(egg, results)
 		local t = os.clock() - t0
 		local p = t / DUR
 		local amp = math.rad(4 + 26 * p)
+		-- last 0.4 s: a harder wobble and the egg glows with the rarity color
+		local glow = (tease and p > 0.8) and (p - 0.8) / 0.2 or 0
+		if glow > 0 then
+			amp *= 1 + 0.6 * math.min(glow * 4, 1)
+		end
 		for _, s in ipairs(slots) do
 			s.eggModel:PivotTo(CFrame.Angles(0, 0, math.sin(t * (14 + 16 * p)) * amp))
+			if glow > 0 then
+				s.eggVp.Ambient = ambient:Lerp(bestColor, glow * 0.8)
+			end
 		end
 		if t >= nextTick then
 			idx += 1
@@ -346,15 +382,14 @@ local function playHatch(egg, results)
 	-- crack!
 	UIKit.sound("Boom", 0.35, 1.6)
 	UIKit.sound("Pop", 0.7, 0.8)
+	-- the flash takes the best rarity's color (white for Common)
+	flash.BackgroundColor3 = best == "Common" and Color3.new(1, 1, 1) or bestColor:Lerp(Color3.new(1, 1, 1), 0.4)
 	flash.BackgroundTransparency = 0
 	TweenService:Create(flash, TweenInfo.new(0.45), { BackgroundTransparency = 1 }):Play()
-	local best = "Common"
 	for _, s in ipairs(slots) do
 		local pet = Config.Pets[s.result.kind]
 		local color = Config.Rarities[pet.rarity].color
-		if Config.Rarities[pet.rarity].order > Config.Rarities[best].order then
-			best = pet.rarity
-		end
+		crackShells(s)
 		s.holder:ClearAllChildren()
 		local m = petModel(s.result.kind)
 		viewport(s.holder, m, { Size = UDim2.fromScale(1, 1), ZIndex = 52 })
@@ -365,6 +400,11 @@ local function playHatch(egg, results)
 		s.sub.TextColor3 = color
 		s.rays.ImageColor3 = color
 		s.rays.ImageTransparency = 0.1
+		if pet.rarity == "Legendary" then
+			-- Legendary: the rays grow to 1.6x
+			local sz = s.rays.Size
+			TweenService:Create(s.rays, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromScale(sz.X.Scale * 1.6, sz.Y.Scale * 1.6) }):Play()
+		end
 		s.new.Visible = not before[s.result.kind]
 		if s.new.Visible then
 			UIKit.bounce(s.new)
@@ -378,9 +418,10 @@ local function playHatch(egg, results)
 	elseif best == "Epic" then
 		UIKit.sound("Jingle", 0.65, 1)
 	elseif best == "Rare" then
-		UIKit.sound("Gem", 0.6, 1.1)
+		-- a moment after the Boom, or UIKit skips it as a stacked small sound
+		task.delay(0.08, UIKit.sound, "Gem", 0.6, 1.1)
 	else
-		UIKit.sound("Gem", 0.5, 0.95)
+		task.delay(0.08, UIKit.sound, "Gem", 0.5, 0.95)
 	end
 
 	-- wait for a click (or a few seconds)
@@ -580,6 +621,7 @@ local function playGolden(kind, uid)
 	local pet = Config.Pets[kind]
 	UIKit.sound("Whoosh", 0.5, 0.9)
 	task.wait(0.25)
+	flash.BackgroundColor3 = Color3.new(1, 1, 1) -- (a hatch may have tinted it)
 	flash.BackgroundTransparency = 0
 	TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
 	UIKit.sound("Boom", 0.35, 1.5)

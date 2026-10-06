@@ -3,6 +3,7 @@
 --   2. no upgrades yet + money  -> arrow on the UPGRADE button
 --   3. can unlock the next stage -> arrow on the UNLOCK button
 --   4. no pets yet + money      -> path + arrow to the Meadow egg
+--   5. can rebirth, never did   -> path + arrow to the Rebirth Portal
 -- Hidden while flying, while a window is open and while the landing report shows.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -101,6 +102,11 @@ local function currentStep()
 		local garden = hub() and hub():FindFirstChild("EggGarden")
 		local stand = garden and garden:FindFirstChild("Egg_" .. egg.id)
 		return "world", stand and stand:FindFirstChild("PromptPart"), "Hatch your first pet in the Egg Garden! 🥚"
+	end
+	if (player:GetAttribute("Rebirths") or 0) == 0 and unlocked >= Config.rebirthStage(0) then
+		-- (the portal's own "Door" prompt part is a direct child; the stone portal model is nested)
+		local portal = hub() and hub():FindFirstChild("RebirthPortal")
+		return "world", portal and portal:FindFirstChild("Door"), "Rebirth for x" .. Config.rebirthMultiplier(1) .. " money forever! 🌟"
 	end
 	return nil
 end

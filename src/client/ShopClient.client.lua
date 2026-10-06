@@ -23,6 +23,7 @@ local abbreviate, meters = Config.abbreviate, Config.meters
 local INK_SOFT = Color3.fromRGB(70, 70, 100)
 local GREEN, RED, BLUE, GREY = Color3.fromRGB(80, 200, 90), Color3.fromRGB(235, 90, 90), Color3.fromRGB(70, 140, 255), Color3.fromRGB(160, 165, 185)
 local PURPLE, PINK, ORANGE = Color3.fromRGB(170, 80, 240), Color3.fromRGB(235, 90, 200), Color3.fromRGB(255, 160, 40)
+local GOLD = Color3.fromRGB(255, 190, 40)
 local MAX_SPEED, MAX_FUEL = Config.Rockets[#Config.Rockets].speed, Config.Rockets[#Config.Rockets].fuel
 
 local function owned(attr)
@@ -42,8 +43,9 @@ local function rocketIcon(def)
 end
 
 -- Buying feels good: purchase chime + the card pops (errors just get the red toast).
+-- (a plain toast: UIKit.result's coin sound would swallow the chime)
 local function bought(card, ok, msg, pitch)
-	UIKit.result(ok, msg)
+	UIKit.toast(msg, ok and Color3.fromRGB(130, 255, 130) or Color3.fromRGB(255, 140, 140))
 	if ok then
 		UIKit.sound("Gem", 0.55, pitch or 1.15)
 		UIKit.bounce(card)
@@ -198,11 +200,14 @@ local summaryText = label({ Parent = summary, Position = UDim2.fromOffset(16, 10
 
 local UPGRADE_LOOK = {
 	Cannon = { icon = nil, color = Color3.fromRGB(90, 150, 255), what = "Blast out of the cannon" },
-	Fuel = { icon = "FuelCan", color = Color3.fromRGB(255, 170, 40), what = "Fly for longer" },
-	Speed = { icon = "Bolt", color = Color3.fromRGB(255, 90, 70), what = "Fly faster" },
-	Money = { icon = "MoneyBag", color = GREEN, what = "Earn more money" },
+	Fuel = { icon = "FuelCan", color = Color3.fromRGB(255, 170, 40), what = "Fly for longer", word = "fuel" },
+	Speed = { icon = "Bolt", color = Color3.fromRGB(255, 90, 70), what = "Fly faster", word = "speed" },
+	Money = { icon = "MoneyBag", color = GREEN, what = "Earn more money", word = "money" },
 }
 local upgradeCards = {}
+local function pct(x)
+	return math.floor(x * 100 + 0.5)
+end
 local function cannonIcon(level)
 	local tier = Config.cannonTierInfo(level)
 	local skins = ReplicatedStorage:FindFirstChild("CannonSkins")
@@ -229,23 +234,35 @@ for i, key in ipairs({ "Cannon", "Fuel", "Speed", "Money" }) do
 		local ok, msg = BuyUpgrade:InvokeServer(key)
 		-- the chime climbs a little with every level
 		bought(card, ok, msg, 1 + math.min(30, player:GetAttribute(key .. "Level") or 0) * 0.02)
+		if ok then
+			-- the gain floats up from the top of the button
+			local b = button.Instance
+			UIKit.floatText(key == "Cannon" and "BLAST UP!" or "+" .. pct(u.perLevel) .. "% " .. look.word, look.color, b.AbsolutePosition + Vector2.new(b.AbsoluteSize.X / 2, 0))
+		end
 	end)
-	upgradeCards[key] = { button = button, setLevel = setLevel, levelText = levelText, change = change, what = what, iconHolder = iconHolder, cannonSkin = nil }
-end
-
-local function pct(x)
-	return math.floor(x * 100 + 0.5)
+	-- gold tag on the card's top edge (right of the icon) for the upgrade to buy next
+	local best = UIKit.pill(card, { Name = "BestPick", Text = "⭐ BEST PICK", Color = GOLD, Position = UDim2.fromOffset(134, -12), Size = UDim2.fromOffset(128, 24), ZIndex = 14 })
+	best.Visible = false
+	upgradeCards[key] = { card = card, best = best, button = button, setLevel = setLevel, levelText = levelText, change = change, what = what, iconHolder = iconHolder, cannonSkin = nil }
 end
 
 local function refreshUpgrades()
 	local money = player:GetAttribute("Money") or 0
 	local def = Config.getRocket(player:GetAttribute("Rocket"))
 	summaryText.Text = "🚀 " .. def.name .. " flies about " .. meters(rangeOf(def)) .. " (before the cannon blast)"
+	local pick = Config.bestUpgrade(player)
 	for key, r in pairs(upgradeCards) do
 		local u = Config.Upgrades[key]
 		local level = player:GetAttribute(key .. "Level") or 0
+		r.best.Visible = key == pick
 		r.levelText.Text = "Lv " .. level .. "/" .. u.maxLevel
-		r.setLevel(level / u.maxLevel)
+		-- a level up: the bar springs to its new width and the "Lv" text pops
+		local up = r.lastLevel ~= nil and level > r.lastLevel
+		r.setLevel(level / u.maxLevel, nil, up)
+		if up then
+			UIKit.bounce(r.levelText)
+		end
+		r.lastLevel = level
 		local maxed = level >= u.maxLevel
 		if key == "Cannon" then
 			local power, time = Config.cannonBlast(level)
@@ -263,7 +280,7 @@ local function refreshUpgrades()
 			end
 		else
 			local now, nextV = pct(level * u.perLevel), pct((level + 1) * u.perLevel)
-			local word = ({ Fuel = "fuel", Speed = "speed", Money = "money" })[key]
+			local word = UPGRADE_LOOK[key].word
 			r.change.Text = maxed and string.format("+%d%% %s", now, word) or string.format("+%d%% → +%d%% %s", now, nextV, word)
 		end
 		if maxed then
@@ -277,7 +294,7 @@ local function refreshUpgrades()
 	end
 end
 
-for _, attr in ipairs({ "Money", "Rocket", "OwnedRockets", "Trail", "OwnedTrails", "FuelLevel", "SpeedLevel", "MoneyLevel", "CannonLevel" }) do
+for _, attr in ipairs({ "Money", "Rocket", "OwnedRockets", "Trail", "OwnedTrails", "FuelLevel", "SpeedLevel", "MoneyLevel", "CannonLevel", "BestDistance", "UnlockedStage" }) do
 	-- only redraw an open window; a closed one refreshes when it opens
 	player:GetAttributeChangedSignal(attr):Connect(function()
 		if rocketsWindow.Visible then
@@ -347,9 +364,11 @@ end)
 local function refreshBadges()
 	local money = player:GetAttribute("Money") or 0
 	local canUpgrade = false
+	-- stuck at the gate: only Money Boost still helps, so only it earns the "!"
+	local capped = Config.isCapped(player)
 	for key, u in pairs(Config.Upgrades) do
 		local lvl = player:GetAttribute(key .. "Level") or 0
-		if lvl < u.maxLevel and money >= Config.upgradeCost(key, lvl) then
+		if (not capped or key == "Money") and lvl < u.maxLevel and money >= Config.upgradeCost(key, lvl) then
 			canUpgrade = true
 		end
 	end
@@ -369,7 +388,7 @@ local function refreshBadges()
 	upgradeBadge.Visible = canUpgrade
 	rocketsBadge.Visible = canRocket
 end
-for _, attr in ipairs({ "Money", "OwnedRockets", "FuelLevel", "SpeedLevel", "MoneyLevel", "CannonLevel" }) do
+for _, attr in ipairs({ "Money", "OwnedRockets", "FuelLevel", "SpeedLevel", "MoneyLevel", "CannonLevel", "BestDistance", "UnlockedStage" }) do
 	player:GetAttributeChangedSignal(attr):Connect(refreshBadges)
 end
 refreshBadges()
