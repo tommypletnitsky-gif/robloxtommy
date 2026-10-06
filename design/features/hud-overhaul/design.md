@@ -23,6 +23,19 @@ reads at a glance; nothing new covers the playfield.
 ## Flight Report
 - Same look as windows: dotted blue panel, the lines + total on a white sheet, gold ribbon.
 
+## Phones (owner: "make it look good on phone too")
+Checked with Studio's Device Simulator: iPhone 17 Pro (750x361), Galaxy A06 (705x338),
+iPad 10th gen (1179x819), desktop.
+- Landscape only (StarterGui + PlayerGui ScreenOrientation = LandscapeSensor).
+- Windows: never smaller than 0.68 scale; on short screens the window gets shorter instead and
+  its list scrolls. Every window sits below Roblox's top bar; big screens keep an 8% margin.
+- A dark backdrop behind any open window; tapping outside the window closes it.
+- Toasts and the guide bubble/arrow shrink with the HUD (UIKit.hudFactor).
+- The settings gear docks to the left of the stage card (scales with it) - it used to sit on
+  the phone's jump button. In flight the jump button hides (jumping is disabled), so BOOST
+  takes that thumb spot.
+- Flight Report fits under the top bar, sits under an open window's backdrop.
+
 ## States
 - Stage card: locked (grey), can't afford (orange), ready (green pulse), all stages open.
 - Fuel: normal (orange), low (red blink), empty (bar empty).

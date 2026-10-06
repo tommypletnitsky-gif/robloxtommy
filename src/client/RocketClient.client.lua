@@ -75,6 +75,7 @@ local stageCard = make("Frame", {
 		make("Frame", { BackgroundColor3 = Color3.fromRGB(35, 75, 150), BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 3), ZIndex = 2 }),
 	}),
 })
+stageCard.Name = "StageCard"
 UIKit.pattern(stageCard, "dots", { Tile = 34, Transparency = 0.6, Radius = 22, ZIndex = 1 })
 UIKit.pattern(stageCard.Band, "stripes", { Tile = 34, Transparency = 0.86, Radius = 22, ZIndex = 2 })
 local stageTitle = label({ Parent = stageCard.Band, Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -24, 1, -12), Text = "STAGE 1", ZIndex = 3, StrokeThickness = 3.5 })

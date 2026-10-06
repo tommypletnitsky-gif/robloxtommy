@@ -31,7 +31,7 @@ local card = make("Frame", {
 	Size = UDim2.fromOffset(W, H),
 	BackgroundColor3 = Color3.new(1, 1, 1),
 	Visible = false,
-	ZIndex = 20,
+	ZIndex = 8, -- (above the HUD, under an open window's backdrop)
 }, { UIKit.corner(28), UIKit.stroke(5), make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(222, 236, 255), Color3.fromRGB(176, 205, 255)) }), make("UIScale", {}) })
 -- same look as the windows: dotted blue panel, the earnings on a white sheet
 UIKit.pattern(card, "dots", { Tile = 40, Transparency = 0.55, Radius = 28, ZIndex = 20 })
@@ -130,7 +130,9 @@ function Report.show(info)
 	card.Visible = true
 	-- fit small screens, then spring open
 	local view = camera.ViewportSize
-	local fit = (view.X > 300 and view.Y > 200) and math.min(1, (view.X - 20) / W, (view.Y - 40) / H) or 1
+	local top = game:GetService("GuiService"):GetGuiInset().Y -- (stay under Roblox's top bar)
+	local fit = (view.X > 300 and view.Y > 200) and math.min(1, (view.X - 20) / W, (view.Y - top - 44) / H) or 1
+	card.Position = UDim2.new(0.5, 0, 0, math.max(view.Y * 0.47, top + 36 + H * fit / 2))
 	local scale = card:FindFirstChildOfClass("UIScale")
 	scale.Scale = 0.3 * fit
 	TweenService:Create(scale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = fit }):Play()

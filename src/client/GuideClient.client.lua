@@ -125,7 +125,10 @@ RunService.RenderStepped:Connect(function()
 		step.kind = nil -- (hide at once when a show / window / flight starts)
 	end
 	local t = os.clock()
-	local bob = math.abs(math.sin(t * 4)) * 14
+	local f = UIKit.hudFactor() -- (smaller on phones, like the rest of the HUD)
+	bubble.Size = UDim2.fromOffset(300 * f, 54 * f)
+	arrow.Size = UDim2.fromOffset(60 * f, 60 * f)
+	local bob = math.abs(math.sin(t * 4)) * 14 * f
 	local kind, target = step.kind, step.target
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	-- screen hint over a button
@@ -135,18 +138,18 @@ RunService.RenderStepped:Connect(function()
 			-- button near the top: point at it from the left
 			arrow.Text = "➡"
 			arrow.AnchorPoint = Vector2.new(1, 0.5)
-			arrow.Position = UDim2.fromOffset(p.X + 6 - bob, p.Y + s.Y / 2)
+			arrow.Position = UDim2.fromOffset(p.X + 6 * f - bob, p.Y + s.Y / 2)
 			bubble.AnchorPoint = Vector2.new(1, 0.5)
-			bubble.Position = UDim2.fromOffset(p.X - 64, p.Y + s.Y / 2)
+			bubble.Position = UDim2.fromOffset(p.X - 64 * f, p.Y + s.Y / 2)
 		else
 			arrow.Text = "⬇"
 			arrow.AnchorPoint = Vector2.new(0.5, 1)
-			arrow.Position = UDim2.fromOffset(p.X + s.X / 2, p.Y + 10 - bob)
+			arrow.Position = UDim2.fromOffset(p.X + s.X / 2, p.Y + 10 * f - bob)
 			bubble.AnchorPoint = Vector2.new(0.5, 1)
 			-- (above the progress bar when it sits over the bottom buttons)
 			local progress = gui:FindFirstChild("ProgressBar")
 			local lift = (progress and progress.Visible and progress.AbsolutePosition.Y < target.AbsolutePosition.Y) and 40 or 0
-			bubble.Position = UDim2.fromOffset(math.clamp(p.X + s.X / 2, 160, gui.AbsoluteSize.X - 160), p.Y - 52 - lift)
+			bubble.Position = UDim2.fromOffset(math.clamp(p.X + s.X / 2, 160 * f, gui.AbsoluteSize.X - 160 * f), p.Y - (52 + lift) * f)
 		end
 		arrow.Visible = true
 	else

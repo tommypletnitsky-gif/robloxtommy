@@ -3,6 +3,7 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
 local SoundService = game:GetService("SoundService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -25,6 +26,7 @@ function UIKit.gui()
 		g.IgnoreGuiInset = true
 		g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 		g.Parent = pg
+		pg.ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor -- (phones: landscape only)
 	end
 	return g
 end
@@ -421,6 +423,7 @@ end
 
 -- Windows -----------------------------------------------------------------------------
 local windows = {}
+local refreshDim -- (the backdrop behind open windows, defined further down)
 UIKit.windows = windows
 local windowTitles = {} -- [window] = its title label
 local windowIcons = {} -- [window] = function(source) that swaps its ribbon icon
@@ -528,6 +531,7 @@ function UIKit.window(title, color, size, icon)
 		ZIndex = 11,
 	}, { make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center }), make("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 10) }) })
 	table.insert(windows, w)
+	w:GetPropertyChangedSignal("Visible"):Connect(refreshDim)
 	return w, list
 end
 
@@ -680,11 +684,64 @@ local function topBar(show)
 	end
 end
 
+-- Dark backdrop behind an open window (the HUD fades back); tapping it closes the window.
+local dim = nil
+function refreshDim()
+	local open = false
+	for _, w in ipairs(windows) do
+		if w.Visible then
+			open = true
+		end
+	end
+	if not dim then
+		dim = make("TextButton", { Parent = UIKit.gui(), Name = "WindowDim", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(10, 10, 25), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Visible = false, ZIndex = 9 })
+		dim.Activated:Connect(function()
+			UIKit.closeAll()
+		end)
+	end
+	if open and not dim.Visible then
+		dim.BackgroundTransparency = 1
+		TweenService:Create(dim, TweenInfo.new(0.2), { BackgroundTransparency = 0.5 }):Play()
+	end
+	dim.Visible = open
+end
+UIKit.refreshDim = refreshDim
+
 function UIKit.closeAll()
 	for _, w in ipairs(windows) do
 		w.Visible = false
 	end
 	topBar(true)
+end
+
+-- Phones: below this size the text gets too small, so the window gets shorter instead (its list
+-- scrolls) and keeps this scale.
+local PHONE_SCALE = 0.68
+
+-- Size and scale a window for this screen; returns its scale. It sits under Roblox's top bar.
+local function fitWindow(w)
+	local view = workspace.CurrentCamera.ViewportSize
+	local design = w:GetAttribute("DesignSize")
+	if not design then
+		design = Vector2.new(w.Size.X.Offset, w.Size.Y.Offset)
+		w:SetAttribute("DesignSize", design)
+	end
+	if view.X < 300 or view.Y < 200 then -- (right after joining the screen size can still read 1x1)
+		return 1
+	end
+	local top = GuiService:GetGuiInset().Y
+	local margin = view.Y > 500 and view.Y * 0.08 or 12 -- (phones use every pixel)
+	local availW, availH = view.X - 24, view.Y - top - margin
+	local fit = math.min(availW / design.X, availH / design.Y)
+	local height = design.Y
+	if fit < PHONE_SCALE then
+		fit = math.min(PHONE_SCALE, availW / design.X)
+		height = math.min(design.Y, availH / fit)
+	end
+	fit = math.min(fit, 1.15)
+	w.Size = UDim2.fromOffset(design.X, height)
+	w.Position = UDim2.new(0.5, 0, 0, top + (view.Y - top) / 2)
+	return fit
 end
 
 function UIKit.toggle(w)
@@ -695,13 +752,7 @@ function UIKit.toggle(w)
 	if open then
 		UIKit.sound("Pop", 0.5, 1.05)
 		local s = w:FindFirstChild("OpenScale") or w:FindFirstChildOfClass("UIScale")
-		local fit = 1
-		local view = workspace.CurrentCamera.ViewportSize
-		local size = w.Size
-		local px = Vector2.new(size.X.Offset + size.X.Scale * view.X, size.Y.Offset + size.Y.Scale * view.Y)
-		if px.X > 10 and view.X > 300 and view.Y > 200 then -- (right after joining the screen size can still read 1x1)
-			fit = math.clamp(math.min((view.X - 24) / px.X, (view.Y - 110) / px.Y), 0.45, 1.15)
-		end
+		local fit = fitWindow(w)
 		s.Scale = 0.6 * fit
 		spr.target(s, 0.55, 3.5, { Scale = fit }) -- windows spring open
 	end
@@ -726,6 +777,7 @@ local function hudFactor()
 	end
 	return math.clamp(math.min(v.Y / 640, v.X / 1000), 0.55, 1)
 end
+UIKit.hudFactor = hudFactor
 function UIKit.hudScale(frame)
 	local s = frame:FindFirstChild("HudScale") or make("UIScale", { Name = "HudScale", Parent = frame })
 	s.Scale = hudFactor()
@@ -841,6 +893,7 @@ function UIKit.toast(text, color)
 		toastHolder = make("Frame", { Parent = UIKit.gui(), Name = "Toasts", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 70), Size = UDim2.fromOffset(660, 160), BackgroundTransparency = 1, ZIndex = 30 }, {
 			make("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
+		UIKit.hudScale(toastHolder)
 	end
 	placeToasts()
 	if toastsShown >= MAX_TOASTS then

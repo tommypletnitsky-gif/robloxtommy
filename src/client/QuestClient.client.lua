@@ -342,9 +342,13 @@ questBtn.Instance.Activated:Connect(function()
 end)
 
 -- Settings -------------------------------------------------------------------------------------
-local gearBtn = UIKit.button({ Parent = UIKit.gui(), Icon3D = "Gear", Icon = "⚙️", Text = "", Color = SLATE, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 264), Size = UDim2.fromOffset(64, 64), Radius = 32 })
+-- the gear sits just left of the stage card (it scales with it, and stays clear of the phone jump button)
+local stageCard = UIKit.gui():WaitForChild("StageCard", 10)
+local gearBtn = UIKit.button({ Parent = stageCard or UIKit.gui(), Icon3D = "Gear", Icon = "⚙️", Text = "", Color = SLATE, AnchorPoint = Vector2.new(1, 0), Position = stageCard and UDim2.fromOffset(-8, 0) or UDim2.new(1, -14, 0, 264), Size = UDim2.fromOffset(64, 64), Radius = 32 })
 gearBtn.Instance.Name = "SettingsButton"
-UIKit.hudScale(gearBtn.Instance)
+if not stageCard then
+	UIKit.hudScale(gearBtn.Instance)
+end
 local settingsWindow, settingsList = UIKit.window("Settings", SLATE, UDim2.fromOffset(560, 470), "Gear")
 
 local function toggleRow(order, text, attr)
