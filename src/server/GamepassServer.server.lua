@@ -86,6 +86,10 @@ local function give(player, pass, announce)
 end
 
 local function check(player)
+	if player.UserId == game.CreatorId and not Config.OWNER_GETS_PASSES then
+		vipTag(player)
+		return -- (the owner plays without the free creator passes; /pass all to test them)
+	end
 	for _, pass in ipairs(Config.Gamepasses) do
 		if pass.id ~= 0 then
 			local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.id)

@@ -17,7 +17,7 @@ Config.SKY_RISE = 600 -- how high the path climbs through the Sky zone
 Config.MONEY_PER_STUD = 1 -- in stage 1
 Config.STAGE_MONEY_GROWTH = 1.7 -- each stage pays this much more per stud
 Config.STAGE_COST_BASE = 2000 -- price of stage 2
-Config.STAGE_COST_GROWTH = 2.4 -- grows faster than income (x1.7): later stages take many flights
+Config.STAGE_COST_GROWTH = 2.9 -- grows much faster than income (x1.7): later stages take many flights (balance v3)
 
 -- Stages: Earth (1-10) -> Sky (11-20) -> Space (21-30)
 Config.Stages = {
@@ -71,10 +71,10 @@ Config.Rockets = {
 
 -- Upgrades (shop, step 2). Each level adds `perLevel` (as a fraction) to that stat.
 Config.Upgrades = {
-	Fuel = { name = "Fuel Tank", perLevel = 0.08, baseCost = 200, costGrowth = 1.65, maxLevel = 30 },
-	Speed = { name = "Engine", perLevel = 0.05, baseCost = 300, costGrowth = 1.65, maxLevel = 30 },
-	Money = { name = "Money Boost", perLevel = 0.10, baseCost = 400, costGrowth = 1.7, maxLevel = 30 },
-	Cannon = { name = "Cannon Power", perLevel = 0.15, baseCost = 500, costGrowth = 1.65, maxLevel = 30 },
+	Fuel = { name = "Fuel Tank", perLevel = 0.08, baseCost = 200, costGrowth = 1.75, maxLevel = 30 },
+	Speed = { name = "Engine", perLevel = 0.05, baseCost = 300, costGrowth = 1.75, maxLevel = 30 },
+	Money = { name = "Money Boost", perLevel = 0.07, baseCost = 400, costGrowth = 1.8, maxLevel = 30 },
+	Cannon = { name = "Cannon Power", perLevel = 0.15, baseCost = 500, costGrowth = 1.75, maxLevel = 30 },
 }
 
 -- The launch cannon shoots you out with a blast of extra speed that fades back to your rocket's
@@ -168,7 +168,7 @@ Config.Missions = {
 }
 Config.MISSIONS_PER_DAY = 3
 function Config.missionReward(stage)
-	return math.floor(Config.moneyPerStud(stage or 1) * 500)
+	return math.floor(Config.moneyPerStud(stage or 1) * 200)
 end
 function Config.missionDay()
 	return math.floor(workspace:GetServerTimeNow() / 86400)
@@ -198,7 +198,7 @@ function Config.getMission(id)
 end
 
 function Config.questReward(stage, tier)
-	return math.floor(Config.moneyPerStud(stage or 1) * 150 * 1.65 ^ (tier - 1))
+	return math.floor(Config.moneyPerStud(stage or 1) * 60 * 1.4 ^ (tier - 1))
 end
 function Config.parseQuestTiers(s)
 	local t = {}
@@ -245,27 +245,27 @@ Config.Rarities = {
 -- chance (%) of each rarity inside every egg
 Config.RARITY_CHANCE = { Common = 60, Rare = 30, Epic = 8.5, Legendary = 1.5 }
 -- multiplier = 1 + egg.bonus * RARITY_POWER[rarity]
-Config.RARITY_POWER = { Common = 1, Rare = 2, Epic = 4, Legendary = 10 }
+Config.RARITY_POWER = { Common = 1, Rare = 1.6, Epic = 2.8, Legendary = 6 }
 
 Config.Eggs = {
-	{ id = "Meadow", name = "Meadow Egg", stage = 1, price = 300, bonus = 0.1, color = Color3.fromRGB(140, 220, 110),
+	{ id = "Meadow", name = "Meadow Egg", stage = 1, price = 2500, bonus = 0.06, color = Color3.fromRGB(140, 220, 110),
 		pets = { Common = "Puppy", Rare = "Kitty", Epic = "Bunny", Legendary = "RocketCorgi" } },
-	{ id = "Jungle", name = "Jungle Egg", stage = 5, price = 2500, bonus = 0.25, color = Color3.fromRGB(60, 170, 90),
+	{ id = "Jungle", name = "Jungle Egg", stage = 5, price = 60000, bonus = 0.12, color = Color3.fromRGB(60, 170, 90),
 		pets = { Common = "Monkey", Rare = "Parrot", Epic = "TigerCub", Legendary = "GoldenJaguar" } },
-	{ id = "Frost", name = "Frost Egg", stage = 8, price = 12000, bonus = 0.5, color = Color3.fromRGB(150, 215, 255),
+	{ id = "Frost", name = "Frost Egg", stage = 8, price = 350000, bonus = 0.22, color = Color3.fromRGB(150, 215, 255),
 		pets = { Common = "Penguin", Rare = "PolarBear", Epic = "SnowFox", Legendary = "IceDragon" } },
-	{ id = "Cloud", name = "Cloud Egg", stage = 13, price = 175000, bonus = 1.2, color = Color3.fromRGB(255, 200, 235),
+	{ id = "Cloud", name = "Cloud Egg", stage = 13, price = 5000000, bonus = 0.45, color = Color3.fromRGB(255, 200, 235),
 		pets = { Common = "CloudSheep", Rare = "Owl", Epic = "Pegasus", Legendary = "ThunderBird" } },
-	{ id = "Moon", name = "Moon Egg", stage = 22, price = 21000000, bonus = 4, color = Color3.fromRGB(200, 205, 220),
+	{ id = "Moon", name = "Moon Egg", stage = 22, price = 600000000, bonus = 1.1, color = Color3.fromRGB(200, 205, 220),
 		pets = { Common = "MoonBunny", Rare = "Alien", Epic = "RoboDog", Legendary = "UFOCat" } },
-	{ id = "Galaxy", name = "Galaxy Egg", stage = 27, price = 290000000, bonus = 10, color = Color3.fromRGB(140, 80, 230),
+	{ id = "Galaxy", name = "Galaxy Egg", stage = 27, price = 9000000000, bonus = 2.5, color = Color3.fromRGB(140, 80, 230),
 		pets = { Common = "StarPuppy", Rare = "CometFox", Epic = "NebulaDragon", Legendary = "GalaxyUnicorn" } },
 }
 
 -- Event eggs: hatched with an event currency, only while their event runs; built at runtime by
 -- the event's server script (HalloweenServer). Their pets are kept forever and have an Index set.
 Config.EventEggs = {
-	{ id = "Spooky", name = "Spooky Egg", stage = 1, price = 75, currency = "Candy", event = "Halloween", bonus = 0.6, color = Color3.fromRGB(130, 70, 200),
+	{ id = "Spooky", name = "Spooky Egg", stage = 1, price = 150, currency = "Candy", event = "Halloween", bonus = 0.18, color = Color3.fromRGB(130, 70, 200),
 		stand = Vector3.new(-150, 0, 40), pets = { Common = "PumpkinPup", Rare = "GhostKitty", Epic = "BatDragon", Legendary = "PumpkinKing" } },
 }
 
@@ -444,7 +444,7 @@ end
 -- Surprises that may show up somewhere ahead of you in a flight (only on your screen).
 -- mystery crate: switched off (chance 0) - the owner didn't want a box floating over the track
 Config.Crate = { chance = 0, studs = 400, petChance = 0.05, boostChance = 0.25, fuelStuds = 90 } -- mystery crate
-Config.GoldenCoin = { chance = 1 / 40, studs = 2500 } -- super rare, the whole server hears about it
+Config.GoldenCoin = { chance = 1 / 40, studs = 1200 } -- super rare, the whole server hears about it
 
 -- Lucky Spin: a prize roll. 1 free spin right away for new players, +1 per `every` seconds played
 -- (stacks up to `max`), +1 with each daily reward. The server picks the prize (by weight).
@@ -454,14 +454,14 @@ Config.Spin = {
 	max = 3,
 	boostTime = 300, -- seconds for the x2 boosts
 	prizes = {
-		{ id = "cash", kind = "money", studs = 300, weight = 30, name = "Cash", icon = "Coin", color = Color3.fromRGB(80, 200, 90) },
-		{ id = "bag", kind = "money", studs = 800, weight = 18, name = "Money Bag", icon = "MoneyBag", color = Color3.fromRGB(60, 180, 120) },
+		{ id = "cash", kind = "money", studs = 120, weight = 30, name = "Cash", icon = "Coin", color = Color3.fromRGB(80, 200, 90) },
+		{ id = "bag", kind = "money", studs = 300, weight = 18, name = "Money Bag", icon = "MoneyBag", color = Color3.fromRGB(60, 180, 120) },
 		{ id = "x2money", kind = "boostMoney", weight = 14, name = "x2 Money", icon = "Coin", tag = "x2", color = Color3.fromRGB(255, 190, 40) },
 		{ id = "x2luck", kind = "boostLuck", weight = 10, name = "x2 Luck", icon = "Clover", tag = "x2", color = Color3.fromRGB(60, 190, 110) },
 		{ id = "boost", kind = "fullBoost", weight = 12, name = "Full Boost", icon = "FuelCan", color = Color3.fromRGB(60, 200, 255) },
 		{ id = "pet", kind = "pet", weight = 8, name = "Free Pet", icon = "Gift", color = Color3.fromRGB(255, 120, 190) },
-		{ id = "mega", kind = "money", studs = 3000, weight = 6, name = "Mega Cash", icon = "Trophy", color = Color3.fromRGB(170, 90, 255) },
-		{ id = "jackpot", kind = "money", studs = 10000, weight = 2, name = "JACKPOT", icon = "Crown", color = Color3.fromRGB(255, 80, 80), jackpot = true },
+		{ id = "mega", kind = "money", studs = 1000, weight = 6, name = "Mega Cash", icon = "Trophy", color = Color3.fromRGB(170, 90, 255) },
+		{ id = "jackpot", kind = "money", studs = 3000, weight = 2, name = "JACKPOT", icon = "Crown", color = Color3.fromRGB(255, 80, 80), jackpot = true },
 	},
 }
 function Config.spinMoney(prize, stage)
@@ -476,7 +476,7 @@ Config.GROUP_BOOST = 0.1
 
 -- Race: every `every` seconds a race opens; everyone who joins launches together.
 -- Prizes are paid like flying `studs` studs in your highest unlocked stage.
-Config.Race = { every = 600, joinTime = 45, maxTime = 100, prizes = { 1500, 1000, 700 }, joinPrize = 400 }
+Config.Race = { every = 600, joinTime = 45, maxTime = 100, prizes = { 600, 400, 250 }, joinPrize = 150 }
 
 -- Server events: one starts every `every` seconds and lasts `length` seconds.
 Config.EVENT_EVERY = 900
@@ -500,11 +500,11 @@ end
 -- Free gifts: unlock after this many minutes of play in one session.
 Config.GiftMinutes = { 1, 3, 5, 8, 12, 16, 20, 25, 30, 40 }
 function Config.giftReward(stage, index)
-	return math.floor(Config.moneyPerStud(stage) * (120 + index * 60))
+	return math.floor(Config.moneyPerStud(stage) * (50 + index * 25))
 end
 -- Daily login reward (streak day 1..7, then repeats at day 7 value).
 function Config.dailyReward(stage, day)
-	return math.floor(Config.moneyPerStud(stage) * 400 * math.min(day, 7))
+	return math.floor(Config.moneyPerStud(stage) * 200 * math.min(day, 7))
 end
 
 -- Gamepasses. Create each one on the Creator Dashboard (your experience -> Monetization ->
@@ -519,6 +519,9 @@ Config.Gamepasses = {
 	{ key = "PetSlots", id = 2006871467, name = "+3 Pet Slots", icon = "Paw", robux = 129, color = Color3.fromRGB(110, 140, 240), desc = "Equip 3 more pets at once." },
 	{ key = "MegaFuel", id = 2005743470, name = "Mega Fuel", icon = "FuelCan", robux = 49, color = Color3.fromRGB(255, 150, 40), desc = "+50% fuel on every rocket: fly much farther!" },
 }
+-- The game's creator owns every pass for free (Roblox rule). Off = the owner plays like a normal
+-- player (to judge the balance); use the chat command /pass all to test pass effects.
+Config.OWNER_GETS_PASSES = false
 Config.PASS = {
 	DoubleMoney = 2, -- money x
 	VIPMoney = 1.25, -- money x

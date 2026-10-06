@@ -200,3 +200,19 @@ Briefs: design/features/round2/design.md, design/features/halloween/design.md.
   path lamps; event pill "🎃 🍬 n • time left" (HalloweenClient).
 - Place-only assets (need Save + Publish): PetModels PumpkinPup/GhostKitty/BatDragon/PumpkinKing,
   EggModels.Spooky, ReplicatedStorage.HalloweenModels.JackOLantern, UIIcons.Bolt rotated.
+
+## Balance v3 (2026-10-06, "finished the game in 15-20 min")
+A full-economy sim (flights + pets + quests + missions + spins + gifts + daily, normal player, no
+passes) showed the snowball: cheap eggs -> 3 Legendaries (x2 each) by minute 10, Cloud pets x13,
+stage 20 in ~22 min. Like the pro simulators: eggs cost several flights at their stage, pets are
+bonuses (not the main income), side rewards are worth about one flight, stage prices outgrow
+income. Changes:
+- Pets: RARITY_POWER 1 / 1.6 / 2.8 / 6; egg bonus 0.06 / 0.12 / 0.22 / 0.45 / 1.1 / 2.5;
+  egg prices 2.5K / 60K / 350K / 5M / 600M / 9B. Spooky Egg 150 candy, bonus 0.18.
+- Stage cost growth 2.4 -> 2.9. Upgrades grow x1.75 per level (Money x1.8, +7% per level).
+- Quests 60 x 1.4^tier studs, missions 200, gifts 50 + 25i, daily 200/day, spins 120 / 300 /
+  1000 / 3000, golden coin 1200, race 600 / 400 / 250 (+150 to join).
+- Sim result (normal skill): stage 3 9m, stage 8 (first rebirth) ~50m, stage 10 ~78m,
+  stage 15 ~4h, stage 20 ~9.5h (before rebirth multipliers).
+- Config.OWNER_GETS_PASSES = false: the creator no longer gets every pass free (they did,
+  x2.5 money) so the owner plays like a normal player; /pass all still tests passes.
