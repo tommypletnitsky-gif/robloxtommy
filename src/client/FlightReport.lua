@@ -32,7 +32,10 @@ local card = make("Frame", {
 	BackgroundColor3 = Color3.new(1, 1, 1),
 	Visible = false,
 	ZIndex = 20,
-}, { UIKit.corner(28), UIKit.stroke(5), make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(215, 228, 255)) }), make("UIScale", {}) })
+}, { UIKit.corner(28), UIKit.stroke(5), make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(222, 236, 255), Color3.fromRGB(176, 205, 255)) }), make("UIScale", {}) })
+-- same look as the windows: dotted blue panel, the earnings on a white sheet
+UIKit.pattern(card, "dots", { Tile = 40, Transparency = 0.55, Radius = 28, ZIndex = 20 })
+make("Frame", { Parent = card, Name = "Sheet", Position = UDim2.fromOffset(16, 108), Size = UDim2.new(1, -32, 0, 244), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 20 }, { UIKit.corner(20), UIKit.stroke(3, Color3.fromRGB(165, 185, 230)) })
 local ribbon = make("Frame", { Parent = card, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromOffset(330, 66), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 22 }, { UIKit.corner(20), UIKit.stroke(4), UIKit.gloss(Color3.fromRGB(255, 190, 40)) })
 local ribbonText = label({ Parent = ribbon, Position = UDim2.fromScale(0.05, 0.1), Size = UDim2.fromScale(0.9, 0.8), Text = "", ZIndex = 23, StrokeThickness = 3.5 })
 local distanceText = label({ Parent = card, Position = UDim2.fromOffset(20, 44), Size = UDim2.new(1, -40, 0, 62), Text = "", TextColor3 = Color3.fromRGB(70, 140, 255), ZIndex = 21, StrokeThickness = 3.5 })
@@ -44,7 +47,7 @@ local rows = make("Frame", { Parent = card, Position = UDim2.fromOffset(28, 112)
 make("Frame", { Parent = card, Position = UDim2.fromOffset(28, 266), Size = UDim2.new(1, -56, 0, 3), BackgroundColor3 = Color3.fromRGB(190, 200, 225), BorderSizePixel = 0, ZIndex = 21 })
 local totalText = label({ Parent = card, Position = UDim2.fromOffset(20, 272), Size = UDim2.new(1, -40, 0, 56), Text = "", TextColor3 = Color3.fromRGB(80, 210, 90), ZIndex = 21, StrokeThickness = 3.5 })
 make("UIScale", { Parent = totalText })
-local hintText = label({ Parent = card, Position = UDim2.fromOffset(24, 330), Size = UDim2.new(1, -48, 0, 26), Text = "", TextColor3 = Color3.fromRGB(90, 90, 120), ZIndex = 21, StrokeThickness = 0 })
+local hintText = label({ Parent = card, Position = UDim2.fromOffset(24, 324), Size = UDim2.new(1, -48, 0, 26), Text = "", TextColor3 = Color3.fromRGB(90, 90, 120), ZIndex = 21, StrokeThickness = 0 })
 local againBtn = UIKit.button({ Parent = card, Text = "🚀 FLY AGAIN", Color = Color3.fromRGB(255, 130, 30), AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -18, 1, -14), Size = UDim2.fromOffset(210, 58), ZIndex = 22, Radius = 20 })
 local upgradeBtn = UIKit.button({ Parent = card, Text = "⬆ UPGRADE", Color = Color3.fromRGB(170, 80, 240), AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 18, 1, -14), Size = UDim2.fromOffset(210, 58), ZIndex = 22, Radius = 20 })
 

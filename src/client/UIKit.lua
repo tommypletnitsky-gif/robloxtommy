@@ -326,7 +326,9 @@ function UIKit.button(opts)
 		end
 		text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.38, 0.16), Size = UDim2.fromScale(0.58, 0.68), Text = opts.Text or "", ZIndex = z + 3, StrokeThickness = opts.TextStroke })
 	elseif opts.Icon3D or opts.Icon then
-		local iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = UDim2.fromScale(0.08, -0.02), Size = UDim2.fromScale(0.84, 0.68), ZIndex = z + 2 })
+		-- (icon-only buttons, like the settings gear: the icon fills the face)
+		local iconOnly = (opts.Text or "") == ""
+		local iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = iconOnly and UDim2.fromScale(0.08, 0.06) or UDim2.fromScale(0.08, -0.02), Size = iconOnly and UDim2.fromScale(0.84, 0.84) or UDim2.fromScale(0.84, 0.68), ZIndex = z + 2 })
 		if opts.Icon3D then
 			local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 2, Yaw = opts.IconYaw, Zoom = opts.IconZoom })
 			iconApi = api

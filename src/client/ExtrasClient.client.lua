@@ -88,6 +88,8 @@ local function refreshGifts()
 		giftHeadText.Text = "⭐ All gifts opened! New ones next time you join"
 	end
 	giftBadge.Visible = anyReady
+	-- the side button counts down to the next gift
+	giftsBtn.setText((not anyReady and nextLeft) and string.format("%d:%02d", nextLeft // 60, nextLeft % 60) or "GIFTS")
 end
 
 -- Daily reward --------------------------------------------------------------------------------
@@ -160,6 +162,8 @@ local function refreshDaily()
 		dailyClaim.setColor(GREY)
 	end
 	dailyBadge.Visible = ready
+	local wait = 20 * 3600 - (os.time() - last)
+	dailyBtn.setText(ready and "DAILY" or wait >= 3600 and string.format("%dh %02dm", wait // 3600, (wait // 60) % 60) or string.format("%d:%02d", wait // 60, wait % 60))
 end
 
 giftsBtn.Instance.Activated:Connect(function()

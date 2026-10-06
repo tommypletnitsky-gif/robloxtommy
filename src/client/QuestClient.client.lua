@@ -342,7 +342,7 @@ questBtn.Instance.Activated:Connect(function()
 end)
 
 -- Settings -------------------------------------------------------------------------------------
-local gearBtn = UIKit.button({ Parent = UIKit.gui(), Icon3D = "Gear", Icon = "⚙️", Text = "", Color = SLATE, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 256), Size = UDim2.fromOffset(70, 70), Radius = 35 })
+local gearBtn = UIKit.button({ Parent = UIKit.gui(), Icon3D = "Gear", Icon = "⚙️", Text = "", Color = SLATE, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 264), Size = UDim2.fromOffset(64, 64), Radius = 32 })
 gearBtn.Instance.Name = "SettingsButton"
 UIKit.hudScale(gearBtn.Instance)
 local settingsWindow, settingsList = UIKit.window("Settings", SLATE, UDim2.fromOffset(560, 470), "Gear")

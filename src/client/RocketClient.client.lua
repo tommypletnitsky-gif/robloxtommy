@@ -44,22 +44,46 @@ local function pill(y, color, icon, icon3D)
 end
 local moneyPill, moneyText = pill(70, Color3.fromRGB(80, 210, 90), "💰", "Coin")
 moneyPill.Name = "MoneyPill" -- UIKit.coinBurst flies coins into it
+-- "+" on the money pill opens the Store
+local storePlus = UIKit.button({ Parent = moneyPill, Text = "+", Color = Color3.fromRGB(255, 190, 40), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.fromOffset(46, 46), Radius = 23, TextStroke = 3.5, ZIndex = 3 })
+storePlus.Label.Position, storePlus.Label.Size = UDim2.fromScale(-0.1, -0.16), UDim2.fromScale(1.2, 1.2)
+storePlus.Instance.Activated:Connect(function()
+	local w = gui:FindFirstChild("Window_Store")
+	if w and not w.Visible then
+		UIKit.toggle(w)
+	end
+end)
 local bestPill, bestText = pill(134, Color3.fromRGB(255, 180, 40), "🏆", "Trophy")
 
--- Right: stage card --------------------------------------------------------------------------
+-- Right: stage card - a mini window: glossy blue band with the stage number, dotted panel, the
+-- stage name, your progress to the gate and the unlock button --------------------------------
 local stageCard = make("Frame", {
 	Parent = gui,
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -14, 0, 70),
-	Size = UDim2.fromOffset(250, 176),
+	Size = UDim2.fromOffset(256, 184),
 	BackgroundColor3 = Color3.new(1, 1, 1),
-}, { UIKit.corner(22), UIKit.stroke(4), make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(220, 232, 255)) }) })
-local stageTitle = label({ Parent = stageCard, Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -24, 0, 32), Text = "Stage 1", TextColor3 = Color3.fromRGB(70, 140, 255), StrokeThickness = 0 })
-local stageName = label({ Parent = stageCard, Position = UDim2.fromOffset(12, 40), Size = UDim2.new(1, -24, 0, 22), Text = "", TextColor3 = Color3.fromRGB(90, 90, 120), StrokeThickness = 0 })
-local barBack = make("Frame", { Parent = stageCard, Position = UDim2.fromOffset(16, 70), Size = UDim2.new(1, -32, 0, 24), BackgroundColor3 = Color3.fromRGB(215, 222, 240) }, { UIKit.corner(12), UIKit.stroke(3) })
-local barFill = make("Frame", { Parent = barBack, Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(12), UIKit.gloss(Color3.fromRGB(90, 180, 255)) })
-local barText = label({ Parent = barBack, Size = UDim2.fromScale(1, 1), Text = "", ZIndex = 2, StrokeThickness = 2 })
-local unlockBtn = UIKit.button({ Parent = stageCard, Text = "UNLOCK", Color = Color3.fromRGB(80, 200, 90), Position = UDim2.fromOffset(16, 104), Size = UDim2.new(1, -32, 0, 58) })
+}, {
+	UIKit.corner(22),
+	UIKit.stroke(4),
+	make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(235, 244, 255), Color3.fromRGB(190, 214, 255)) }),
+	make("Frame", { Name = "Band", BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 0, 44), ZIndex = 2 }, {
+		UIKit.corner(22),
+		UIKit.gloss(Color3.fromRGB(70, 140, 255)),
+		-- square off the band's bottom corners, then a dark line under it
+		make("Frame", { BackgroundColor3 = Color3.fromRGB(60, 125, 235), BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -16), Size = UDim2.new(1, 0, 0, 16), ZIndex = 2 }),
+		make("Frame", { BackgroundColor3 = Color3.fromRGB(35, 75, 150), BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 3), ZIndex = 2 }),
+	}),
+})
+UIKit.pattern(stageCard, "dots", { Tile = 34, Transparency = 0.6, Radius = 22, ZIndex = 1 })
+UIKit.pattern(stageCard.Band, "stripes", { Tile = 34, Transparency = 0.86, Radius = 22, ZIndex = 2 })
+local stageTitle = label({ Parent = stageCard.Band, Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -24, 1, -12), Text = "STAGE 1", ZIndex = 3, StrokeThickness = 3.5 })
+local stageName = label({ Parent = stageCard, Position = UDim2.fromOffset(12, 52), Size = UDim2.new(1, -24, 0, 24), Text = "", TextColor3 = Color3.fromRGB(45, 80, 150), StrokeThickness = 0, ZIndex = 3 })
+local barBack = make("Frame", { Parent = stageCard, Position = UDim2.fromOffset(14, 82), Size = UDim2.new(1, -28, 0, 26), BackgroundColor3 = Color3.fromRGB(45, 50, 75), ZIndex = 3 }, { UIKit.corner(13), UIKit.stroke(3) })
+local barFill = make("Frame", { Parent = barBack, Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 4 }, { UIKit.corner(13), UIKit.gloss(Color3.fromRGB(90, 180, 255)) })
+local barText = label({ Parent = barBack, Size = UDim2.fromScale(1, 1), Text = "", ZIndex = 5, StrokeThickness = 2.5 })
+local unlockBtn = UIKit.button({ Parent = stageCard, Text = "UNLOCK", Color = Color3.fromRGB(80, 200, 90), Position = UDim2.fromOffset(14, 116), Size = UDim2.new(1, -28, 0, 58), ZIndex = 3, Radius = 18 })
+unlockBtn.Instance.Name = "UnlockButton"
 
 -- Bottom bar: LAUNCH (PetClient adds PETS beside it) ------------------------------------------
 local bottomBar = UIKit.bottomBar()
@@ -80,20 +104,26 @@ task.spawn(function()
 	end
 end)
 
--- Flight HUD ----------------------------------------------------------------------------------
-local flightHud = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 60), Size = UDim2.fromOffset(420, 176), BackgroundTransparency = 1, Visible = false })
-local distanceLabel = label({ Parent = flightHud, Size = UDim2.new(1, 0, 0, 70), Text = "0m", StrokeThickness = 4 })
-local zoneLabel = label({ Parent = flightHud, Position = UDim2.fromOffset(0, 70), Size = UDim2.new(1, 0, 0, 28), Text = "", TextColor3 = Color3.fromRGB(255, 230, 120) })
-local fuelBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(40, 106), Size = UDim2.new(1, -80, 0, 30), BackgroundColor3 = Color3.fromRGB(60, 60, 80) }, { UIKit.corner(15), UIKit.stroke(3.5) })
-local fuelFill = make("Frame", { Parent = fuelBack, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(15), UIKit.gloss(Color3.fromRGB(255, 160, 30)) })
-label({ Parent = fuelBack, Size = UDim2.fromScale(1, 1), Text = "⛽ FUEL", ZIndex = 2 })
+-- Flight HUD: one dark see-through dashboard - distance, the stage you're over, FUEL and BOOST
+-- bars, each with a round 3D icon on its left ---------------------------------------------------
+local flightHud = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 62), Size = UDim2.fromOffset(430, 178), BackgroundTransparency = 1, Visible = false }, {
+	make("Frame", { Name = "Dash", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(18, 22, 46), BackgroundTransparency = 0.4, ZIndex = 1 }, { UIKit.corner(26), make("UIStroke", { Thickness = 3, Color = UIKit.INK, Transparency = 0.25 }) }),
+})
+local distanceLabel = label({ Parent = flightHud, Position = UDim2.fromOffset(0, 4), Size = UDim2.new(1, 0, 0, 64), Text = "0m", StrokeThickness = 4, ZIndex = 2 })
+local zoneLabel = label({ Parent = flightHud, Position = UDim2.fromOffset(0, 66), Size = UDim2.new(1, 0, 0, 26), Text = "", TextColor3 = Color3.fromRGB(255, 230, 120), ZIndex = 2 })
+for i, look in ipairs({ { "FuelCan", Color3.fromRGB(255, 160, 30) }, { "Bolt", Color3.fromRGB(60, 200, 255) } }) do
+	UIKit.icon3D(make("Frame", { Parent = flightHud, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromOffset(16, i == 1 and 115 or 152), Size = UDim2.fromOffset(38, 38), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 2 }, { UIKit.corner(19), UIKit.stroke(3), UIKit.gloss(look[2]) }), look[1], { Position = UDim2.fromScale(-0.12, -0.12), Size = UDim2.fromScale(1.24, 1.24), ZIndex = 3 })
+end
+local fuelBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(66, 101), Size = UDim2.new(1, -84, 0, 28), BackgroundColor3 = Color3.fromRGB(50, 52, 78), ZIndex = 2 }, { UIKit.corner(14), UIKit.stroke(3.5) })
+local fuelFill = make("Frame", { Parent = fuelBack, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(14), UIKit.gloss(Color3.fromRGB(255, 160, 30)) })
+label({ Parent = fuelBack, Size = UDim2.fromScale(1, 1), Text = "FUEL", ZIndex = 2 })
 -- boost bar under the fuel: filled by coins / gems / rings, used by holding SPACE / the BOOST button
 local BOOST_BLUE = Color3.fromRGB(60, 200, 255)
-local boostBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(70, 144), Size = UDim2.new(1, -140, 0, 24), BackgroundColor3 = Color3.fromRGB(50, 55, 80) }, { UIKit.corner(12), UIKit.stroke(3) })
+local boostBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(66, 140), Size = UDim2.new(1, -84, 0, 24), BackgroundColor3 = Color3.fromRGB(50, 52, 78), ZIndex = 2 }, { UIKit.corner(12), UIKit.stroke(3) })
 local boostFill = make("Frame", { Parent = boostBack, Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(12), UIKit.gloss(BOOST_BLUE) })
-local boostText = label({ Parent = boostBack, Size = UDim2.fromScale(1, 1), Text = "⚡ BOOST", ZIndex = 2, StrokeThickness = 2 })
+local boostText = label({ Parent = boostBack, Size = UDim2.fromScale(1, 1), Text = "BOOST", ZIndex = 2, StrokeThickness = 2 })
 -- (the coin bonus line rides under the flight HUD, and both shrink together on phones)
-local flightMoney = label({ Parent = flightHud, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 180), Size = UDim2.fromOffset(300, 30), Text = "", TextColor3 = Color3.fromRGB(130, 255, 130), Visible = false })
+local flightMoney = label({ Parent = flightHud, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 184), Size = UDim2.fromOffset(300, 30), Text = "", TextColor3 = Color3.fromRGB(130, 255, 130), Visible = false })
 UIKit.hudScale(flightHud)
 
 -- BOOST button (bottom right while flying): hold it, or hold SPACE
@@ -162,7 +192,7 @@ local function spawnSpeedLine(intensity)
 end
 
 -- Big center text (countdown) and result card
-local bigLabel = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.38), Size = UDim2.fromOffset(500, 150), Text = "", Visible = false, StrokeThickness = 6, ZIndex = 20 })
+local bigLabel = label({ Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(500, 120), Text = "", Visible = false, StrokeThickness = 6, ZIndex = 20 })
 make("UIScale", { Parent = bigLabel })
 local flash = make("Frame", { Parent = gui, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 60, 60), BackgroundTransparency = 1, ZIndex = 1 })
 
@@ -178,7 +208,7 @@ local function showDelta(d)
 	local now = os.clock()
 	if not (delta.label and delta.label.Parent and now - delta.at < 0.7) then
 		delta.amount = 0
-		local p = UIKit.toGui(moneyPill.AbsolutePosition + Vector2.new(moneyPill.AbsoluteSize.X + 10, moneyPill.AbsoluteSize.Y / 2))
+		local p = UIKit.toGui(moneyPill.AbsolutePosition + Vector2.new(moneyPill.AbsoluteSize.X + 30, moneyPill.AbsoluteSize.Y / 2))
 		local l = label({ Parent = gui, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromOffset(p.X, p.Y), Size = UDim2.fromOffset(170, 34), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(140, 255, 140), StrokeThickness = 3, ZIndex = 30 })
 		delta.label = l
 		task.spawn(function()
@@ -263,6 +293,7 @@ local function refreshStage()
 	if unlocked >= Config.NUM_STAGES then
 		barFill.Size = UDim2.fromScale(1, 1)
 		barText.Text = "ALL STAGES OPEN!"
+		UIKit.claimable(unlockBtn, false)
 		unlockBtn.Instance.Visible = false
 		return
 	end
@@ -279,8 +310,8 @@ local function refreshStage()
 		unlockBtn.setColor(Color3.fromRGB(230, 120, 80))
 	else
 		unlockBtn.setText("UNLOCK $" .. abbreviate(cost))
-		unlockBtn.setColor(Color3.fromRGB(80, 200, 90))
 	end
+	UIKit.claimable(unlockBtn, best >= goal - 5 and money >= cost)
 end
 
 player:GetAttributeChangedSignal("Money"):Connect(function()
@@ -736,6 +767,7 @@ for i, anchor in ipairs({ 0, 1 }) do
 	bars[i] = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0, anchor), Position = UDim2.fromScale(0, anchor), Size = UDim2.fromScale(1, 0), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 40 })
 end
 local function setLetterbox(on)
+	gui:SetAttribute("Cinematic", on) -- (the progress bar hides under the bars)
 	for _, b in ipairs(bars) do
 		TweenService:Create(b, TweenInfo.new(on and 0.5 or 0.4, Enum.EasingStyle.Quad), { Size = UDim2.fromScale(1, on and 0.11 or 0) }):Play()
 	end
@@ -1772,13 +1804,14 @@ RunService.RenderStepped:Connect(function(dt)
 	distanceLabel.Text = meters(math.max(0, pos.X - f.startX))
 	local fuelLeft = f.outOfFuel and 0 or math.clamp(1 - (now - f.launchedAt) / f.fuel, 0, 1)
 	fuelFill.Size = UDim2.fromScale(fuelLeft, 1)
+	fuelFill.BackgroundColor3 = fuelLeft < 0.25 and Color3.fromRGB(255, 80 + 70 * math.sin(now * 12), 70) or Color3.new(1, 1, 1)
 	boostFill.Size = UDim2.fromScale(f.boost, 1)
 	boostFill.Visible = f.boost > 0.005
 	local ready = f.boost > 0
 	if ready ~= f.boostReady then
 		f.boostReady = ready
 		boostBtn.setColor(ready and BOOST_BLUE or Color3.fromRGB(140, 150, 175))
-		boostText.Text = ready and "⚡ BOOST" or "⚡ grab coins to charge BOOST"
+		boostText.Text = ready and "BOOST" or "grab coins to charge BOOST"
 		if ready then
 			UIKit.bounce(boostBtn.Face)
 		end

@@ -84,7 +84,7 @@ end
 RunService.RenderStepped:Connect(function(dt)
 	local flying = player:GetAttribute("Flying") == true
 	-- brand-new players see just the LAUNCH hint first; the bar appears with the first flight
-	holder.Visible = flying or (player:GetAttribute("StatFlights") or 0) > 0
+	holder.Visible = not gui:GetAttribute("Cinematic") and (flying or (player:GetAttribute("StatFlights") or 0) > 0)
 	if not holder.Visible then
 		return
 	end
