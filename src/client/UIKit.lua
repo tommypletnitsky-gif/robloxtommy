@@ -162,8 +162,65 @@ local function pose(info, spinAngle)
 	info.model:PivotTo(CFrame.Angles(info.tilt, info.yaw + spinAngle, 0) * info.home)
 end
 
+-- 2D icons: one uploaded sprite sheet (assets/ui/icons.png, drawn by tools/make_icons.py), 5 x 4
+-- cells of 204 px, filled in this order. Any icon asked for by one of these names is drawn flat
+-- (cartoon sticker style) instead of as a 3D model; models (rockets, pets, eggs) stay 3D.
+UIKit.ICON_SHEET = "rbxassetid://119129150604117"
+local ICON_CELL = 204
+local ICON_ORDER = { "Rocket", "Rockets", "Upgrade", "Paw", "Store", "Wheel", "Scroll", "Calendar", "Gift", "Coin", "Trophy", "Gear", "Crown", "Bolt", "FuelCan", "MoneyBag", "Heart", "Clover", "Rainbow" }
+UIKit.IMAGES = {}
+for i, name in ipairs(ICON_ORDER) do
+	UIKit.IMAGES[name] = Vector2.new(((i - 1) % 5) * ICON_CELL, ((i - 1) // 5) * ICON_CELL)
+end
+local swaying = {} -- flat icons on HUD tiles sway gently
+
+local function flatIcon(parent, source, props)
+	local a = props.AnchorPoint or Vector2.zero
+	local size = props.Size or UDim2.fromScale(1, 1)
+	local pos = props.Position or UDim2.new()
+	-- (anchored at its center, so it pops and wobbles in place)
+	local center = pos + UDim2.new(size.X.Scale * (0.5 - a.X), size.X.Offset * (0.5 - a.X), size.Y.Scale * (0.5 - a.Y), size.Y.Offset * (0.5 - a.Y))
+	local img = make("ImageLabel", {
+		Parent = parent,
+		Name = "Icon3D",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = center,
+		Size = UDim2.new(size.X.Scale * 0.92, size.X.Offset * 0.92, size.Y.Scale * 0.92, size.Y.Offset * 0.92),
+		ZIndex = props.ZIndex or (parent:IsA("GuiObject") and parent.ZIndex + 1 or 1),
+		Image = UIKit.ICON_SHEET,
+		ImageRectOffset = UIKit.IMAGES[source],
+		ImageRectSize = Vector2.new(ICON_CELL, ICON_CELL),
+		ScaleType = Enum.ScaleType.Fit,
+	})
+	local pop = make("UIScale", { Parent = img, Name = "Pop" })
+	local info = { img = img, phase = math.random() * 6, wobble = 0 }
+	if props.Sway then
+		table.insert(swaying, info)
+		img.Destroying:Connect(function()
+			local i = table.find(swaying, info)
+			if i then
+				table.remove(swaying, i)
+			end
+		end)
+	end
+	local api = {}
+	function api.spin() -- (a pop and a wiggle instead of a 3D spin)
+		spr.stop(pop)
+		pop.Scale = 1.22
+		spr.target(pop, 0.45, 4.5, { Scale = 1 })
+		info.wobble = 1
+	end
+	img:SetAttribute("Icon", true)
+	return img, api, info
+end
+
 function UIKit.icon3D(parent, source, props)
 	props = props or {}
+	if type(source) == "string" and UIKit.IMAGES[source] then
+		local img, api = flatIcon(parent, source, props)
+		return img, api
+	end
 	local template = iconTemplate(source)
 	local vp = make("ViewportFrame", {
 		Parent = parent,
@@ -260,6 +317,13 @@ end
 -- Icons hold still (a ViewportFrame is only re-drawn when its model moves, so a still icon costs
 -- nothing per frame). They spin once when you hover / press their button.
 RunService.RenderStepped:Connect(function(dt)
+	local t = os.clock()
+	for _, info in ipairs(swaying) do
+		if info.img.Visible then
+			info.img.Rotation = math.sin(t * 1.7 + info.phase) * 4 + math.sin(t * 18) * 14 * info.wobble
+			info.wobble = math.max(0, info.wobble - dt * 2.2)
+		end
+	end
 	for _, info in ipairs(icons) do
 		if info.spin > 0 then
 			info.spin = math.max(0, info.spin - dt * 9)
@@ -322,10 +386,10 @@ local function buildTile(b, opts, color, radius, z)
 		if wide then
 			iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = UDim2.fromScale(-0.02, -0.3), Size = UDim2.fromScale(0.42, 1.5), ZIndex = z + 3 })
 		else
-			iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.36), Size = UDim2.fromScale(1, 0.96), ZIndex = z + 3 })
+			iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.36), Size = UDim2.fromScale(1.16, 1.1), ZIndex = z + 3 })
 		end
 		if opts.Icon3D then
-			local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 3, Yaw = opts.IconYaw, Zoom = opts.IconZoom })
+			local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 3, Yaw = opts.IconYaw, Zoom = opts.IconZoom, Sway = true })
 			iconApi = api
 		else
 			UIKit.label({ Parent = iconBox, Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.7, 0.7), Text = opts.Icon, ZIndex = z + 3 })
@@ -363,8 +427,8 @@ function UIKit.button(opts)
 		Text = "",
 		ZIndex = z,
 	})
-	if opts.Icon3D and not iconTemplate(opts.Icon3D) then
-		opts.Icon3D = nil -- 3D icon missing: fall back to the emoji
+	if opts.Icon3D and not (type(opts.Icon3D) == "string" and UIKit.IMAGES[opts.Icon3D]) and not iconTemplate(opts.Icon3D) then
+		opts.Icon3D = nil -- icon missing: fall back to the emoji
 	end
 	local lip, face, grad, text, iconApi, tagGrad
 	if tile then
@@ -667,7 +731,7 @@ function UIKit.rewardChip(parent, props)
 	make("UIGradient", { Parent = chip, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(225, 250, 225)) })
 	local h = (props.Size and props.Size.Y.Offset > 0) and props.Size.Y.Offset or 40
 	local iconBox = make("Frame", { Parent = chip, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -10, 0.5, 0), Size = UDim2.fromOffset(h * 1.45, h * 1.45), BackgroundTransparency = 1, ZIndex = z + 1 })
-	if iconTemplate(props.Icon or "Coin") then
+	if UIKit.IMAGES[props.Icon or "Coin"] or iconTemplate(props.Icon or "Coin") then
 		UIKit.icon3D(iconBox, props.Icon or "Coin", { ZIndex = z + 1 })
 	else
 		UIKit.label({ Parent = iconBox, Size = UDim2.fromScale(1, 1), Text = "💰", ZIndex = z + 1, StrokeThickness = 0 })

@@ -472,7 +472,7 @@ task.spawn(function()
 end)
 
 -- Pets window ---------------------------------------------------------------------------------------
-local petsWindow, petsList = UIKit.window("Pets", PINK, UDim2.fromOffset(680, 500), petFolder and petFolder:FindFirstChild("Kitty") or nil)
+local petsWindow, petsList = UIKit.window("Pets", PINK, UDim2.fromOffset(680, 500), "Paw")
 local topRow = UIKit.row(petsList, 0, 66)
 local summary = label({ Parent = topRow, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -370, 0, 28), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 local summary2 = label({ Parent = topRow, Position = UDim2.fromOffset(14, 36), Size = UDim2.new(1, -370, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 12 })
@@ -761,7 +761,7 @@ end
 refreshPets()
 
 -- PETS button in the bottom bar
-local petsBtn = UIKit.button({ Parent = UIKit.bottomBar(), LayoutOrder = 5, Icon3D = petFolder and petFolder:FindFirstChild("Puppy") or nil, Icon = "🐾", Text = "PETS", Color = PINK, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+local petsBtn = UIKit.button({ Parent = UIKit.bottomBar(), LayoutOrder = 5, Icon3D = "Paw", Icon = "🐾", Text = "PETS", Color = PINK, Size = UDim2.fromOffset(104, 104), Radius = 24 })
 petsBtn.Instance.Activated:Connect(function()
 	UIKit.toggle(petsWindow)
 end)

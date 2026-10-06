@@ -91,13 +91,7 @@ unlockBtn.Instance.Name = "UnlockButton"
 
 -- Bottom bar: LAUNCH (PetClient adds PETS beside it) ------------------------------------------
 local bottomBar = UIKit.bottomBar()
-local function launchIcon()
-	return RocketModel.build(Config.getRocket(player:GetAttribute("Rocket")), 1, false, CFrame.new())
-end
-local launchBtn = UIKit.button({ Parent = bottomBar, LayoutOrder = 2, Text = "LAUNCH!", Color = Color3.fromRGB(255, 130, 30), Size = UDim2.fromOffset(260, 96), Radius = 28, TextStroke = 4, Icon3D = launchIcon(), IconSide = true, IconYaw = 145, IconZoom = 1.1 })
-player:GetAttributeChangedSignal("Rocket"):Connect(function()
-	launchBtn.setIcon3D(launchIcon(), 145)
-end)
+local launchBtn = UIKit.button({ Parent = bottomBar, LayoutOrder = 2, Text = "LAUNCH!", Color = Color3.fromRGB(255, 130, 30), Size = UDim2.fromOffset(260, 96), Radius = 28, TextStroke = 4, Icon3D = "Rocket", IconSide = true })
 UIKit.shine(launchBtn, 2.8)
 local launchPulse = make("UIScale", { Parent = launchBtn.Instance })
 task.spawn(function()

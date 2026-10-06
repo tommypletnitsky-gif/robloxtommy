@@ -51,7 +51,7 @@ local function bought(card, ok, msg, pitch)
 end
 
 -- Rockets window -------------------------------------------------------------------------
-local rocketsWindow, rocketsList = UIKit.window("Rockets", BLUE, UDim2.fromOffset(780, 520), rocketIcon(Config.Rockets[4]))
+local rocketsWindow, rocketsList = UIKit.window("Rockets", BLUE, UDim2.fromOffset(780, 520), "Rockets")
 
 -- tabs: a two-part pill switch
 local tabRow = make("Frame", { Parent = rocketsList, LayoutOrder = 0, Size = UDim2.new(1, -12, 0, 60), BackgroundTransparency = 1, ZIndex = 11 }, {
@@ -192,7 +192,7 @@ local function refreshRockets()
 end
 
 -- Upgrades window ------------------------------------------------------------------------
-local upgradesWindow, upgradesList = UIKit.window("Upgrades", PURPLE, UDim2.fromOffset(720, 520), "Bolt")
+local upgradesWindow, upgradesList = UIKit.window("Upgrades", PURPLE, UDim2.fromOffset(720, 520), "Upgrade")
 local summary = UIKit.row(upgradesList, 0, 64)
 local summaryText = label({ Parent = summary, Position = UDim2.fromOffset(16, 10), Size = UDim2.new(1, -32, 1, -20), Text = "", TextColor3 = Color3.fromRGB(230, 130, 20), StrokeThickness = 0, ZIndex = 12 })
 
@@ -318,30 +318,8 @@ end)
 -- needed between flights), with a red "!" when you can afford something there.
 local bottom = UIKit.bottomBar()
 -- a chunky 3D up-arrow for the UPGRADE button (shaft + two wedges for the head), facing -Z
-local function arrowIcon()
-	local m = Instance.new("Model")
-	local function p(class, size, cf)
-		local x = Instance.new(class)
-		x.Size = size
-		x.CFrame = cf
-		x.Color = Color3.fromRGB(110, 230, 90)
-		x.Material = Enum.Material.SmoothPlastic
-		x.Anchored = true
-		x.Parent = m
-		return x
-	end
-	p("Part", Vector3.new(1.6, 2.4, 1.2), CFrame.new(0, 1.2, 0))
-	for _, side in ipairs({ -1, 1 }) do
-		-- each wedge makes half of the triangle head
-		p("WedgePart", Vector3.new(1.2, 2, 1.8), CFrame.new(side * 0.9, 3.4, 0) * CFrame.Angles(0, -side * math.pi / 2, 0)) -- tall side toward the middle
-	end
-	return m
-end
-local upgradeHud = UIKit.button({ Parent = bottom, LayoutOrder = 3, Icon3D = arrowIcon(), Icon = "⬆", Text = "UPGRADE", Color = PURPLE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
--- the rocket flies up and to the right in its button, like the 🚀 emoji (built pointing +X; standing
--- straight up it was too tall for the square and lost its nose)
-local uprightRocket = RocketModel.build(Config.Rockets[4], 1, false, CFrame.Angles(0, 0, math.rad(42))) -- (the chunky Turbo)
-local rocketsHud = UIKit.button({ Parent = bottom, LayoutOrder = 4, Icon3D = uprightRocket, IconYaw = 10, IconZoom = 1.25, Icon = "🚀", Text = "ROCKETS", Color = BLUE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+local upgradeHud = UIKit.button({ Parent = bottom, LayoutOrder = 3, Icon3D = "Upgrade", Icon = "⬆", Text = "UPGRADE", Color = PURPLE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+local rocketsHud = UIKit.button({ Parent = bottom, LayoutOrder = 4, Icon3D = "Rockets", Icon = "🚀", Text = "ROCKETS", Color = BLUE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
 local upgradeBadge = UIKit.badge(upgradeHud.Instance)
 local rocketsBadge = UIKit.badge(rocketsHud.Instance)
 upgradeHud.Instance.Activated:Connect(function()

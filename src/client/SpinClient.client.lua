@@ -40,12 +40,12 @@ local function prizeValue(prize)
 end
 
 -- Side button -----------------------------------------------------------------------------------
-local spinBtn = UIKit.button({ Parent = UIKit.sideBar(), LayoutOrder = 3, Icon3D = "Crown", Icon = "🎰", Text = "SPIN", Color = PURPLE, Size = UDim2.fromOffset(92, 98), Radius = 22 })
+local spinBtn = UIKit.button({ Parent = UIKit.sideBar(), LayoutOrder = 3, Icon3D = "Wheel", Icon = "🎰", Text = "SPIN", Color = PURPLE, Size = UDim2.fromOffset(92, 98), Radius = 22 })
 spinBtn.Instance.Name = "SpinButton"
 local spinBadge = UIKit.badge(spinBtn.Instance)
 
 -- Window ------------------------------------------------------------------------------------------
-local window, list = UIKit.window("Lucky Spin", PURPLE, UDim2.fromOffset(660, 470), "Crown")
+local window, list = UIKit.window("Lucky Spin", PURPLE, UDim2.fromOffset(660, 470), "Wheel")
 local head = UIKit.row(list, 0, 46)
 label({ Parent = head, Position = UDim2.fromOffset(14, 6), Size = UDim2.new(1, -28, 1, -12), Text = "Spin for money, boosts, free pets... or the JACKPOT! 🎰", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 

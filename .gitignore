@@ -3,3 +3,4 @@
 __pycache__/
 # Personal Claude settings
 .claude/settings.local.json
+assets/ui/icons_preview.png

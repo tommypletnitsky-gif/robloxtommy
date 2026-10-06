@@ -14,8 +14,8 @@ local GOLD = Color3.fromRGB(255, 185, 40)
 local GREEN, GREY = Color3.fromRGB(80, 200, 90), Color3.fromRGB(160, 165, 185)
 local INK_SOFT = Color3.fromRGB(70, 70, 100)
 
-local storeBtn = UIKit.button({ Parent = UIKit.bottomBar(), LayoutOrder = 6, Icon3D = "Crown", Icon = "👑", Text = "STORE", Color = GOLD, Size = UDim2.fromOffset(104, 104), Radius = 24 })
-local window, list = UIKit.window("Store", GOLD, UDim2.fromOffset(760, 520), "Crown")
+local storeBtn = UIKit.button({ Parent = UIKit.bottomBar(), LayoutOrder = 6, Icon3D = "Store", Icon = "👑", Text = "STORE", Color = GOLD, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+local window, list = UIKit.window("Store", GOLD, UDim2.fromOffset(760, 520), "Store")
 
 local head = UIKit.row(list, 0, 52)
 label({ Parent = head, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 1, -16), Text = "Gamepasses last forever and help us make the game bigger! ❤", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
