@@ -173,9 +173,9 @@ function UIKit.icon3D(parent, source, props)
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
 		ZIndex = props.ZIndex or (parent:IsA("GuiObject") and parent.ZIndex + 1 or 1),
-		Ambient = Color3.fromRGB(200, 200, 210),
-		LightColor = Color3.new(1, 1, 1),
-		LightDirection = Vector3.new(-0.4, -1, -0.6),
+		Ambient = Color3.fromRGB(255, 255, 255),
+		LightColor = Color3.fromRGB(255, 250, 235),
+		LightDirection = Vector3.new(-0.3, -0.6, 1),
 	})
 	if not template then
 		return vp
@@ -427,6 +427,7 @@ local refreshDim -- (the backdrop behind open windows, defined further down)
 UIKit.windows = windows
 local windowTitles = {} -- [window] = its title label
 local windowIcons = {} -- [window] = function(source) that swaps its ribbon icon
+local windowIconApis = {} -- [window] = its ribbon icon (spins when the window opens)
 
 -- Patterns (uploaded images, assets/ui/*.png in the repo): tiled on window panels / headers.
 UIKit.PATTERN = {
@@ -507,7 +508,8 @@ function UIKit.window(title, color, size, icon)
 		hasIcon = source ~= nil
 		if source then
 			holder = make("Frame", { Parent = ribbon, Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 26, 0.5, -4), Size = UDim2.fromOffset(90, 90), BackgroundTransparency = 1, ZIndex = 16 })
-			UIKit.icon3D(holder, source, { ZIndex = 16 })
+			local _, api = UIKit.icon3D(holder, source, { ZIndex = 16 })
+			windowIconApis[w] = api
 		end
 		fitRibbon()
 	end
@@ -579,6 +581,7 @@ function UIKit.tabs(w, list, tabs)
 		if api.changed then
 			api.changed(key)
 		end
+		UIKit.stagger(UIKit.enterItems(api.frames[key]), 0.035, 0.6)
 	end
 	function api.badge(key, on)
 		local b = api.badges[key]
@@ -618,6 +621,19 @@ function UIKit.stamp(parent, text, color, props)
 	local st = make("Frame", { Parent = parent, Name = "Stamp", AnchorPoint = Vector2.new(0.5, 0.5), Position = props.Position or UDim2.fromScale(0.5, 0.45), Size = props.Size or UDim2.fromOffset(170, 52), Rotation = props.Rotation or -12, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.15, Visible = false, ZIndex = z }, { UIKit.corner(12), make("UIStroke", { Thickness = 5, Color = color }) })
 	UIKit.label({ Parent = st, Position = UDim2.fromScale(0.06, 0.1), Size = UDim2.fromScale(0.88, 0.8), Text = text, TextColor3 = color, StrokeThickness = 0, ZIndex = z + 1 })
 	return st
+end
+
+-- A white shine that sweeps across a button now and then (the main action buttons). It runs in
+-- its own clipping frame so icons sticking out of the button aren't cut off.
+local shines = {}
+local beating = {} -- UIKit.badge: [badge] = its UIScale (a little heartbeat while it shows)
+function UIKit.shine(btn, period)
+	local face = btn.Face
+	local clip = make("Frame", { Parent = face, Name = "ShineClip", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = face.ZIndex + 1 }, { UIKit.corner(16) })
+	local sweep = make("Frame", { Parent = clip, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.new(0.22, 0, 1.6, 0), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(-0.3, 0.5), Rotation = 18, ZIndex = face.ZIndex + 1 }, {
+		make("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.35), NumberSequenceKeypoint.new(1, 1) }) }),
+	})
+	table.insert(shines, { sweep = sweep, period = period or 3, phase = math.random() * 3 })
 end
 
 -- Sun rays behind something special (today's reward, a ready gift); they turn slowly.
@@ -667,6 +683,15 @@ RunService.RenderStepped:Connect(function()
 			r.Rotation = (t * 24) % 360
 		end
 	end
+	for _, sh in ipairs(shines) do
+		local p = (t + sh.phase) % sh.period
+		sh.sweep.Position = UDim2.fromScale(-0.3 + math.min(p / 0.8, 1) * 1.6, 0.5)
+	end
+	for b, beat in pairs(beating) do
+		if b.Visible then
+			beat.Scale = 1 + 0.16 * math.max(0, math.sin(t * 5)) ^ 3
+		end
+	end
 	for btn, info in pairs(claimables) do
 		if info.on and btn.Instance.Parent and btn.Instance.AbsoluteSize.X > 0 then
 			local p = (t + info.phase) % 2.2
@@ -686,32 +711,186 @@ end
 
 -- Dark backdrop behind an open window (the HUD fades back); tapping it closes the window.
 local dim = nil
-function refreshDim()
-	local open = false
+local closing = {} -- [window] = true while it shrinks away
+local function anyOpen()
 	for _, w in ipairs(windows) do
-		if w.Visible then
-			open = true
+		if w.Visible and not closing[w] then
+			return true
 		end
 	end
+	return false
+end
+function refreshDim()
+	local open = anyOpen()
 	if not dim then
 		dim = make("TextButton", { Parent = UIKit.gui(), Name = "WindowDim", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(10, 10, 25), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Visible = false, ZIndex = 9 })
 		dim.Activated:Connect(function()
 			UIKit.closeAll()
 		end)
 	end
-	if open and not dim.Visible then
-		dim.BackgroundTransparency = 1
+	if open and (not dim.Visible or dim:GetAttribute("Fading")) then
+		dim:SetAttribute("Fading", nil)
+		dim.Visible = true
 		TweenService:Create(dim, TweenInfo.new(0.2), { BackgroundTransparency = 0.5 }):Play()
+	elseif not open and dim.Visible and not dim:GetAttribute("Fading") then
+		-- fade out, then stop catching taps
+		dim:SetAttribute("Fading", true)
+		TweenService:Create(dim, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
+		task.delay(0.15, function()
+			if dim:GetAttribute("Fading") then
+				dim:SetAttribute("Fading", nil)
+				dim.Visible = false
+			end
+		end)
 	end
-	dim.Visible = open
 end
 UIKit.refreshDim = refreshDim
 
+-- Motion ------------------------------------------------------------------------------
+-- The UIScale an item can animate with: its own (hover / bounce), never the HUD's phone scale or
+-- a window's open scale; adds one if it has none.
+local function itemScale(g)
+	local found = nil
+	for _, c in ipairs(g:GetChildren()) do
+		if c:IsA("UIScale") then
+			if c.Name == "HudScale" or c.Name == "OpenScale" then
+				return nil -- (only one UIScale per object counts)
+			end
+			found = found or c
+		end
+	end
+	return found or make("UIScale", { Parent = g, Name = "Enter" })
+end
+
+-- Every UIScale from g up to the screen, multiplied (to turn on-screen pixels back into layout size).
+local function totalScale(g)
+	local k = 1
+	while g and g:IsA("GuiObject") do
+		for _, c in ipairs(g:GetChildren()) do
+			if c:IsA("UIScale") then
+				k *= c.Scale
+			end
+		end
+		g = g.Parent
+	end
+	return k
+end
+
+-- Shrinking an item inside a UIListLayout / UIGridLayout makes its neighbours slide around. So
+-- while it pops, an empty holder of the same size keeps its spot in the layout and the item
+-- scales from its center inside it; afterwards it goes back. Returns restore().
+local function holdSpot(g)
+	local parent = g.Parent
+	if not (parent and (parent:FindFirstChildOfClass("UIListLayout") or parent:FindFirstChildOfClass("UIGridLayout"))) then
+		return function() end
+	end
+	local k = totalScale(g)
+	local size = g.AbsoluteSize / math.max(k, 0.01)
+	local holder = make("Frame", { Name = "PopHolder", Size = UDim2.fromOffset(size.X, size.Y), LayoutOrder = g.LayoutOrder, BackgroundTransparency = 1, ZIndex = g.ZIndex, Parent = parent })
+	local was = { Size = g.Size, Position = g.Position, AnchorPoint = g.AnchorPoint }
+	local mine = { Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) }
+	for prop, v in pairs(mine) do
+		g[prop] = v
+	end
+	g.Parent = holder
+	return function()
+		if g.Parent == holder then
+			for prop, v in pairs(mine) do
+				if g[prop] == v then -- (unless a script changed it meanwhile)
+					g[prop] = was[prop]
+				end
+			end
+			g.Parent = parent
+		end
+		holder:Destroy()
+	end
+end
+
+-- Pop things in one after another (cards in a window, HUD buttons). gap = seconds between items.
+function UIKit.stagger(items, gap, from)
+	for i, g in ipairs(items) do
+		local s = itemScale(g)
+		if s then
+			spr.stop(s)
+			local rest = s.Scale >= 0.999 and s.Scale or 1
+			local restore = holdSpot(g)
+			s.Scale = rest * (from or 0.5)
+			task.delay((i - 1) * (gap or 0.04), function()
+				spr.target(s, 0.72, 4.5, { Scale = rest }) -- (a small overshoot: bigger ones spill out of the list)
+				task.delay(0.6, restore)
+			end)
+		end
+	end
+end
+
+-- Slide a HUD piece in from off its edge (it keeps a phone UIScale, so it can't pop).
+function UIKit.slideIn(g, offset, delay)
+	if g:GetAttribute("Sliding") then
+		return
+	end
+	g:SetAttribute("Sliding", true)
+	local home = g.Position
+	g.Position = home + offset
+	task.delay(delay or 0, function()
+		TweenService:Create(g, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = home }):Play()
+		task.delay(0.5, function()
+			g:SetAttribute("Sliding", nil)
+		end)
+	end)
+end
+
+-- The cards / rows inside a window list (or a tab), in order: steps into plain layout frames
+-- (grids, rows of cards) so each card pops on its own. At most 24.
+function UIKit.enterItems(root)
+	local items = {}
+	local function walk(parent, depth)
+		local kids = {}
+		for _, c in ipairs(parent:GetChildren()) do
+			if c:IsA("GuiObject") and c.Visible then
+				table.insert(kids, c)
+			end
+		end
+		table.sort(kids, function(a, b)
+			return a.LayoutOrder < b.LayoutOrder
+		end)
+		for _, c in ipairs(kids) do
+			if #items >= 24 then
+				return
+			end
+			local container = c:IsA("Frame") and c.BackgroundTransparency >= 1 and (c:FindFirstChildOfClass("UIListLayout") or c:FindFirstChildOfClass("UIGridLayout"))
+			if container and depth < 2 then
+				walk(c, depth + 1)
+			else
+				table.insert(items, c)
+			end
+		end
+	end
+	walk(root, 0)
+	return items
+end
+
+local function closeWindow(w)
+	if not w.Visible or closing[w] then
+		return
+	end
+	closing[w] = true
+	local s = w:FindFirstChild("OpenScale")
+	spr.stop(s)
+	TweenService:Create(s, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = s.Scale * 0.8 }):Play()
+	task.delay(0.16, function()
+		if closing[w] then
+			closing[w] = nil
+			w.Visible = false
+		end
+	end)
+end
+
 function UIKit.closeAll()
 	for _, w in ipairs(windows) do
-		w.Visible = false
+		closeWindow(w)
 	end
 	topBar(true)
+	refreshDim()
 end
 
 -- Phones: below this size the text gets too small, so the window gets shorter instead (its list
@@ -744,17 +923,91 @@ local function fitWindow(w)
 	return fit
 end
 
+-- Opening a window: it rises and springs open, the title ribbon drops in, the X pops, the icon
+-- spins, then the cards pop in one after another. Closing: a quick shrink.
 function UIKit.toggle(w)
-	local open = not w.Visible
+	local open = not w.Visible or closing[w] == true
 	UIKit.closeAll()
-	w.Visible = open
-	topBar(not open)
-	if open then
-		UIKit.sound("Pop", 0.5, 1.05)
-		local s = w:FindFirstChild("OpenScale") or w:FindFirstChildOfClass("UIScale")
-		local fit = fitWindow(w)
-		s.Scale = 0.6 * fit
-		spr.target(s, 0.55, 3.5, { Scale = fit }) -- windows spring open
+	if not open then
+		return
+	end
+	closing[w] = nil
+	w.Visible = true
+	topBar(false)
+	refreshDim()
+	UIKit.sound("Pop", 0.5, 1.05)
+	local s = w:FindFirstChild("OpenScale") or w:FindFirstChildOfClass("UIScale")
+	local fit = fitWindow(w)
+	local home = w.Position
+	spr.stop(s)
+	spr.stop(w)
+	s.Scale = 0.7 * fit
+	w.Position = home + UDim2.fromOffset(0, 46)
+	spr.target(s, 0.58, 3.6, { Scale = fit })
+	spr.target(w, 0.8, 3.6, { Position = home })
+	local ribbon = w:FindFirstChild("Ribbon")
+	if ribbon then
+		local rs = ribbon:FindFirstChild("Pop") or make("UIScale", { Parent = ribbon, Name = "Pop" })
+		spr.stop(rs)
+		rs.Scale = 0.35
+		task.delay(0.07, function()
+			spr.target(rs, 0.42, 4.2, { Scale = 1 })
+		end)
+	end
+	local close = w:FindFirstChild("Close")
+	local cs = close and itemScale(close)
+	if cs then
+		spr.stop(cs)
+		cs.Scale = 0
+		task.delay(0.16, function()
+			spr.target(cs, 0.45, 5, { Scale = 1 })
+		end)
+	end
+	if windowIconApis[w] then
+		task.delay(0.1, windowIconApis[w].spin)
+	end
+	local list = w:FindFirstChild("List")
+	if list then
+		task.delay(0.06, function()
+			UIKit.stagger(UIKit.enterItems(list), 0.035, 0.6)
+		end)
+	end
+end
+
+-- Back in the lobby (after joining or a flight): the HUD buttons pop in one by one.
+function UIKit.hudEnter()
+	local g = UIKit.gui()
+	local items = {}
+	local function add(parent)
+		if not parent then
+			return
+		end
+		local kids = {}
+		for _, c in ipairs(parent:GetChildren()) do
+			if c:IsA("GuiButton") and c.Visible then
+				table.insert(kids, c)
+			end
+		end
+		table.sort(kids, function(a, b)
+			return a.LayoutOrder < b.LayoutOrder
+		end)
+		for _, c in ipairs(kids) do
+			table.insert(items, c)
+		end
+	end
+	add(g:FindFirstChild("SideBar"))
+	add(g:FindFirstChild("BottomBar"))
+	UIKit.stagger(items, 0.045, 0.3)
+	local n = 0
+	for _, c in ipairs(g:GetChildren()) do
+		if c:IsA("GuiObject") and c.Visible and c:FindFirstChild("Amount") then -- (money / best pills)
+			UIKit.slideIn(c, UDim2.fromOffset(-280, 0), n * 0.06)
+			n += 1
+		end
+	end
+	local card = g:FindFirstChild("StageCard")
+	if card and card.Visible then
+		UIKit.slideIn(card, UDim2.fromOffset(300, 0), 0.08)
 	end
 end
 
@@ -815,6 +1068,10 @@ end
 -- A little red "!" bubble on a button (for things you can claim).
 function UIKit.badge(button)
 	local b = make("TextLabel", { Parent = button, Name = "Badge", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -6, 0, 6), Size = UDim2.fromOffset(28, 28), BackgroundColor3 = Color3.fromRGB(255, 60, 60), Font = UIKit.FONT, TextScaled = true, TextColor3 = Color3.new(1, 1, 1), Text = "!", Visible = false, ZIndex = 20 }, { UIKit.corner(14), UIKit.stroke(2.5) })
+	beating[b] = make("UIScale", { Parent = b, Name = "Beat" })
+	b.Destroying:Connect(function()
+		beating[b] = nil
+	end)
 	-- while the badge shows, its button gives a little wiggle every few seconds
 	task.spawn(function()
 		while button.Parent do

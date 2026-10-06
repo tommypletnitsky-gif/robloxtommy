@@ -16,7 +16,12 @@ local make, label = UIKit.make, UIKit.label
 local gui = UIKit.gui()
 
 -- screen hint: speech bubble + bouncing arrow over a GUI button
-local bubble = make("Frame", { Parent = gui, Name = "GuideBubble", AnchorPoint = Vector2.new(0.5, 1), Size = UDim2.fromOffset(300, 54), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, ZIndex = 25 }, { UIKit.corner(18), UIKit.stroke(3.5), make("UIScale", {}) })
+local bubble = make("Frame", { Parent = gui, Name = "GuideBubble", AnchorPoint = Vector2.new(0.5, 1), Size = UDim2.fromOffset(300, 54), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, ZIndex = 25 }, {
+	UIKit.corner(18),
+	UIKit.stroke(4, Color3.fromRGB(255, 160, 30)),
+	make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(255, 240, 205)) }),
+	make("UIScale", {}),
+})
 local bubbleText = label({ Parent = bubble, Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -24, 1, -12), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 26 })
 local arrow = label({ Parent = gui, Name = "GuideArrow", AnchorPoint = Vector2.new(0.5, 1), Size = UDim2.fromOffset(60, 60), Text = "⬇", TextColor3 = Color3.fromRGB(255, 220, 60), StrokeThickness = 4, Visible = false, ZIndex = 25 })
 

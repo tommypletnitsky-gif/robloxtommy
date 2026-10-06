@@ -95,6 +95,7 @@ local launchBtn = UIKit.button({ Parent = bottomBar, LayoutOrder = 2, Text = "LA
 player:GetAttributeChangedSignal("Rocket"):Connect(function()
 	launchBtn.setIcon3D(launchIcon(), 145)
 end)
+UIKit.shine(launchBtn, 2.8)
 local launchPulse = make("UIScale", { Parent = launchBtn.Instance })
 task.spawn(function()
 	while true do
@@ -333,6 +334,7 @@ task.spawn(function()
 	moneyText.Text = "$" .. abbreviate(shownMoney)
 	refreshStage()
 	refreshGates()
+	UIKit.hudEnter()
 end)
 
 unlockBtn.Instance.Activated:Connect(function()
@@ -371,15 +373,63 @@ local lobbyUi = { bestPill, stageCard, bottomBar, UIKit.sideBar() } -- (money st
 for _, f in ipairs({ moneyPill, bestPill, stageCard }) do
 	UIKit.hudScale(f)
 end
--- phones: the left column (money, best, side buttons) packs together as the HUD shrinks
+-- The left column (money, best, side buttons) packs together as the HUD shrinks on phones. On a
+-- computer Roblox's chat box sits in the top-left corner (it covered the money and caught clicks
+-- on QUESTS), so there the column starts just under the chat; phones keep chat folded away.
+local TextChatService = game:GetService("TextChatService")
+local chatWindow = TextChatService:FindFirstChildOfClass("ChatWindowConfiguration")
+local chatInput = TextChatService:FindFirstChildOfClass("ChatInputBarConfiguration")
+if chatWindow then
+	pcall(function() -- (a slightly smaller chat box leaves more room for the HUD)
+		chatWindow.HeightScale = 0.8
+		chatWindow.WidthScale = 0.85
+	end)
+end
+local function chatBottom()
+	if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
+		return 0
+	end
+	if not (chatWindow and chatWindow.Enabled) then
+		return 0
+	end
+	local bottom = 0
+	for _, c in ipairs({ chatWindow, chatInput }) do
+		local ok, pos, size = pcall(function()
+			return c.AbsolutePosition, c.AbsoluteSize
+		end)
+		if ok and size.Y > 0 then
+			bottom = math.max(bottom, pos.Y + size.Y)
+		end
+	end
+	return bottom > 0 and bottom + game:GetService("GuiService"):GetGuiInset().Y or 0
+end
 local function packLeft()
 	local hs = moneyPill:FindFirstChild("HudScale")
 	local k = hs and hs.Scale or 1
-	bestPill.Position = UDim2.fromOffset(14, 70 + 64 * k)
-	UIKit.sideBar().Position = UDim2.fromOffset(14, 70 + 132 * k)
+	local column = (54 + 10 + 54 + 14 + 220) * k -- money, best, the 2x2 side buttons
+	local top = math.max(70, math.min(chatBottom() + 10, camera.ViewportSize.Y - column - 10))
+	moneyPill.Position = UDim2.fromOffset(14, top)
+	bestPill.Position = UDim2.fromOffset(14, top + 64 * k)
+	UIKit.sideBar().Position = UDim2.fromOffset(14, top + 132 * k)
+	local rebirth = gui:FindFirstChild("RebirthBadge") -- (rides beside the best pill)
+	if rebirth then
+		rebirth.Position = UDim2.fromOffset(14 + 242 * k, top + 69 * k)
+	end
 end
 camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 	task.defer(packLeft)
+end)
+for _, c in ipairs({ chatWindow, chatInput }) do
+	if c then
+		pcall(function()
+			c:GetPropertyChangedSignal("AbsoluteSize"):Connect(packLeft)
+		end)
+	end
+end
+gui.ChildAdded:Connect(function(c)
+	if c.Name == "RebirthBadge" then
+		task.defer(packLeft)
+	end
 end)
 task.defer(packLeft)
 player:GetAttributeChangedSignal("Flying"):Connect(function()
@@ -389,6 +439,8 @@ player:GetAttributeChangedSignal("Flying"):Connect(function()
 	end
 	if flying then
 		UIKit.closeAll()
+	else
+		UIKit.hudEnter() -- (back in the lobby: the buttons pop back in)
 	end
 end)
 

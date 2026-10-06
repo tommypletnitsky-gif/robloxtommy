@@ -338,9 +338,10 @@ local function arrowIcon()
 	return m
 end
 local upgradeHud = UIKit.button({ Parent = bottom, LayoutOrder = 3, Icon3D = arrowIcon(), Icon = "⬆", Text = "UPGRADE", Color = PURPLE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
--- the rocket stands nose-up in its button (built pointing +X, turned to +Y)
-local uprightRocket = RocketModel.build(Config.Rockets[4], 1, false, CFrame.Angles(0, 0, math.pi / 2)) -- (the chunky Turbo)
-local rocketsHud = UIKit.button({ Parent = bottom, LayoutOrder = 4, Icon3D = uprightRocket, IconYaw = 30, IconZoom = 0.95, Icon = "🚀", Text = "ROCKETS", Color = BLUE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
+-- the rocket flies up and to the right in its button, like the 🚀 emoji (built pointing +X; standing
+-- straight up it was too tall for the square and lost its nose)
+local uprightRocket = RocketModel.build(Config.Rockets[4], 1, false, CFrame.Angles(0, 0, math.rad(42))) -- (the chunky Turbo)
+local rocketsHud = UIKit.button({ Parent = bottom, LayoutOrder = 4, Icon3D = uprightRocket, IconYaw = 10, IconZoom = 1.25, Icon = "🚀", Text = "ROCKETS", Color = BLUE, Size = UDim2.fromOffset(104, 104), Radius = 24 })
 local upgradeBadge = UIKit.badge(upgradeHud.Instance)
 local rocketsBadge = UIKit.badge(rocketsHud.Instance)
 upgradeHud.Instance.Activated:Connect(function()

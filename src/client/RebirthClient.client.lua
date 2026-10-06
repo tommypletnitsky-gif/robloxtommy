@@ -123,6 +123,7 @@ end)
 -- HUD badge (lobby only): your rebirths and their money bonus ------------------------------------
 local badge = make("Frame", { Parent = gui, Name = "RebirthBadge", Position = UDim2.fromOffset(256, 139), Size = UDim2.fromOffset(170, 44), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false }, { UIKit.corner(22), UIKit.stroke(3.5), UIKit.gloss(PURPLE) })
 local badgeText = label({ Parent = badge, Position = UDim2.fromOffset(12, 5), Size = UDim2.new(1, -24, 1, -10), Text = "", StrokeThickness = 3 })
+UIKit.hudScale(badge) -- (RocketClient places it beside the best pill)
 local function refreshBadge()
 	local n = rebirths()
 	badge.Visible = n > 0 and not player:GetAttribute("Flying")
