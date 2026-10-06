@@ -30,7 +30,10 @@ local gui = UIKit.gui()
 
 -- Top-left: money + best pills ------------------------------------------------------------
 local function pill(y, color, icon, icon3D)
-	local f = make("Frame", { Parent = gui, Position = UDim2.fromOffset(14, y), Size = UDim2.fromOffset(230, 54), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(27), UIKit.stroke(3.5), UIKit.gloss(color) })
+	local f = make("Frame", { Parent = gui, Position = UDim2.fromOffset(14, y), Size = UDim2.fromOffset(230, 54), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(27), UIKit.stroke(4), UIKit.gloss(color) })
+	-- (same look as the HUD tiles: faint stripes and a light rim inside the outline)
+	UIKit.pattern(f, "stripes", { Tile = 30, Transparency = 0.86, Radius = 27, ZIndex = 1 })
+	make("Frame", { Parent = f, Name = "Rim", BackgroundTransparency = 1, Position = UDim2.fromOffset(4, 4), Size = UDim2.new(1, -8, 1, -8) }, { UIKit.corner(23), make("UIStroke", { Thickness = 2, Color = Color3.new(1, 1, 1), Transparency = 0.4 }) })
 	make("Frame", { Parent = f, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.fromScale(0.08, 0.1), Size = UDim2.fromScale(0.84, 0.3) }, { UIKit.corner(10) })
 	local circle = make("Frame", { Parent = f, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -8, 0.5, 0), Size = UDim2.fromOffset(62, 62), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(31), UIKit.stroke(3.5), UIKit.gloss(Color3.fromRGB(255, 250, 235)) })
 	local icons = ReplicatedStorage:WaitForChild("UIIcons", 5)
@@ -373,59 +376,22 @@ local lobbyUi = { bestPill, stageCard, bottomBar, UIKit.sideBar() } -- (money st
 for _, f in ipairs({ moneyPill, bestPill, stageCard }) do
 	UIKit.hudScale(f)
 end
--- The left column (money, best, side buttons) packs together as the HUD shrinks on phones. On a
--- computer Roblox's chat box sits in the top-left corner (it covered the money and caught clicks
--- on QUESTS), so there the column starts just under the chat; phones keep chat folded away.
-local TextChatService = game:GetService("TextChatService")
-local chatWindow = TextChatService:FindFirstChildOfClass("ChatWindowConfiguration")
-local chatInput = TextChatService:FindFirstChildOfClass("ChatInputBarConfiguration")
-if chatWindow then
-	pcall(function() -- (a slightly smaller chat box leaves more room for the HUD)
-		chatWindow.HeightScale = 0.8
-		chatWindow.WidthScale = 0.85
-	end)
-end
-local function chatBottom()
-	if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
-		return 0
-	end
-	if not (chatWindow and chatWindow.Enabled) then
-		return 0
-	end
-	local bottom = 0
-	for _, c in ipairs({ chatWindow, chatInput }) do
-		local ok, pos, size = pcall(function()
-			return c.AbsolutePosition, c.AbsoluteSize
-		end)
-		if ok and size.Y > 0 then
-			bottom = math.max(bottom, pos.Y + size.Y)
-		end
-	end
-	return bottom > 0 and bottom + game:GetService("GuiService"):GetGuiInset().Y or 0
-end
+-- phones: the left column (money, best, side buttons) packs together as the HUD shrinks
+-- (owner: keep the money at the top, the 4 side buttons right under it)
 local function packLeft()
 	local hs = moneyPill:FindFirstChild("HudScale")
 	local k = hs and hs.Scale or 1
-	local column = (54 + 10 + 54 + 14 + 220) * k -- money, best, the 2x2 side buttons
-	local top = math.max(70, math.min(chatBottom() + 10, camera.ViewportSize.Y - column - 10))
-	moneyPill.Position = UDim2.fromOffset(14, top)
-	bestPill.Position = UDim2.fromOffset(14, top + 64 * k)
-	UIKit.sideBar().Position = UDim2.fromOffset(14, top + 132 * k)
+	UIKit.place(moneyPill, UDim2.fromOffset(14, 70))
+	UIKit.place(bestPill, UDim2.fromOffset(14, 70 + 64 * k))
+	UIKit.sideBar().Position = UDim2.fromOffset(14, 70 + 132 * k)
 	local rebirth = gui:FindFirstChild("RebirthBadge") -- (rides beside the best pill)
 	if rebirth then
-		rebirth.Position = UDim2.fromOffset(14 + 242 * k, top + 69 * k)
+		rebirth.Position = UDim2.fromOffset(14 + 242 * k, 70 + 69 * k)
 	end
 end
 camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 	task.defer(packLeft)
 end)
-for _, c in ipairs({ chatWindow, chatInput }) do
-	if c then
-		pcall(function()
-			c:GetPropertyChangedSignal("AbsoluteSize"):Connect(packLeft)
-		end)
-	end
-end
 gui.ChildAdded:Connect(function(c)
 	if c.Name == "RebirthBadge" then
 		task.defer(packLeft)

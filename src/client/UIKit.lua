@@ -287,15 +287,71 @@ task.spawn(function()
 	end
 end)
 
+-- HUD tiles (the side + bottom bar buttons): a chunky rounded square in the button's color with a
+-- thick dark outline, a thin light rim inside it, faint diagonal stripes, a soft glow behind a big
+-- 3D icon that pops out over the top edge, a drop shadow, and the name on a dark tag across the
+-- bottom edge. Wide tiles (LAUNCH) keep the icon on the left and the text inside.
+local TAG = 14 -- (half the name tag hangs below the tile)
+local function tileGradient(color)
+	return make("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, UIKit.lighter(color, 0.42)),
+			ColorSequenceKeypoint.new(0.45, UIKit.lighter(color, 0.06)),
+			ColorSequenceKeypoint.new(1, UIKit.darker(color, 0.24)),
+		}),
+	})
+end
+local function tagColors(color)
+	return ColorSequence.new(UIKit.darker(color, 0.25), UIKit.darker(color, 0.5))
+end
+local function buildTile(b, opts, color, radius, z)
+	local wide = opts.IconSide == true
+	local drop = wide and 6 or TAG
+	make("Frame", { Parent = b, Name = "Shadow", BackgroundColor3 = Color3.fromRGB(20, 20, 40), BackgroundTransparency = 0.5, Position = UDim2.fromOffset(0, 5), Size = UDim2.new(1, 0, 1, -drop), ZIndex = z }, { UIKit.corner(radius) })
+	local face = make("Frame", { Parent = b, Name = "Face", BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 1, -drop), ZIndex = z + 1 }, { UIKit.corner(radius), UIKit.stroke(4) })
+	local grad = tileGradient(color)
+	grad.Parent = face
+	UIKit.pattern(face, "stripes", { Tile = 30, Transparency = 0.84, Radius = radius, ZIndex = z + 1 })
+	make("Frame", { Parent = face, Name = "Rim", BackgroundTransparency = 1, Position = UDim2.fromOffset(4, 4), Size = UDim2.new(1, -8, 1, -8), ZIndex = z + 1 }, { UIKit.corner(radius - 4), make("UIStroke", { Thickness = 2, Color = Color3.new(1, 1, 1), Transparency = 0.35 }) })
+	make("Frame", { Parent = face, Name = "Shine", BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.72, Position = UDim2.new(0.1, 0, 0.07, 0), Size = UDim2.new(0.8, 0, 0.26, 0), ZIndex = z + 1 }, { UIKit.corner(math.max(4, radius - 8)) })
+	local iconApi
+	if opts.Icon3D or opts.Icon then
+		make("ImageLabel", { Parent = face, Name = "Glow", AnchorPoint = Vector2.new(0.5, 0.5), Position = wide and UDim2.fromScale(0.2, 0.45) or UDim2.fromScale(0.5, 0.4), Size = wide and UDim2.fromScale(0.4, 1.2) or UDim2.fromScale(0.85, 0.85), BackgroundTransparency = 1, Image = UIKit.PATTERN.glow, ImageColor3 = Color3.fromRGB(255, 255, 230), ImageTransparency = 0.55, ZIndex = z + 2 })
+		local iconBox
+		if wide then
+			iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = UDim2.fromScale(-0.02, -0.3), Size = UDim2.fromScale(0.42, 1.5), ZIndex = z + 3 })
+		else
+			iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.36), Size = UDim2.fromScale(1, 0.96), ZIndex = z + 3 })
+		end
+		if opts.Icon3D then
+			local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 3, Yaw = opts.IconYaw, Zoom = opts.IconZoom })
+			iconApi = api
+		else
+			UIKit.label({ Parent = iconBox, Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.7, 0.7), Text = opts.Icon, ZIndex = z + 3 })
+		end
+	end
+	local text, tagGrad
+	if wide then
+		text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.38, 0.16), Size = UDim2.fromScale(0.58, 0.68), Text = opts.Text or "", ZIndex = z + 4, StrokeThickness = opts.TextStroke or 4 })
+	else
+		local tag = make("Frame", { Parent = face, Name = "Tag", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 1), Size = UDim2.new(1, -4, 0, TAG * 2), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = z + 4 }, { UIKit.corner(TAG), UIKit.stroke(3) })
+		tagGrad = make("UIGradient", { Parent = tag, Rotation = 90, Color = tagColors(color) })
+		text = UIKit.label({ Parent = tag, Name = "Label", Position = UDim2.fromOffset(5, 2), Size = UDim2.new(1, -10, 1, -3), Text = opts.Text or "", ZIndex = z + 5, StrokeThickness = 2.5 })
+	end
+	return face, grad, text, iconApi, tagGrad
+end
+
 -- A chunky 3D-looking button: glossy face sitting on a darker "lip" that it presses down into.
 -- opts: Text, Color, Size, Position, AnchorPoint, Parent, LayoutOrder, ZIndex, Radius,
 --       Icon (emoji above the text) or Icon3D (UIIcons name / Model, above the text; IconYaw),
---       TextStroke, StrokeThickness
+--       TextStroke, StrokeThickness, Style = "tile" (buttons in the side / bottom bar are tiles)
 function UIKit.button(opts)
 	local color = opts.Color or Color3.fromRGB(80, 200, 90)
 	local radius = opts.Radius or 16
 	local z = opts.ZIndex or 1
-	local LIP = 5
+	local tile = opts.Style == "tile" or (opts.Parent ~= nil and (opts.Parent.Name == "SideBar" or opts.Parent.Name == "BottomBar"))
+	local LIP = tile and 4 or 5
 	local b = make("TextButton", {
 		Parent = opts.Parent,
 		Size = opts.Size or UDim2.fromOffset(140, 52),
@@ -307,39 +363,43 @@ function UIKit.button(opts)
 		Text = "",
 		ZIndex = z,
 	})
-	local lip = make("Frame", { Parent = b, Name = "Lip", BackgroundColor3 = UIKit.darker(color, 0.35), Position = UDim2.fromOffset(0, LIP), Size = UDim2.new(1, 0, 1, -LIP), ZIndex = z }, { UIKit.corner(radius), UIKit.stroke(opts.StrokeThickness or 3.5) })
-	local face = make("Frame", { Parent = b, Name = "Face", BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 1, -LIP), ZIndex = z + 1 }, { UIKit.corner(radius), UIKit.stroke(opts.StrokeThickness or 3.5) })
-	local grad = UIKit.gloss(color)
-	grad.Parent = face
-	-- soft shine on the top half and a thin highlight line
-	make("Frame", { Parent = face, Name = "Shine", BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.new(0.06, 0, 0.07, 0), Size = UDim2.new(0.88, 0, 0.3, 0), ZIndex = z + 1 }, { UIKit.corner(radius - 4) })
-	local text, iconApi
 	if opts.Icon3D and not iconTemplate(opts.Icon3D) then
 		opts.Icon3D = nil -- 3D icon missing: fall back to the emoji
 	end
-	if (opts.Icon3D or opts.Icon) and opts.IconSide then
-		-- wide button: big icon on the left, text on the right
-		local iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = UDim2.fromScale(0.0, -0.25), Size = UDim2.fromScale(0.4, 1.4), ZIndex = z + 2 })
-		if opts.Icon3D then
-			local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 2, Yaw = opts.IconYaw, Zoom = opts.IconZoom })
-			iconApi = api
-		else
-			UIKit.label({ Parent = iconBox, Name = "Icon", Size = UDim2.fromScale(1, 1), Text = opts.Icon, ZIndex = z + 2 })
-		end
-		text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.38, 0.16), Size = UDim2.fromScale(0.58, 0.68), Text = opts.Text or "", ZIndex = z + 3, StrokeThickness = opts.TextStroke })
-	elseif opts.Icon3D or opts.Icon then
-		-- (icon-only buttons, like the settings gear: the icon fills the face)
-		local iconOnly = (opts.Text or "") == ""
-		local iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = iconOnly and UDim2.fromScale(0.08, 0.06) or UDim2.fromScale(0.08, -0.02), Size = iconOnly and UDim2.fromScale(0.84, 0.84) or UDim2.fromScale(0.84, 0.68), ZIndex = z + 2 })
-		if opts.Icon3D then
-			local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 2, Yaw = opts.IconYaw, Zoom = opts.IconZoom })
-			iconApi = api
-		else
-			UIKit.label({ Parent = iconBox, Name = "Icon", Size = UDim2.fromScale(1, 1), Text = opts.Icon, ZIndex = z + 2 })
-		end
-		text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.04, 0.66), Size = UDim2.fromScale(0.92, 0.28), Text = opts.Text or "", ZIndex = z + 3 })
+	local lip, face, grad, text, iconApi, tagGrad
+	if tile then
+		face, grad, text, iconApi, tagGrad = buildTile(b, opts, color, radius, z)
 	else
-		text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.06, 0.14), Size = UDim2.fromScale(0.88, 0.72), Text = opts.Text or "", ZIndex = z + 3, StrokeThickness = opts.TextStroke })
+		lip = make("Frame", { Parent = b, Name = "Lip", BackgroundColor3 = UIKit.darker(color, 0.35), Position = UDim2.fromOffset(0, LIP), Size = UDim2.new(1, 0, 1, -LIP), ZIndex = z }, { UIKit.corner(radius), UIKit.stroke(opts.StrokeThickness or 3.5) })
+		face = make("Frame", { Parent = b, Name = "Face", BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 1, -LIP), ZIndex = z + 1 }, { UIKit.corner(radius), UIKit.stroke(opts.StrokeThickness or 3.5) })
+		grad = UIKit.gloss(color)
+		grad.Parent = face
+		-- soft shine on the top half and a thin highlight line
+		make("Frame", { Parent = face, Name = "Shine", BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.new(0.06, 0, 0.07, 0), Size = UDim2.new(0.88, 0, 0.3, 0), ZIndex = z + 1 }, { UIKit.corner(radius - 4) })
+		if (opts.Icon3D or opts.Icon) and opts.IconSide then
+			-- wide button: big icon on the left, text on the right
+			local iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = UDim2.fromScale(0.0, -0.25), Size = UDim2.fromScale(0.4, 1.4), ZIndex = z + 2 })
+			if opts.Icon3D then
+				local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 2, Yaw = opts.IconYaw, Zoom = opts.IconZoom })
+				iconApi = api
+			else
+				UIKit.label({ Parent = iconBox, Name = "Icon", Size = UDim2.fromScale(1, 1), Text = opts.Icon, ZIndex = z + 2 })
+			end
+			text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.38, 0.16), Size = UDim2.fromScale(0.58, 0.68), Text = opts.Text or "", ZIndex = z + 3, StrokeThickness = opts.TextStroke })
+		elseif opts.Icon3D or opts.Icon then
+			-- (icon-only buttons, like the settings gear: the icon fills the face)
+			local iconOnly = (opts.Text or "") == ""
+			local iconBox = make("Frame", { Parent = face, Name = "IconBox", BackgroundTransparency = 1, Position = iconOnly and UDim2.fromScale(0.08, 0.06) or UDim2.fromScale(0.08, -0.02), Size = iconOnly and UDim2.fromScale(0.84, 0.84) or UDim2.fromScale(0.84, 0.68), ZIndex = z + 2 })
+			if opts.Icon3D then
+				local _, api = UIKit.icon3D(iconBox, opts.Icon3D, { ZIndex = z + 2, Yaw = opts.IconYaw, Zoom = opts.IconZoom })
+				iconApi = api
+			else
+				UIKit.label({ Parent = iconBox, Name = "Icon", Size = UDim2.fromScale(1, 1), Text = opts.Icon, ZIndex = z + 2 })
+			end
+			text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.04, 0.66), Size = UDim2.fromScale(0.92, 0.28), Text = opts.Text or "", ZIndex = z + 3 })
+		else
+			text = UIKit.label({ Parent = face, Name = "Label", Position = UDim2.fromScale(0.06, 0.14), Size = UDim2.fromScale(0.88, 0.72), Text = opts.Text or "", ZIndex = z + 3, StrokeThickness = opts.TextStroke })
+		end
 	end
 	local hoverScale = make("UIScale", { Parent = b })
 	b.MouseEnter:Connect(function()
@@ -383,9 +443,14 @@ function UIKit.button(opts)
 	end
 	function api.setColor(c)
 		grad:Destroy()
-		grad = UIKit.gloss(c)
+		grad = tile and tileGradient(c) or UIKit.gloss(c)
 		grad.Parent = face
-		lip.BackgroundColor3 = UIKit.darker(c, 0.35)
+		if lip then
+			lip.BackgroundColor3 = UIKit.darker(c, 0.35)
+		end
+		if tagGrad then
+			tagGrad.Color = tagColors(c)
+		end
 	end
 	function api.setText(t)
 		text.Text = t
@@ -824,19 +889,38 @@ function UIKit.stagger(items, gap, from)
 end
 
 -- Slide a HUD piece in from off its edge (it keeps a phone UIScale, so it can't pop).
+local slides = {} -- [piece] = { tween } while it slides
 function UIKit.slideIn(g, offset, delay)
-	if g:GetAttribute("Sliding") then
+	if slides[g] then
 		return
 	end
-	g:SetAttribute("Sliding", true)
+	local token = {}
+	slides[g] = token
 	local home = g.Position
 	g.Position = home + offset
 	task.delay(delay or 0, function()
-		TweenService:Create(g, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = home }):Play()
-		task.delay(0.5, function()
-			g:SetAttribute("Sliding", nil)
-		end)
+		if slides[g] ~= token then
+			return
+		end
+		token.tween = TweenService:Create(g, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = home })
+		token.tween:Play()
+		token.tween.Completed:Wait()
+		if slides[g] == token then
+			slides[g] = nil
+		end
 	end)
+end
+
+-- Put a HUD piece in its place for good (stops a slide-in still on its way to an old spot).
+function UIKit.place(g, pos)
+	local token = slides[g]
+	if token then
+		slides[g] = nil
+		if token.tween then
+			token.tween:Cancel()
+		end
+	end
+	g.Position = pos
 end
 
 -- The cards / rows inside a window list (or a tab), in order: steps into plain layout frames
@@ -1057,8 +1141,8 @@ end
 function UIKit.sideBar()
 	if not bars.side then
 		-- under the money pills, buttons in a 2-wide grid so it never runs off the bottom
-		bars.side = make("Frame", { Parent = UIKit.gui(), Name = "SideBar", Position = UDim2.fromOffset(14, 200), Size = UDim2.fromOffset(196, 220), BackgroundTransparency = 1 }, {
-			make("UIGridLayout", { CellSize = UDim2.fromOffset(92, 98), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
+		bars.side = make("Frame", { Parent = UIKit.gui(), Name = "SideBar", Position = UDim2.fromOffset(14, 200), Size = UDim2.fromOffset(196, 232), BackgroundTransparency = 1 }, {
+			make("UIGridLayout", { CellSize = UDim2.fromOffset(92, 104), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
 		UIKit.hudScale(bars.side)
 	end

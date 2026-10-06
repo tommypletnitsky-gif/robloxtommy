@@ -24,10 +24,18 @@ ViewportFrame issues) and tweens < 0.1 s (choppy on phones).
 - ROCKETS shows a whole rocket flying diagonally (the upright one lost its nose).
 - Guide bubble: cream with a gold outline.
 
-## Roblox chat (desktop)
-- The chat box covered the money pill and caught clicks on QUESTS. On computers the left
-  column (money, best, side buttons) now starts under the chat box (chat made 85% wide, 80%
-  tall). Phones keep it at the top (chat is folded away there).
+## HUD tiles (owner: "change the look of the ui itself ... the actual square box")
+- Side + bottom bar buttons are tiles (UIKit.button picks the style for buttons in SideBar /
+  BottomBar, or Style = "tile"): rounded square in the button color, 4px dark outline, a thin
+  white rim inside, faint diagonal stripes, a soft glow behind a big 3D icon that pokes over
+  the top edge, a drop shadow, and the name on a dark tag across the bottom edge.
+- LAUNCH is a wide tile (rocket breaking out on the left, text inside).
+- Money / best pills get the same rim + stripes.
+
+## Layout
+- Owner wants the money at the top with the 4 side buttons right under it (I had moved the
+  column below Roblox's chat box on computers; that's undone). The chat box can overlap the
+  money on computers while people are chatting.
 
 ## States
 - A window reopened while closing springs back open; tapping the backdrop closes it.
