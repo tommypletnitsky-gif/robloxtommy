@@ -1011,7 +1011,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			myRider:destroy()
 		end
 		myRider = Rider.new(player.Character)
-		playMusic("FlightMusic")
+		playMusic(nil) -- no music while flying (owner): only the engine + effects
 		bigLabel.Visible = true
 		for i = info.seconds, 1, -1 do
 			bigLabel.Text = tostring(i)
@@ -1305,40 +1305,6 @@ local function loseCombo(f, why)
 	end
 	f.combo, f.comboMult = 0, 1
 	comboFrame.Visible = false
-end
-
--- Stage banner: sweeps across the screen when you fly into a new stage.
-local ZONE_COLORS = { Earth = Color3.fromRGB(110, 200, 80), Sky = Color3.fromRGB(90, 180, 255), Space = Color3.fromRGB(170, 90, 255) }
-local banner = make("Frame", { Parent = gui, Name = "StageBanner", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(-0.8, 0.42), Size = UDim2.new(1.4, 0, 0, 100), BackgroundColor3 = Color3.new(1, 1, 1), Rotation = -3, Visible = false, ZIndex = 18 }, { UIKit.stroke(4) })
-local bannerSmall = label({ Parent = banner, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8), Size = UDim2.fromOffset(600, 30), Text = "", StrokeThickness = 3, ZIndex = 19 })
-local bannerBig = label({ Parent = banner, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 38), Size = UDim2.fromOffset(760, 56), Text = "", StrokeThickness = 4, ZIndex = 19 })
-local bannerToken = 0
-local function stageBanner(stage)
-	local st = Config.Stages[stage]
-	bannerToken += 1
-	local token = bannerToken
-	local old = banner:FindFirstChildOfClass("UIGradient")
-	if old then
-		old:Destroy()
-	end
-	UIKit.gloss(ZONE_COLORS[st.zone] or ZONE_COLORS.Earth).Parent = banner
-	bannerSmall.Text = "STAGE " .. stage .. "  •  " .. Config.multText(Config.moneyPerStud(stage)) .. " money"
-	bannerBig.Text = string.upper(st.name)
-	banner.Position = UDim2.fromScale(-0.8, 0.42)
-	banner.Visible = true
-	UIKit.sound("Whoosh", 0.6, 0.9)
-	TweenService:Create(banner, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.5, 0.42) }):Play()
-	task.delay(1.6, function()
-		if bannerToken ~= token then
-			return
-		end
-		local t = TweenService:Create(banner, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.fromScale(1.8, 0.42) })
-		t:Play()
-		t.Completed:Wait()
-		if bannerToken == token then
-			banner.Visible = false
-		end
-	end)
 end
 
 -- Pickup bursts: one pooled emitter part (cheap), a shockwave ring for boost rings.
@@ -1830,7 +1796,7 @@ RunService.RenderStepped:Connect(function(dt)
 		f.stage = stage
 		zoneLabel.Text = "Stage " .. stage .. " - " .. Config.Stages[stage].name
 		if stage > 1 then
-			stageBanner(stage)
+			UIKit.bounce(zoneLabel) -- (no big banner: it covered half the screen; the stage name above the fuel bar updates)
 		end
 	end
 end)
