@@ -450,8 +450,9 @@ local function decor(hub)
 			prop(d, i % 2 == 0 and "FlowerYellow" or "FlowerRed", fx, -11.8, rng:NextNumber(0, 360))
 		end
 	end
-	-- flower ring around the spawn plaza (open toward the main path and the Egg Garden path)
-	for i, deg in ipairs({ 40, 128, 160, 200, 232, 312 }) do
+	-- flower ring around the spawn plaza (open toward the main path and the Egg Garden path; the
+	-- signpost stands in the gap at 40 degrees)
+	for i, deg in ipairs({ 128, 160, 200, 232, 312 }) do
 		local a = math.rad(deg)
 		prop(d, ({ "FlowerRed", "FlowerYellow", "FlowerGreen" })[i % 3 + 1], SPAWN.X + math.cos(a) * 20.5, SPAWN.Z + math.sin(a) * 20.5, rng:NextNumber(0, 360))
 	end
@@ -500,6 +501,50 @@ local function decor(hub)
 		local s = part(board, { Name = "Title", Size = Vector3.new(15, 7.5, 0.4), CFrame = cf * CFrame.new(w / 2 + 0.25, h * 0.6, 0) * CFrame.Angles(0, -math.pi / 2, 0), Color = SIGN })
 		local l = sign(s, Enum.NormalId.Front, "🚀 ROCKET\nSIMULATOR", WHITE, SIGN, darker(SIGN, 0.5))
 		l.Parent.PixelsPerStud = 20
+	end
+end
+
+-- Wayfinding ------------------------------------------------------------------------------------------
+-- A wooden fingerpost at the plaza's edge (in the flower ring's gap toward the main path) with an
+-- arrow board per place in its landmark colour, and pink / purple stepping stones across the plaza
+-- to the Egg Garden and Rebirth paths (the plaza already reaches both path entrances).
+local POST_AT = SPAWN + Vector3.new(math.cos(math.rad(40)), 0, math.sin(math.rad(40))) * 20.5 -- ~(-134.3, 13.2), clear of the lamp at (-128, 10.2)
+local ARROWS = { -- { text, colour, direction, height of the board's middle }
+	{ "🥚 EGGS", C(255, 120, 190), Vector3.new(0, 0, 1), 8 },
+	{ "🌟 REBIRTH", C(170, 105, 245), Vector3.new(0, 0, -1), 6.5 },
+	{ "🚀 LAUNCH", C(255, 150, 40), Vector3.new(1, 0, 0), 5 },
+}
+
+local function wayfinding(hub)
+	local m = Instance.new("Model")
+	m.Name = "Wayfinding"
+	m.Parent = hub
+	local wood = darker(BORDER, 0.2)
+	local x, z = POST_AT.X, POST_AT.Z
+	part(m, { Name = "Post", Size = Vector3.new(0.9, 9, 0.9), CFrame = CFrame.new(x, LAWN_TOP + 4.5, z), Color = wood, Material = M.Wood })
+	part(m, { Name = "Cap", Size = Vector3.new(1.3, 0.4, 1.3), CFrame = CFrame.new(x, LAWN_TOP + 9.2, z), Color = darker(wood, 0.25), Material = M.Wood })
+
+	-- boards start just behind the post and stick out 4 studs (+ the point), so the REBIRTH one
+	-- stays off the main path and the LAUNCH one short of the lamp; no collision (they're at head height)
+	local L, H, BACK = 4.4, 1.3, 0.35
+	for _, a in ipairs(ARROWS) do
+		local color, dir = a[2], a[3]
+		local at = Vector3.new(x, LAWN_TOP + a[4], z)
+		local base = CFrame.lookAt(at, at + dir)
+		local board = part(m, { Name = "Arrow", Size = Vector3.new(0.3, H, L), CFrame = base * CFrame.new(0, 0, BACK - L / 2), Color = color, CanCollide = false })
+		-- the point: a diamond centred on the board's end, its front half sticking out
+		part(m, { Name = "Point", Size = Vector3.new(0.28, H / math.sqrt(2), H / math.sqrt(2)), CFrame = base * CFrame.new(0, 0, BACK - L) * CFrame.Angles(math.pi / 4, 0, 0), Color = color, CanCollide = false })
+		for _, face in ipairs({ Enum.NormalId.Right, Enum.NormalId.Left }) do
+			local l = sign(board, face, a[1], WHITE, color, darker(color, 0.5))
+			l.Parent.PixelsPerStud = 40
+		end
+	end
+
+	-- stepping stones from the plaza's middle ring to each path entrance, zig-zagging a little
+	for _, t in ipairs({ { 1, ARROWS[1][2] }, { -1, ARROWS[2][2] } }) do
+		for k = 0, 3 do
+			disc(m, 1.25, SPAWN.X + (k % 2 == 0 and -0.9 or 0.9), SPAWN.Z + t[1] * (8.6 + k * 2.6), PAVE_TOP + 0.1, t[2])
+		end
 	end
 end
 
@@ -649,6 +694,7 @@ function Lobby.build(hub)
 	launchArea(hub)
 	eggGarden(hub)
 	rebirthPortal(hub)
+	wayfinding(hub)
 	decor(hub)
 end
 

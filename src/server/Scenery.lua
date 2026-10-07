@@ -460,18 +460,29 @@ local function skyRoad(f, s, st, rng)
 	end
 end
 
--- Space: a dark glass track with glowing neon edges and arrows.
-local function spaceRoad(f, s)
+-- Space: a dark glass track with neon edges and arrows in the stage's colour (the magenta inner
+-- line is shared by every Space stage). Dashed edges and slim posts stream past, so speed reads.
+local function spaceRoad(f, s, st)
 	local x0 = Config.LAUNCH_X + (s - 1) * L
 	local mx, y = x0 + L / 2, Config.SKY_RISE
+	-- the stage's hue at full brightness, so dark grounds (Black Hole) still glow
+	local h, sat = st.ground:ToHSV()
+	local edge = Color3.fromHSV(h, sat, 1)
 	part(f, { Name = "SpaceTrack", Size = Vector3.new(L, 1, 36), CFrame = CFrame.new(mx, y - 0.5, 0), Color = C(28, 26, 70), Material = M.Glass, Transparency = 0.2, Reflectance = 0.2 })
 	for _, side in ipairs({ -1, 1 }) do
-		part(f, { Size = Vector3.new(L, 0.6, 1), CFrame = CFrame.new(mx, y, side * 18), Color = C(80, 230, 255), Material = M.Neon, CastShadow = false })
 		part(f, { Size = Vector3.new(L, 0.5, 0.5), CFrame = CFrame.new(mx, y, side * 14), Color = C(255, 90, 220), Material = M.Neon, CastShadow = false })
+		-- 10-stud dashes with 10-stud gaps
+		for x = x0 + 5, x0 + L, 20 do
+			part(f, { Size = Vector3.new(10, 0.6, 1), CFrame = CFrame.new(x, y, side * 18), Color = edge, Material = M.Neon, CanCollide = false, CanQuery = false, CastShadow = false })
+		end
+		-- slim posts beside the track, 4 studs tall (under FLY_MIN_HEIGHT)
+		for x = x0 + 12.5, x0 + L, 25 do
+			part(f, { Size = Vector3.new(0.6, 4, 0.6), CFrame = CFrame.new(x, y + 2, side * 22), Color = edge, Material = M.Neon, CanCollide = false, CanQuery = false, CastShadow = false })
+		end
 	end
 	for x = x0 + 25, x0 + L - 1, 50 do
 		for _, side in ipairs({ -1, 1 }) do
-			part(f, { Size = Vector3.new(7, 0.3, 1.2), CFrame = CFrame.new(x - 2.6, y + 0.05, side * 3.4) * CFrame.Angles(0, side * math.rad(40), 0), Color = C(80, 230, 255), Material = M.Neon, CastShadow = false })
+			part(f, { Size = Vector3.new(7, 0.3, 1.2), CFrame = CFrame.new(x - 2.6, y + 0.05, side * 3.4) * CFrame.Angles(0, side * math.rad(40), 0), Color = edge, Material = M.Neon, CastShadow = false })
 		end
 	end
 end
@@ -515,14 +526,15 @@ local function lightning(f, p, rng)
 	end
 end
 
+-- A rainbow arch standing across the road (Y-Z plane), so you fly through it.
 local function rainbowArc(f, center, radius)
 	local colors = { C(255, 80, 80), C(255, 165, 50), C(255, 230, 70), C(90, 220, 100), C(80, 160, 255), C(170, 100, 255) }
 	for i, c in ipairs(colors) do
 		local r = radius - (i - 1) * 7
 		for k = 0, 17 do
 			local a1, a2 = k / 18 * math.pi, (k + 1) / 18 * math.pi
-			local p1 = center + Vector3.new(math.cos(a1) * r, math.sin(a1) * r, 0)
-			local p2 = center + Vector3.new(math.cos(a2) * r, math.sin(a2) * r, 0)
+			local p1 = center + Vector3.new(0, math.sin(a1) * r, math.cos(a1) * r)
+			local p2 = center + Vector3.new(0, math.sin(a2) * r, math.cos(a2) * r)
 			beam(f, p1, p2, 7, c, { Material = M.Neon, Transparency = 0.15, CanCollide = false, CastShadow = false })
 		end
 	end
@@ -546,7 +558,13 @@ local function skyScenery(f, s, st, rng)
 		local z = rng:NextNumber(-330, 330)
 		-- low over the ocean at the start of the sky, then a sea of clouds below the road
 		local y = math.max(Config.pathY(x) - rng:NextNumber(55, 95), rng:NextNumber(18, 45))
-		cloudCluster(f, Vector3.new(x, y, z), rng:NextNumber(55, 100), cloud, rng)
+		local size = rng:NextNumber(55, 100)
+		-- (where the road is still low these sit at flying height: keep them out of the lane)
+		local clear = HALF + size * 0.9
+		if y + size * 0.6 > Config.pathY(x) and math.abs(z) < clear then
+			z = (z < 0 and -1 or 1) * clear
+		end
+		cloudCluster(f, Vector3.new(x, y, z), size, cloud, rng)
 	end
 	-- floating islands + hot air balloons beside the road
 	for _ = 1, 3 do
@@ -560,7 +578,8 @@ local function skyScenery(f, s, st, rng)
 		balloon(f, Vector3.new(x, Config.pathY(x) + rng:NextNumber(20, 75), side * rng:NextNumber(70, 190)), rng)
 	end
 	if st.name == "Rainbow Bridge" then
-		rainbowArc(f, Vector3.new(x0 + L / 2, Config.pathY(x0 + L / 2) - 40, -300), 170)
+		-- inner edge ~131 from the center: clears the flight lane's top corners (~117)
+		rainbowArc(f, Vector3.new(x0 + L * 0.6, Config.pathY(x0 + L * 0.6) - 40, 0), 170)
 	elseif st.name == "Thunder Storm" then
 		for _ = 1, 7 do
 			local x = rng:NextNumber(x0, x0 + L)
@@ -588,6 +607,20 @@ local function skyScenery(f, s, st, rng)
 			ball(f, rng:NextNumber(1, 2.5), Vector3.new(x, Config.pathY(x) + rng:NextNumber(80, 250), rng:NextNumber(-300, 300)), C(255, 250, 210), { Material = M.Neon, CanCollide = false, CastShadow = false })
 		end
 	end
+	-- Low Clouds: a cloud bank where the ocean (terrain) ends, so the sea fades into cloud instead
+	-- of a hard water line. Last here so it doesn't shift the stage's other random scenery.
+	if s == 11 then
+		for z = -TerrainBuilder.Z_MAX, TerrainBuilder.Z_MAX, 60 do
+			local x = rng:NextNumber(TerrainBuilder.X_MAX - 40, TerrainBuilder.X_MAX + 40)
+			local y = rng:NextNumber(10, 40)
+			local size = rng:NextNumber(70, 110)
+			-- clusters that reach the flight lane sit just under the road
+			if math.abs(z) - size * 0.9 < HALF then
+				y = math.min(y, Config.pathY(x) - size * 0.8)
+			end
+			cloudCluster(f, Vector3.new(x, y, z), size, WHITE, rng)
+		end
+	end
 end
 
 -- Space scenery -------------------------------------------------------------------------------
@@ -597,8 +630,10 @@ local function planet(f, center, size, color, props)
 		ball(f, size * 1.06, center, props.glow, { Material = M.Neon, Transparency = 0.85, CanCollide = false, CastShadow = false })
 	end
 	if props and props.ring then
-		cyl(f, 1, size * 2.1, CFrame.new(center) * CFrame.Angles(0.35, 0, math.pi / 2 + 0.25), props.ring, { Transparency = 0.25, CanCollide = false, CastShadow = false })
-		cyl(f, 1.1, size * 1.6, CFrame.new(center) * CFrame.Angles(0.35, 0, math.pi / 2 + 0.25), darker(props.ring, 0.2), { Transparency = 0.25, CanCollide = false, CastShadow = false })
+		-- mirrored tilt on the +Z side, so both sides show the ring's face to the track
+		local tilt = CFrame.new(center) * CFrame.Angles(center.Z > 0 and -0.35 or 0.35, 0, math.pi / 2 + 0.25)
+		cyl(f, 1, size * 2.1, tilt, props.ring, { Transparency = 0.25, CanCollide = false, CastShadow = false })
+		cyl(f, 1.1, size * 1.6, tilt, darker(props.ring, 0.2), { Transparency = 0.25, CanCollide = false, CastShadow = false })
 	end
 	return p
 end
@@ -621,6 +656,33 @@ local function satellite(f, p, rng)
 	ball(f, 3, p + Vector3.new(0, 4, 0), WHITE)
 end
 
+-- The hero planets: center (from the end of their stage, at track height) and radius with glow.
+-- They reach into the next stages, so asteroids and nebula haze are left out where they'd cut in.
+local HERO = {
+	Mars = { Vector3.new(1400, 350, -650), 530 },
+	Jupiter = { Vector3.new(1300, 350, 650), 520 },
+	["Saturn Rings"] = { Vector3.new(1100, -450, -350), 350 },
+	["Ice Giant"] = { Vector3.new(1300, -500, 500), 430 },
+}
+local heroes -- { { center, radius } } in world space, built on first use
+local function inHero(p, r)
+	if not heroes then
+		heroes = {}
+		for s, st in ipairs(Config.Stages) do
+			local h = HERO[st.name]
+			if h then
+				table.insert(heroes, { Vector3.new(Config.stageEndX(s), Config.SKY_RISE, 0) + h[1], h[2] })
+			end
+		end
+	end
+	for _, h in ipairs(heroes) do
+		if (p - h[1]).Magnitude < h[2] + r + 20 then
+			return true
+		end
+	end
+	return false
+end
+
 local function spaceScenery(f, s, st, rng)
 	local x0 = Config.LAUNCH_X + (s - 1) * L
 	local mid = x0 + L / 2
@@ -630,7 +692,12 @@ local function spaceScenery(f, s, st, rng)
 	for _ = 1, asteroidCount do
 		local z = (rng:NextNumber() < 0.5 and -1 or 1) * rng:NextNumber(60, 300)
 		local size = rng:NextNumber(6, st.name == "Asteroid Belt" and 34 or 24)
-		part(f, { Shape = Enum.PartType.Ball, Size = Vector3.one * size, CFrame = CFrame.new(rng:NextNumber(x0, x0 + L), y + rng:NextNumber(-120, 160), z), Color = C(120, 105, 95):Lerp(C(80, 70, 70), rng:NextNumber()), Material = M.Slate, CanCollide = false })
+		local p = Vector3.new(rng:NextNumber(x0, x0 + L), y + rng:NextNumber(-120, 160), z)
+		local color = C(120, 105, 95):Lerp(C(80, 70, 70), rng:NextNumber())
+		-- (numbers drawn either way, so skipping one doesn't move the rest)
+		if not inHero(p, size / 2) then
+			part(f, { Shape = Enum.PartType.Ball, Size = Vector3.one * size, CFrame = CFrame.new(p), Color = color, Material = M.Slate, CanCollide = false })
+		end
 	end
 	for _ = 1, 30 do
 		ball(f, rng:NextNumber(1.5, 3.5), Vector3.new(rng:NextNumber(x0, x0 + L), y + rng:NextNumber(-250, 400), (rng:NextNumber() < 0.5 and -1 or 1) * rng:NextNumber(150, 520)), C(255, 250, 220), { Material = M.Neon, CanCollide = false, CastShadow = false })
@@ -638,6 +705,11 @@ local function spaceScenery(f, s, st, rng)
 	satellite(f, Vector3.new(rng:NextNumber(x0 + 50, x0 + L - 50), y + rng:NextNumber(30, 80), (rng:NextNumber() < 0.5 and -1 or 1) * rng:NextNumber(60, 120)), rng)
 
 	local name = st.name
+	-- Hero planets sit past the end of their stage, so you fly toward them and watch them grow
+	-- (about 20 deg wide, under 30 deg off the track by the stage end). All stages are loaded at
+	-- once, so they alternate sides and high/low: no planet hides the next one, cuts into
+	-- another, the track or the Galaxy Core star.
+	local hero = HERO[name] and Vector3.new(x0 + L, y, 0) + HERO[name][1]
 	if name == "Low Orbit" then
 		planet(f, Vector3.new(mid, y - 1180, 0), 2000, C(60, 140, 240), { glow = C(140, 210, 255) })
 		for _ = 1, 8 do
@@ -653,23 +725,36 @@ local function spaceScenery(f, s, st, rng)
 			ball(f, rng:NextNumber(60, 160), center + dir * 735, C(165, 165, 172), { CanCollide = false, CastShadow = false })
 		end
 	elseif name == "Mars" then
-		planet(f, Vector3.new(mid, y + 380, -1550), 1100, C(215, 100, 60), { glow = C(255, 160, 120) })
+		planet(f, hero, 1000, C(215, 100, 60), { glow = C(255, 160, 120) })
 	elseif name == "Jupiter" then
-		gasGiant(f, Vector3.new(mid, y + 420, 1550), 600, { C(225, 180, 130), C(200, 140, 100), C(240, 215, 180), C(185, 120, 90) })
+		gasGiant(f, hero, 520, { C(225, 180, 130), C(200, 140, 100), C(240, 215, 180), C(185, 120, 90) })
 	elseif name == "Saturn Rings" then
-		planet(f, Vector3.new(mid, y + 360, -1450), 760, C(235, 210, 150), { ring = C(220, 195, 150) })
+		-- low, below Mars, so Mars (still ahead while you fly this stage) doesn't cover it
+		planet(f, hero, 700, C(235, 210, 150), { ring = C(220, 195, 150) })
 	elseif name == "Purple Nebula" then
+		-- Mars and Jupiter reach in here: a haze ball that would cut into one is rolled again (these
+		-- are the stage's last random numbers, so the extra draws don't move anything else)
 		for _ = 1, 9 do
-			ball(f, rng:NextNumber(160, 340), Vector3.new(rng:NextNumber(x0, x0 + L), y + rng:NextNumber(-80, 260), (rng:NextNumber() < 0.5 and -1 or 1) * rng:NextNumber(250, 500)), pick(rng, { C(200, 90, 255), C(255, 100, 200), C(100, 140, 255) }), { Material = M.Neon, Transparency = 0.82, CanCollide = false, CastShadow = false })
+			for _ = 1, 12 do
+				local size = rng:NextNumber(160, 340)
+				local p = Vector3.new(rng:NextNumber(x0, x0 + L), y + rng:NextNumber(-80, 260), (rng:NextNumber() < 0.5 and -1 or 1) * rng:NextNumber(250, 500))
+				local color = pick(rng, { C(200, 90, 255), C(255, 100, 200), C(100, 140, 255) })
+				if not inHero(p, size / 2) then
+					ball(f, size, p, color, { Material = M.Neon, Transparency = 0.82, CanCollide = false, CastShadow = false })
+					break
+				end
+			end
 		end
 	elseif name == "Ice Giant" then
-		planet(f, Vector3.new(mid, y + 330, 1500), 950, C(110, 210, 240), { glow = C(180, 240, 255), ring = C(170, 230, 250) })
+		-- low on the right: kept under and beside the Galaxy Core star, not in it
+		planet(f, hero, 810, C(110, 210, 240), { glow = C(180, 240, 255), ring = C(170, 230, 250) })
 	elseif name == "Black Hole" then
-		local c = Vector3.new(mid, y + 320, -1250)
+		-- low on the left, its disc seen from above; ~100 studs clear of the Galaxy Core star
+		local c = Vector3.new(x0 + L + 1000, y - 300, -450)
 		for i, col in ipairs({ C(255, 230, 120), C(255, 150, 50), C(220, 70, 40) }) do
-			cyl(f, 2 + i, 520 + i * 200, CFrame.new(c) * CFrame.Angles(0.3, 0, math.pi / 2 + 0.2), col, { Material = M.Neon, Transparency = 0.2 + i * 0.18, CanCollide = false, CastShadow = false })
+			cyl(f, 2 + i, 360 + i * 140, CFrame.new(c) * CFrame.Angles(0.3, 0, math.pi / 2 + 0.2), col, { Material = M.Neon, Transparency = 0.2 + i * 0.18, CanCollide = false, CastShadow = false })
 		end
-		ball(f, 300, c, C(5, 5, 10), { CanCollide = false, CastShadow = false })
+		ball(f, 220, c, C(5, 5, 10), { CanCollide = false, CastShadow = false })
 	elseif name == "Galaxy Core" then
 		-- the glowing finish line star, straight ahead
 		local c = Vector3.new(x0 + L + 700, y + 120, 0)
@@ -680,18 +765,38 @@ end
 
 -- Gates + signs ---------------------------------------------------------------------------------
 local ZONE_ACCENT = { Earth = C(255, 160, 40), Sky = C(90, 180, 255), Space = C(190, 100, 255) }
+local BLACK = C(30, 30, 36)
+local GOLD = C(255, 200, 40)
+local RAINBOW3 = { C(255, 80, 80), C(255, 230, 70), C(80, 160, 255) } -- outer to inner
+local STRIP = 6 -- height of the barrier strips that fill a round top
 
--- A big arch with striped pillars, a stage banner and a glowing barrier (hidden by the client once unlocked).
-local function gate(f, s)
-	local nextStage = Config.Stages[s + 1]
-	local x1 = Config.LAUNCH_X + s * L
-	local base = Config.pathY(x1)
-	local accent = ZONE_ACCENT[nextStage.zone]
+-- props for gate decor away from the legs: no collisions, raycasts or shadows
+local function ghost(t)
+	t = t or {}
+	t.CanCollide, t.CanQuery, t.CastShadow = false, false, false
+	return t
+end
+
+-- Calls fn(p1, p2, k) for n chords of a circle across the path (Y-Z plane), from angle a0 to a1.
+local function arc(center, r, n, a0, a1, fn)
+	for k = 0, n - 1 do
+		local t1, t2 = a0 + (a1 - a0) * k / n, a0 + (a1 - a0) * (k + 1) / n
+		fn(center + Vector3.new(0, math.sin(t1) * r, math.cos(t1) * r), center + Vector3.new(0, math.sin(t2) * r, math.cos(t2) * r), k)
+	end
+end
+
+-- The gate into stage s + 1. GateFxClient finds it by its name + "Stage", and uses the parts named
+-- "Barrier" (shown/hidden/shattered), "Crown" (sparkles on your first pass) and "Arch" (glows then).
+local function newGate(f, s)
 	local g = Instance.new("Model")
 	g.Name = "Gate"
 	g:SetAttribute("Stage", s + 1)
 	g.Parent = f
-	local W, H, R = 50, 64, 50
+	return g
+end
+
+-- The arch legs: two white pillars with accent stripes, H tall above the path at z = +-W.
+local function pillars(g, x1, base, W, H, accent)
 	for _, side in ipairs({ -1, 1 }) do
 		local foot = Vector3.new(x1, base - 8, side * W)
 		column(g, H + 8, 8, foot, WHITE)
@@ -699,46 +804,170 @@ local function gate(f, s)
 			column(g, 4, 8.4, foot + Vector3.new(0, 14 + i * 16, 0), accent)
 		end
 		column(g, 3, 11, foot, darker(accent, 0.2))
-		ball(g, 11, foot + Vector3.new(0, H + 8, 0), C(255, 215, 60))
 	end
-	-- semicircle arch on top
-	local center = Vector3.new(x1, base + H, 0)
-	for k = 0, 13 do
-		local a1, a2 = k / 14 * math.pi, (k + 1) / 14 * math.pi
-		local p1 = center + Vector3.new(0, math.sin(a1) * R, math.cos(a1) * R)
-		local p2 = center + Vector3.new(0, math.sin(a2) * R, math.cos(a2) * R)
-		beam(g, p1, p2, 6, k % 2 == 0 and accent or WHITE)
-	end
-	-- banner hanging under the top of the arch
-	local banner = part(g, { Name = "Banner", Size = Vector3.new(1.5, 9, 54), CFrame = CFrame.new(x1, base + H + 26, 0), Color = accent })
+end
+
+-- A banner (centered at height y) hanging on two ropes that reach up to ropeTop, text on both faces.
+local function hangBanner(g, x1, y, ropeTop, width, text, color, ghosted)
+	local t = { Name = "Banner", Size = Vector3.new(1.5, 9, width), CFrame = CFrame.new(x1, y, 0), Color = color }
+	local banner = part(g, ghosted and ghost(t) or t)
 	for _, face in ipairs({ Enum.NormalId.Left, Enum.NormalId.Right }) do
-		local l = sign(banner, face, "STAGE " .. (s + 1) .. " - " .. nextStage.name, WHITE, accent, darker(accent, 0.5))
+		local l = sign(banner, face, text, WHITE, color, darker(color, 0.5))
 		l.Parent.PixelsPerStud = 18
 	end
 	for _, side in ipairs({ -1, 1 }) do
-		beam(g, Vector3.new(x1, base + H + 30.5, side * 20), Vector3.new(x1, base + H + R - 1, side * 14), 0.4, C(60, 60, 70))
+		beam(g, Vector3.new(x1, y + 4.5, side * 20), Vector3.new(x1, ropeTop, side * 14), 0.4, C(60, 60, 70), ghosted and ghost() or nil)
 	end
-	-- the barrier: a rectangle + stacked strips that fill the round top (no overlaps)
-	local barrierProps = { Name = "Barrier", Color = C(255, 70, 90), Material = M.Neon, Transparency = 0.55, CanCollide = false, CanQuery = false, CastShadow = false }
-	local function barrierPart(size, cf)
-		local t = table.clone(barrierProps)
-		t.Size = size
-		t.CFrame = cf
-		return part(g, t)
-	end
+end
+
+-- Barrier parts are found by the name "Barrier" (direct children of the gate) and hidden once unlocked.
+local BARRIER = { Name = "Barrier", Color = C(255, 70, 90), Material = M.Neon, Transparency = 0.55, CanCollide = false, CanQuery = false, CastShadow = false }
+local function barrierPart(g, size, cf)
+	local t = table.clone(BARRIER)
+	t.Size = size
+	t.CFrame = cf
+	return part(g, t)
+end
+
+-- The barrier: a rectangle (W - 4 to each side, H tall) + stacked strips that fill the round top
+-- of radius R - 4 (no overlaps), with the lock sign and price. Returns the LockText label.
+local function addBarrier(g, x1, base, W, H, R)
 	local inner = W - 4
-	local lower = barrierPart(Vector3.new(1, H, inner * 2), CFrame.new(x1, base + H / 2, 0))
-	local stripH = 6
-	for dy = 0, R - 8, stripH do
-		local half = math.sqrt(math.max(0, (R - 4) ^ 2 - (dy + stripH) ^ 2))
+	local lower = barrierPart(g, Vector3.new(1, H, inner * 2), CFrame.new(x1, base + H / 2, 0))
+	for dy = 0, R - 8, STRIP do
+		local half = math.sqrt(math.max(0, (R - 4) ^ 2 - (dy + STRIP) ^ 2))
 		if half > 2 then
-			barrierPart(Vector3.new(1, stripH, half * 2), CFrame.new(x1, base + H + dy + stripH / 2, 0))
+			barrierPart(g, Vector3.new(1, STRIP, half * 2), CFrame.new(x1, base + H + dy + STRIP / 2, 0))
 		end
 	end
-	local lock = sign(lower, Enum.NormalId.Left, "🔒 STAGE " .. (s + 1) .. "\n$" .. Config.abbreviate(Config.stageCost(s + 1)), C(255, 240, 240), nil, C(120, 0, 30))
+	local stage = g:GetAttribute("Stage")
+	local lock = sign(lower, Enum.NormalId.Left, "🔒 STAGE " .. stage .. "\n$" .. Config.abbreviate(Config.stageCost(stage)), C(255, 240, 240), nil, C(120, 0, 30))
 	lock.Name = "LockText"
 	lock.Size = UDim2.fromScale(0.5, 0.3)
 	lock.Position = UDim2.fromScale(0.25, 0.3)
+	return lock
+end
+
+-- A big arch with striped pillars, a stage banner and a glowing barrier (hidden by the client once unlocked).
+local function gate(f, s)
+	local nextStage = Config.Stages[s + 1]
+	local x1 = Config.LAUNCH_X + s * L
+	local base = Config.pathY(x1)
+	local accent = ZONE_ACCENT[nextStage.zone]
+	local g = newGate(f, s)
+	local W, H, R = 50, 64, 50
+	pillars(g, x1, base, W, H, accent)
+	for _, side in ipairs({ -1, 1 }) do
+		ball(g, 11, Vector3.new(x1, base + H, side * W), C(255, 215, 60), { Name = "Crown" })
+	end
+	-- semicircle arch on top
+	arc(Vector3.new(x1, base + H, 0), R, 14, 0, math.pi, function(p1, p2, k)
+		beam(g, p1, p2, 6, k % 2 == 0 and accent or WHITE, { Name = "Arch" })
+	end)
+	-- banner hanging under the top of the arch
+	hangBanner(g, x1, base + H + 26, base + H + R - 1, 54, "STAGE " .. (s + 1) .. " - " .. nextStage.name, accent)
+	addBarrier(g, x1, base, W, H, R)
+end
+
+-- The way into the Sky (stage 11): an arch of big cloud balls lined with a thin rainbow.
+local function skyGate(f, s)
+	local x1 = Config.LAUNCH_X + s * L
+	local base = Config.pathY(x1)
+	local accent = ZONE_ACCENT.Sky
+	local g = newGate(f, s)
+	local W, H, R = 50, 64, 50
+	local center = Vector3.new(x1, base + H, 0)
+	pillars(g, x1, base, W, H, accent)
+	for _, side in ipairs({ -1, 1 }) do
+		ball(g, 14, Vector3.new(x1, base + H + 2, side * W), WHITE, ghost({ Name = "Crown" })) -- cloud caps hide the stripe ends
+	end
+	-- three thin neon stripes, radius 45-48: clear of the flight lane's top corners (~40)
+	for i, c in ipairs(RAINBOW3) do
+		arc(center, R - 2 - (i - 1) * 1.5, 14, 0, math.pi, function(p1, p2)
+			beam(g, p1, p2, 1.4, c, ghost({ Name = "Arch", Material = M.Neon }))
+		end)
+	end
+	-- big cloud balls along the arch, sitting just outside the rainbow
+	local rng = Random.new(s * 7919)
+	for k = 0, 15 do
+		local a = k / 15 * math.pi
+		local size = rng:NextNumber(14, 20)
+		local r = R - 1 + size / 2
+		ball(g, size, center + Vector3.new(0, math.sin(a) * r, math.cos(a) * r), WHITE, ghost())
+	end
+	hangBanner(g, x1, base + H + 26, base + H + R - 1, 54, "☁ THE SKY - STAGE " .. (s + 1), accent, true)
+	addBarrier(g, x1, base, W, H, R - 2) -- round top kept inside the rainbow
+end
+
+-- The way into Space (stage 21): a full neon ring around the flight lane, like a portal.
+local function spaceGate(f, s)
+	local x1 = Config.LAUNCH_X + s * L
+	local base = Config.pathY(x1)
+	local accent = ZONE_ACCENT.Space
+	local g = newGate(f, s)
+	-- centered on the lane (6-70 above the path, +-40 wide): its corners are ~51 out, the ring's inside 58
+	local cy, R = 38, 60
+	-- the two segments at the ring's upper shoulders (45 / 135 deg) are its crowns
+	arc(Vector3.new(x1, base + cy, 0), R, 28, 0, 2 * math.pi, function(p1, p2, k)
+		local name = (k == 3 or k == 10) and "Crown" or "Arch"
+		beam(g, p1, p2, 4, k % 2 == 0 and accent or C(80, 230, 255), ghost({ Name = name, Material = M.Neon }))
+	end)
+	hangBanner(g, x1, base + cy + 45, base + cy + 57, 50, "🚀 SPACE - STAGE " .. (s + 1), accent, true)
+	-- barrier: a rectangle from the track up to the ring's center + the round top, then strips that
+	-- widen the sides below the center so the whole opening above the track is filled
+	local W = 45
+	local lock = addBarrier(g, x1, base, W, cy, R)
+	lock.Size = UDim2.fromScale(0.5, 0.45) -- the rectangle is short here
+	local inner, r = W - 4, R - 4
+	for dy = 0, cy - STRIP, STRIP do
+		local half = math.sqrt(r ^ 2 - (dy + STRIP) ^ 2)
+		if half > inner + 1 then
+			for _, side in ipairs({ -1, 1 }) do
+				barrierPart(g, Vector3.new(1, STRIP, half - inner), CFrame.new(x1, base + cy - dy - STRIP / 2, side * (inner + half) / 2))
+			end
+		end
+	end
+end
+
+-- The finish line at the end of the last stage: a checkered arch with a gold trophy on top. No
+-- barrier: the flight just ends here ("finish").
+local function finishGate(f)
+	local x1 = Config.stageEndX(Config.NUM_STAGES)
+	local base = Config.pathY(x1)
+	local g = Instance.new("Model")
+	g.Name = "FinishGate" -- not "Gate": there is nothing to unlock
+	g.Parent = f
+	local W, H, R = 50, 64, 50
+	-- square checkered legs: 9 rows of two blocks
+	for _, side in ipairs({ -1, 1 }) do
+		for row = 0, 8 do
+			for col = 0, 1 do
+				part(g, { Size = Vector3.new(8, 8, 4), CFrame = CFrame.new(x1, base - 4 + row * 8, side * W - 2 + col * 4), Color = (row + col) % 2 == 0 and BLACK or WHITE })
+			end
+		end
+	end
+	-- checkered arch: two rows of black and white beams
+	local center = Vector3.new(x1, base + H, 0)
+	for row = 0, 1 do
+		arc(center, R - 1.5 + row * 3, 14, 0, math.pi, function(p1, p2, k)
+			beam(g, p1, p2, 3, (k + row) % 2 == 0 and BLACK or WHITE, ghost({ Size = Vector3.new(6, 3, (p2 - p1).Magnitude) }))
+		end)
+	end
+	hangBanner(g, x1, base + H + 26, base + H + R - 4, 54, "🏁 GALAXY CORE - FINISH", GOLD, true)
+	-- the gold trophy on top: plinth, stem, a round cup with a flat top and two handles
+	local top = base + H + R + 2.5
+	column(g, 4, 16, Vector3.new(x1, top, 0), darker(GOLD, 0.3), ghost())
+	column(g, 9, 6, Vector3.new(x1, top + 4, 0), GOLD, ghost())
+	local cup = Vector3.new(x1, top + 23, 0)
+	ball(g, 22, cup, GOLD, ghost())
+	column(g, 11.5, 22, cup, GOLD, ghost())
+	column(g, 0.4, 18, cup + Vector3.new(0, 11.4, 0), darker(GOLD, 0.45), ghost())
+	for _, side in ipairs({ -1, 1 }) do
+		local a0 = side == 1 and -math.pi / 2 or math.pi / 2
+		arc(cup + Vector3.new(0, 5, side * 11), 6, 4, a0, a0 + math.pi, function(p1, p2)
+			beam(g, p1, p2, 2, GOLD, ghost())
+		end)
+	end
 end
 
 -- Distance markers every 100m: a round sign on a striped post (floating holo-signs in the sky/space)
@@ -775,12 +1004,18 @@ function Scenery.buildStage(f, s)
 		skyRoad(f, s, st, rng)
 		skyScenery(f, s, st, rng)
 	else
-		spaceRoad(f, s)
+		spaceRoad(f, s, st)
 		spaceScenery(f, s, st, rng)
 	end
 	distanceSigns(f, s, st)
-	if s < Config.NUM_STAGES then
+	if s == 10 then
+		skyGate(f, s)
+	elseif s == 20 then
+		spaceGate(f, s)
+	elseif s < Config.NUM_STAGES then
 		gate(f, s)
+	else
+		finishGate(f)
 	end
 end
 

@@ -260,28 +260,6 @@ UIKit.onMoneyRelease = function()
 	refreshMoney()
 end
 
-local function refreshGates()
-	local world = workspace:FindFirstChild("World")
-	if not world then
-		return
-	end
-	local unlocked = player:GetAttribute("UnlockedStage") or 1
-	for _, gate in ipairs(world:GetDescendants()) do
-		if gate:IsA("Model") and gate.Name == "Gate" then
-			local open = (gate:GetAttribute("Stage") or 99) <= unlocked
-			for _, barrier in ipairs(gate:GetChildren()) do
-				if barrier.Name == "Barrier" and barrier:IsA("BasePart") then
-					barrier.Transparency = open and 1 or 0.55
-					local surface = barrier:FindFirstChildOfClass("SurfaceGui")
-					if surface then
-						surface.Enabled = not open
-					end
-				end
-			end
-		end
-	end
-end
-
 local function refreshStage()
 	local money = player:GetAttribute("Money") or 0
 	local best = player:GetAttribute("BestDistance") or 0
@@ -327,10 +305,7 @@ player:GetAttributeChangedSignal("Money"):Connect(function()
 end)
 player:GetAttributeChangedSignal("BestDistance"):Connect(refreshStage)
 player:GetAttributeChangedSignal("LastFlightEarn"):Connect(refreshStage)
-player:GetAttributeChangedSignal("UnlockedStage"):Connect(function()
-	refreshStage()
-	refreshGates()
-end)
+player:GetAttributeChangedSignal("UnlockedStage"):Connect(refreshStage) -- (the gates' barriers: GateFxClient)
 task.spawn(function()
 	repeat
 		task.wait(0.2)
@@ -339,7 +314,6 @@ task.spawn(function()
 	lastMoney = shownMoney
 	moneyText.Text = "$" .. abbreviate(shownMoney)
 	refreshStage()
-	refreshGates()
 	UIKit.hudEnter()
 end)
 
@@ -1349,6 +1323,16 @@ end)
 player:GetAttributeChangedSignal("SoundOn"):Connect(function()
 	if flight and flight.engine and flight.engine.Parent and not flight.outOfFuel then
 		TweenService:Create(flight.engine, TweenInfo.new(0.3), { Volume = player:GetAttribute("SoundOn") == false and 0 or 0.35 }):Play()
+	end
+end)
+
+-- Flying through your old best (BestMarkerClient sets BestFx): a camera beat - FOV kick + small shake.
+-- Camera only: the speed is untouched (the server caps distance by speed).
+player:GetAttributeChangedSignal("BestFx"):Connect(function()
+	if flight then
+		flight.pull = math.max(flight.pull, 7)
+		flight.pullHold = os.clock() + 0.2
+		addShake(0.5)
 	end
 end)
 

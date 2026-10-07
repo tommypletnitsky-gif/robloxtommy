@@ -66,6 +66,15 @@ rebirthBtn.Instance.Name = "RebirthGo"
 
 local armedAt = 0 -- first click arms, second click (within 3 s) rebirths
 
+-- the rebirth trail that rebirth number `r` unlocks (nil if none)
+local function trailFor(r)
+	for _, t in ipairs(Config.Trails) do
+		if t.rebirth == r then
+			return t
+		end
+	end
+end
+
 local function refresh()
 	local n = rebirths()
 	local need = Config.rebirthStage(n)
@@ -74,7 +83,11 @@ local function refresh()
 	nowTitle.Text = "Rebirth " .. n
 	nowSub.Text = "💰 x" .. Config.rebirthMultiplier(n) .. " money"
 	nextTitle.Text = "Rebirth " .. (n + 1)
-	nextSub.Text = "💰 x" .. Config.rebirthMultiplier(n + 1) .. " money"
+	-- the next rebirth's new trail goes on a second line (the label grows to fit it)
+	local trail = trailFor(n + 1)
+	nextSub.Text = "💰 x" .. Config.rebirthMultiplier(n + 1) .. " money" .. (trail and ("\n+ ✨ " .. trail.name) or "")
+	nextSub.Position = UDim2.fromOffset(10, trail and 64 or 68)
+	nextSub.Size = UDim2.new(1, -20, 0, trail and 50 or 34)
 	needText.Text = ready and "✅ You can rebirth!" or ("🔒 Unlock Stage " .. need .. " to rebirth")
 	setNeed(math.clamp(stage / need, 0.03, 1), "Stage " .. math.min(stage, need) .. " / " .. need)
 	local slotsNow, slotsNext = Config.petSlots(n), Config.petSlots(n + 1)
@@ -93,9 +106,47 @@ local function refresh()
 end
 
 -- Celebration -------------------------------------------------------------------------------------
+-- The banner + its one Win sound, a gold light column from your feet with sparkles, a quick FOV
+-- punch and the HUD badge rolling up to the new multiplier (no extra sounds).
 local gui = UIKit.gui()
+local rollBadge -- (the HUD badge's roll-up, set below)
+
+local function lightColumn()
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return
+	end
+	local feet = root.Position - Vector3.new(0, 3, 0)
+	local up = CFrame.Angles(0, 0, math.pi / 2) -- (a cylinder runs along X: stand it up)
+	local column = make("Part", { Name = "RebirthColumn", Shape = Enum.PartType.Cylinder, Material = Enum.Material.Neon, Color = GOLD, Size = Vector3.new(0, 6, 6), CFrame = CFrame.new(feet) * up, Transparency = 0.2, Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Parent = workspace })
+	-- grows up from the feet (the bottom stays put) while it fades
+	TweenService:Create(column, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), { Size = Vector3.new(80, 6, 6), CFrame = CFrame.new(feet + Vector3.new(0, 40, 0)) * up }):Play()
+	TweenService:Create(column, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 }):Play()
+	local sparks = make("ParticleEmitter", { Texture = "rbxasset://textures/particles/sparkles_main.dds", Color = ColorSequence.new(Color3.fromRGB(255, 240, 160), GOLD), Size = NumberSequence.new(1.4, 0), Lifetime = NumberRange.new(0.8, 1.4), Speed = NumberRange.new(4, 14), SpreadAngle = Vector2.new(180, 180), Acceleration = Vector3.new(0, 6, 0), LightEmission = 1, Rate = 0, Parent = column })
+	task.delay(0.15, function() -- (once the column has some height, so they spread up it)
+		sparks:Emit(60)
+	end)
+	game:GetService("Debris"):AddItem(column, 2)
+end
+
+-- the lobby camera punches out and back: 70 -> 78 -> 70 in 0.5 s
+local function fovPunch()
+	local cam = workspace.CurrentCamera
+	if not cam or player:GetAttribute("Flying") then
+		return
+	end
+	local out = TweenService:Create(cam, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { FieldOfView = 78 })
+	out.Completed:Once(function()
+		TweenService:Create(cam, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), { FieldOfView = 70 }):Play()
+	end)
+	out:Play()
+end
+
 local function celebrate(n)
 	UIKit.celebrate("🌟 REBIRTH " .. n .. "! 🌟", "Money x" .. Config.rebirthMultiplier(n) .. " forever!", GOLD)
+	lightColumn()
+	fovPunch()
+	rollBadge(n)
 end
 
 rebirthBtn.Instance.Activated:Connect(function()
@@ -128,6 +179,7 @@ local badgeScale = UIKit.hudScale(badge) -- (RocketClient places it beside the b
 local badgeGloss = badge:FindFirstChildOfClass("UIGradient")
 local PURPLE_GLOSS, GOLD_GLOSS = badgeGloss.Color, UIKit.gloss(GOLD).Color
 local wasReady = nil -- (nil until your save has loaded: a save that loads ready gets no cue)
+local roll = nil -- { n, from, to, t0 } while the badge rolls up after a rebirth
 
 -- just became ready: once the screen is free, pop the badge and say it once (silent toast)
 local function readyCue(n)
@@ -142,10 +194,12 @@ local function readyCue(n)
 end
 
 local function refreshBadge()
-	local n = rebirths()
+	local n = roll and math.max(rebirths(), roll.n) or rebirths() -- (the new count may not have arrived yet)
 	local ready = (player:GetAttribute("UnlockedStage") or 1) >= Config.rebirthStage(n)
 	badge.Visible = (n > 0 or ready) and not player:GetAttribute("Flying")
-	badgeText.Text = n == 0 and "🌟 REBIRTH READY" or ("🌟 " .. n .. "  •  x" .. Config.rebirthMultiplier(n) .. (ready and " ✨" or ""))
+	if not roll then -- (while rolling, the roll writes the text)
+		badgeText.Text = n == 0 and "🌟 REBIRTH READY" or ("🌟 " .. n .. "  •  x" .. Config.rebirthMultiplier(n) .. (ready and " ✨" or ""))
+	end
 	badgeGloss.Color = ready and GOLD_GLOSS or PURPLE_GLOSS
 	-- (only a real change after your save loaded; the stage drops back to 1 when you rebirth)
 	if ready and wasReady == false then
@@ -154,6 +208,37 @@ local function refreshBadge()
 	if wasReady ~= nil then
 		wasReady = ready
 	end
+end
+
+-- after a rebirth (visual only, no tick sound): the first time, the badge springs in from nothing;
+-- then its multiplier counts up from the old one to the new one in 0.5 s
+rollBadge = function(n)
+	local r = { n = n, from = Config.rebirthMultiplier(n - 1), to = Config.rebirthMultiplier(n), t0 = os.clock() + (n == 1 and 0.7 or 0.4) }
+	roll = r
+	refreshBadge()
+	if n == 1 then
+		UIKit.spr.stop(badgeScale, "Scale")
+		badgeScale.Scale = 0
+		task.delay(0.4, function() -- (once the celebration flash has faded)
+			UIKit.spr.target(badgeScale, 0.5, 3, { Scale = UIKit.hudFactor() })
+		end)
+	end
+	local conn
+	conn = RunService.RenderStepped:Connect(function()
+		if roll ~= r then
+			conn:Disconnect()
+			return
+		end
+		local a = math.clamp((os.clock() - r.t0) / 0.5, 0, 1)
+		local m = r.from + (r.to - r.from) * (1 - (1 - a) ^ 2)
+		badgeText.Text = "🌟 " .. n .. "  •  x" .. math.floor(m * 10 + 0.5) / 10
+		-- done once it has rolled and the new count is in (or it gave up waiting for it)
+		if a >= 1 and (rebirths() >= n or os.clock() - r.t0 > 5) then
+			conn:Disconnect()
+			roll = nil
+			refreshBadge()
+		end
+	end)
 end
 
 for _, attr in ipairs({ "Rebirths", "UnlockedStage" }) do

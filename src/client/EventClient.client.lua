@@ -64,15 +64,18 @@ local function refreshStandings()
 			local m = flights and flights:FindFirstChild(p.Name)
 			local body = m and m.PrimaryPart
 			local d = body and math.max(0, body.Position.X - Config.LAUNCH_X) or 0
-			table.insert(list, { p = p, d = d })
+			-- ranked by share of their own track (cannon to their stage gate), like the server
+			local stage = math.min(p:GetAttribute("UnlockedStage") or 1, Config.NUM_STAGES)
+			local share = math.min(1, d / math.max(1, Config.stageEndX(stage) - Config.LAUNCH_X))
+			table.insert(list, { p = p, share = share })
 		end
 	end
 	table.sort(list, function(a, b)
-		return a.d > b.d
+		return a.share > b.share
 	end)
 	for i, row in ipairs(rows) do
 		local e = list[i]
-		row.Text = e and (i .. ". " .. e.p.DisplayName .. "  " .. Config.meters(e.d)) or ""
+		row.Text = e and (i .. ". " .. e.p.DisplayName .. "  " .. math.floor(e.share * 100) .. "%") or ""
 		row.TextColor3 = (e and e.p == player) and Color3.fromRGB(255, 230, 90) or Color3.new(1, 1, 1)
 	end
 end
@@ -128,7 +131,7 @@ task.spawn(function()
 end)
 
 -- Results -----------------------------------------------------------------------------------------
--- A podium for the top 3 (avatar, name, distance; 1st in the middle on the tallest block with a
+-- A podium for the top 3 (avatar, name, % of their own track; 1st in the middle on the tallest block with a
 -- crown), then rows for everyone else. Your own spot is outlined in gold with a YOU tag.
 local window, list = UIKit.window("Race Results", GOLD, UDim2.fromOffset(580, 500), "Trophy")
 local PLACE_COLOR = { Color3.fromRGB(255, 205, 60), Color3.fromRGB(205, 215, 230), Color3.fromRGB(225, 150, 90) }
@@ -152,7 +155,7 @@ local function buildPodium(results)
 			local mine = r.userId == player.UserId
 			local block = make("Frame", { Parent = pod, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, spot.x, 1, 0), Size = UDim2.fromOffset(150, spot.h), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(14), UIKit.stroke(mine and 5 or 3.5, mine and GOLD or UIKit.INK), UIKit.gloss(color) })
 			label({ Parent = block, Position = UDim2.fromOffset(0, 4), Size = UDim2.new(1, 0, 0, math.min(44, spot.h - 8)), Text = "#" .. spot.place, ZIndex = 13, StrokeThickness = 3.5 })
-			label({ Parent = pod, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, spot.x, 1, -spot.h - 2), Size = UDim2.fromOffset(150, 20), Text = Config.meters(r.distance) .. "  •  +$" .. Config.abbreviate(r.prize), TextColor3 = Color3.fromRGB(40, 150, 60), StrokeThickness = 0, ZIndex = 13 })
+			label({ Parent = pod, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, spot.x, 1, -spot.h - 2), Size = UDim2.fromOffset(150, 20), Text = r.pct .. "%  •  +$" .. Config.abbreviate(r.prize), TextColor3 = Color3.fromRGB(40, 150, 60), StrokeThickness = 0, ZIndex = 13 })
 			label({ Parent = pod, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, spot.x, 1, -spot.h - 22), Size = UDim2.fromOffset(150, 24), Text = r.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
 			local face = make("ImageLabel", { Parent = pod, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, spot.x, 1, -spot.h - 48), Size = UDim2.fromOffset(76, 76), BackgroundColor3 = UIKit.lighter(color, 0.5), Image = "", ZIndex = 13 }, { UIKit.corner(38), UIKit.stroke(4, mine and GOLD or color) })
 			headshot(face, r.userId)
@@ -183,7 +186,7 @@ RaceResult.OnClientEvent:Connect(function(results)
 			local medal = make("Frame", { Parent = row, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(48, 48), BackgroundColor3 = Color3.fromRGB(170, 180, 205), ZIndex = 12 }, { UIKit.corner(24), UIKit.stroke(3) })
 			label({ Parent = medal, Size = UDim2.fromScale(1, 1), Text = tostring(r.place), ZIndex = 13 })
 			label({ Parent = row, Position = UDim2.fromOffset(70, 8), Size = UDim2.new(0.5, -70, 1, -16), TextXAlignment = Enum.TextXAlignment.Left, Text = r.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-			label({ Parent = row, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 8), Size = UDim2.new(0.5, -20, 1, -16), TextXAlignment = Enum.TextXAlignment.Right, Text = Config.meters(r.distance) .. "  •  +$" .. Config.abbreviate(r.prize), TextColor3 = Color3.fromRGB(40, 150, 60), StrokeThickness = 0, ZIndex = 12 })
+			label({ Parent = row, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 8), Size = UDim2.new(0.5, -20, 1, -16), TextXAlignment = Enum.TextXAlignment.Right, Text = r.pct .. "%  •  +$" .. Config.abbreviate(r.prize), TextColor3 = Color3.fromRGB(40, 150, 60), StrokeThickness = 0, ZIndex = 12 })
 			if r.userId == player.UserId then
 				local st = row:FindFirstChildOfClass("UIStroke")
 				if st then

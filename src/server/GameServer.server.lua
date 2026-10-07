@@ -40,7 +40,8 @@ local RebirthRemote = remote("RemoteFunction", "Rebirth") -- () -> ok, message
 local LaunchPowerStop = remote("RemoteFunction", "LaunchPowerStop") -- (clickServerTime) -> "perfect" | "good" | false, needle x
 local BoostRemote = remote("RemoteEvent", "Boost") -- client -> server: (on) holding the boost
 
--- For EventServer (races): StartFlight:Invoke(player) -> started?, FlightEnded(player, distance, reason)
+-- For EventServer (races): StartFlight:Invoke(player) -> started?,
+-- FlightEnded(player, distance, reason, { track, grabbed, available })
 local ServerStorage = game:GetService("ServerStorage")
 local function bindable(className, name)
 	local b = ServerStorage:FindFirstChild(name) or Instance.new(className)
@@ -125,10 +126,32 @@ do
 	end
 end
 
+-- x of every coin, gem and ring, sorted: how many a flight passed (races use the pickup share)
+local pickupXs = {}
+for _, p in pairs(pickups) do
+	if p.kind == "Coin" or p.kind == "Gem" or p.kind == "Ring" then
+		table.insert(pickupXs, p.pos.X)
+	end
+end
+table.sort(pickupXs)
+local function countUpTo(x)
+	local lo, hi = 1, #pickupXs
+	while lo <= hi do
+		local mid = (lo + hi) // 2
+		if pickupXs[mid] <= x then
+			lo = mid + 1
+		else
+			hi = mid - 1
+		end
+	end
+	return lo - 1
+end
+
 -- Flights -----------------------------------------------------------------------------
+-- Back home after a flight: on the spawn plaza beside the pink trail, turned a bit toward the
+-- Egg Garden side with the launch path still in view.
 local function hubCFrame()
-	local c = Config.HUB_CENTER
-	return CFrame.lookAt(c + Vector3.new(-40, 4, math.random(-8, 8)), c + Vector3.new(100, 4, 0))
+	return CFrame.lookAt(Vector3.new(-146, 4, 10 + math.random(-3, 3)), Vector3.new(-100, 4, 25))
 end
 
 -- How far the hip joints sit below the root part's center, read from the rig (not the animation).
@@ -209,7 +232,13 @@ local function endFlight(player, reason)
 	})
 	-- paid after the result: the Flight Report holds the money counter until its coins land
 	addMoney(player, money)
-	FlightEnded:Fire(player, distance, reason)
+	-- races: how long your own track is (cannon to your gate) and how many pickups you got / passed
+	local unlocked = math.min(player:GetAttribute("UnlockedStage") or 1, Config.NUM_STAGES)
+	FlightEnded:Fire(player, distance, reason, {
+		track = Config.stageEndX(unlocked) - f.startX,
+		grabbed = f.coins + f.rings,
+		available = countUpTo(f.startX + distance),
+	})
 
 	-- Keep the rocket where it landed for a moment (landing celebration), then go home.
 	local body = f.model and f.model.PrimaryPart
@@ -307,6 +336,7 @@ local function startFlight(player)
 		collected = {},
 		bonus = 0,
 		coins = 0,
+		rings = 0,
 		boost = 0, -- boost bar 0..1, charged by pickups
 		boostOn = false,
 		boostGrace = 0, -- the client may still be boosting for a moment after the bar empties here
@@ -552,6 +582,7 @@ CollectRemote.OnServerEvent:Connect(function(player, id)
 		addCombo(f, p)
 		f.fuel += r.fuelStuds / f.speed
 		f.boostUntil = now + r.boostTime
+		f.rings += 1
 		player:SetAttribute("StatRings", (player:GetAttribute("StatRings") or 0) + 1)
 		FlightEvent:FireClient(player, "pickup", { id = id, kind = "Ring", fuel = f.fuel, combo = f.combo, boost = f.boost })
 	elseif p.kind == "Obstacle" then
@@ -699,6 +730,10 @@ local function buyOrEquip(player, list, ownedAttr, equipAttr, id)
 	local item = findById(list, id)
 	if not item then
 		return false, "Unknown item."
+	end
+	-- rebirth trails: free, but locked until that many rebirths
+	if item.rebirth and (player:GetAttribute("Rebirths") or 0) < item.rebirth then
+		return false, "Rebirth " .. item.rebirth .. " unlocks this trail!"
 	end
 	if not ownsIn(player, ownedAttr, id) then
 		local ok, msg = spend(player, item.price)

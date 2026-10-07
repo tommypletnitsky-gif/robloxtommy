@@ -121,6 +121,10 @@ for i, def in ipairs(Config.Trails) do
 	end
 	label({ Parent = card, Position = UDim2.fromOffset(10, 100), Size = UDim2.new(1, -20, 0, 30), Text = def.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 	local eqPill = UIKit.pill(card, { Text = "EQUIPPED", Color = GREEN, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 18), Size = UDim2.fromOffset(98, 26), ZIndex = 14 })
+	-- rebirth trails: a small star pill with the rebirth that unlocks it
+	if def.rebirth then
+		UIKit.pill(card, { Text = "🌟 " .. def.rebirth, Color = PURPLE, Position = UDim2.fromOffset(18, 18), Size = UDim2.fromOffset(56, 26), ZIndex = 14 })
+	end
 	local button = UIKit.button({ Parent = card, Text = "", Color = GREEN, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -24, 0, 52), ZIndex = 12 })
 	button.Instance.Activated:Connect(function()
 		local ok, msg = BuyTrail:InvokeServer(def.id)
@@ -160,7 +164,8 @@ trailsTab.Instance.Activated:Connect(function()
 	showTab(true)
 end)
 
-local function setBuyButton(info, isEquipped, isOwned, price)
+-- lockText: shown greyed out instead of a price (a rebirth trail you haven't unlocked yet)
+local function setBuyButton(info, isEquipped, isOwned, price, lockText)
 	info.eq.Visible = isEquipped
 	if info.stroke then
 		info.stroke.Color = isEquipped and GREEN or Color3.fromRGB(190, 200, 225)
@@ -169,6 +174,9 @@ local function setBuyButton(info, isEquipped, isOwned, price)
 	local button = info.button
 	if isEquipped then
 		button.setText("✔ EQUIPPED")
+		button.setColor(GREY)
+	elseif lockText then
+		button.setText(lockText)
 		button.setColor(GREY)
 	elseif isOwned then
 		button.setText("EQUIP")
@@ -188,8 +196,12 @@ local function refreshRockets()
 	end
 	local mineT = owned("OwnedTrails")
 	local trail = player:GetAttribute("Trail")
+	local rebirths = player:GetAttribute("Rebirths") or 0
 	for id, info in pairs(trailCards) do
-		setBuyButton(info, id == trail, table.find(mineT, id) ~= nil or id == "None", info.def.price)
+		-- rebirth trails are free: locked until that rebirth, then they count as owned
+		local need = info.def.rebirth
+		local locked = need and rebirths < need
+		setBuyButton(info, id == trail, need ~= nil or table.find(mineT, id) ~= nil or id == "None", info.def.price, locked and ("🌟 REBIRTH " .. need) or nil)
 	end
 end
 
@@ -294,7 +306,7 @@ local function refreshUpgrades()
 	end
 end
 
-for _, attr in ipairs({ "Money", "Rocket", "OwnedRockets", "Trail", "OwnedTrails", "FuelLevel", "SpeedLevel", "MoneyLevel", "CannonLevel", "BestDistance", "UnlockedStage" }) do
+for _, attr in ipairs({ "Money", "Rocket", "OwnedRockets", "Trail", "OwnedTrails", "Rebirths", "FuelLevel", "SpeedLevel", "MoneyLevel", "CannonLevel", "BestDistance", "UnlockedStage" }) do
 	-- only redraw an open window; a closed one refreshes when it opens
 	player:GetAttributeChangedSignal(attr):Connect(function()
 		if rocketsWindow.Visible then

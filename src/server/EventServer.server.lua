@@ -1,7 +1,8 @@
 -- Things that happen to the whole server:
 --   Races: every Config.Race.every seconds a race opens for Config.Race.joinTime seconds; everyone who
---          joined is shot out of the cannon together, farthest flight wins (prizes for the top 3,
---          a little something for everyone else).
+--          joined is shot out of the cannon together. Ranked by how much of your OWN track (cannon to
+--          your stage gate) you flew, so new players can beat veterans; the share of coins / gems /
+--          rings you grabbed breaks ties. Prizes for the top 3, a little something for everyone else.
 --   Events: every Config.EVENT_EVERY seconds a random event (x2 Money / Lucky Eggs / Fuel Frenzy)
 --           runs for Config.EVENT_LENGTH seconds. Effects live where they apply (GameServer, PetServer).
 --   Friend boost: +10% money per friend in the server. Group boost when Config.GROUP_ID is set.
@@ -24,7 +25,7 @@ local function remote(className, name)
 	return r
 end
 local RaceJoin = remote("RemoteFunction", "RaceJoin") -- () -> ok, message
-local RaceResult = remote("RemoteEvent", "RaceResult") -- server -> all: (list of { name, userId, distance, place, prize })
+local RaceResult = remote("RemoteEvent", "RaceResult") -- server -> all: (list of { name, userId, distance, pct, score, place, prize })
 local Notify = remote("RemoteEvent", "Notify")
 local StartFlight = ServerStorage:WaitForChild("StartFlight")
 local FlightEnded = ServerStorage:WaitForChild("FlightEnded")
@@ -40,7 +41,7 @@ local function addMoney(player, amount)
 end
 
 -- Races -------------------------------------------------------------------------------------------
-local race = nil -- { joined = {[player]=true}, racers = {[player]=true}, results = {[player]=distance} }
+local race = nil -- { joined = {[player]=true}, racers = {[player]=true}, results = {[player]={ distance, pct, score }} }
 local nextRaceAt = now() + 180 -- the first race comes a few minutes after the server starts
 
 local function setInRace(player, on)
@@ -70,10 +71,14 @@ local function finishRace()
 	local list = {}
 	for player in pairs(race.racers or {}) do
 		if player.Parent then
-			table.insert(list, { player = player, distance = (race.results or {})[player] or 0 })
+			local r = (race.results or {})[player] or { distance = 0, pct = 0, score = 0 }
+			table.insert(list, { player = player, distance = r.distance, pct = r.pct, score = r.score })
 		end
 	end
 	table.sort(list, function(a, b)
+		if a.score ~= b.score then
+			return a.score > b.score
+		end
 		return a.distance > b.distance
 	end)
 	local out = {}
@@ -84,7 +89,7 @@ local function finishRace()
 		if place == 1 and #list >= 2 then
 			e.player:SetAttribute("RaceWins", (e.player:GetAttribute("RaceWins") or 0) + 1)
 		end
-		table.insert(out, { name = e.player.DisplayName, userId = e.player.UserId, distance = e.distance, place = place, prize = prize })
+		table.insert(out, { name = e.player.DisplayName, userId = e.player.UserId, distance = e.distance, pct = e.pct, score = e.score, place = place, prize = prize })
 		setInRace(e.player, false)
 	end
 	for player in pairs(race.joined) do
@@ -92,7 +97,7 @@ local function finishRace()
 	end
 	if #out > 0 then
 		RaceResult:FireAllClients(out)
-		Notify:FireAllClients("🏁 " .. out[1].name .. " won the race with " .. Config.meters(out[1].distance) .. "!", Color3.fromRGB(255, 215, 80))
+		Notify:FireAllClients("🏁 " .. out[1].name .. " won the race (" .. out[1].pct .. "% of their track)!", Color3.fromRGB(255, 215, 80))
 	end
 	workspace:SetAttribute("RaceState", nil)
 	race = nil
@@ -152,9 +157,13 @@ local function openRace(joinTime)
 	end)
 end
 
-FlightEnded.Event:Connect(function(player, distance)
+FlightEnded.Event:Connect(function(player, distance, _reason, extra) -- extra: { track, grabbed, available } (GameServer)
 	if race and race.racers and race.racers[player] and not race.results[player] then
-		race.results[player] = distance
+		local pct = math.floor(math.min(1, distance / math.max(1, extra.track)) * 100)
+		local share = extra.available > 0 and math.min(1, extra.grabbed / extra.available) or 0
+		-- whole number: % of your own track (what everyone sees); the fraction: pickup share, so it
+		-- only decides between racers on the same %
+		race.results[player] = { distance = distance, pct = pct, score = pct + share * 0.99 }
 		for p in pairs(race.racers) do
 			if p.Parent and not race.results[p] then
 				return

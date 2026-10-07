@@ -120,6 +120,7 @@ function Config.cannonTier(level)
 end
 
 -- Trails behind your rocket (bought with money in the Rockets window).
+-- rebirth = n: free, but only after n rebirths (one new trail to collect per rebirth).
 Config.Trails = {
 	{ id = "None", name = "No Trail", price = 0, colors = { Color3.fromRGB(255, 255, 255) } },
 	{ id = "Smoke", name = "Puffy Smoke", price = 500, colors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(200, 200, 210) } },
@@ -129,6 +130,11 @@ Config.Trails = {
 	{ id = "Toxic", name = "Toxic", price = 400000, colors = { Color3.fromRGB(180, 255, 60), Color3.fromRGB(40, 200, 40) }, glow = 1 },
 	{ id = "Galaxy", name = "Galaxy", price = 3000000, colors = { Color3.fromRGB(80, 40, 200), Color3.fromRGB(200, 80, 255), Color3.fromRGB(255, 255, 255) }, glow = 1 },
 	{ id = "Rainbow", name = "Rainbow", price = 25000000, colors = { Color3.fromRGB(255, 60, 60), Color3.fromRGB(255, 200, 40), Color3.fromRGB(80, 230, 80), Color3.fromRGB(60, 160, 255), Color3.fromRGB(200, 80, 255) }, glow = 1 },
+	{ id = "Stardust", name = "Stardust", rebirth = 1, price = 0, colors = { Color3.fromRGB(255, 250, 225), Color3.fromRGB(255, 215, 110), Color3.fromRGB(255, 170, 230) }, glow = 1 },
+	{ id = "Comet", name = "Comet", rebirth = 2, price = 0, colors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(140, 220, 255), Color3.fromRGB(40, 90, 220) }, glow = 1 },
+	{ id = "Aurora", name = "Aurora", rebirth = 3, price = 0, colors = { Color3.fromRGB(90, 255, 170), Color3.fromRGB(60, 200, 255), Color3.fromRGB(180, 90, 255) }, glow = 0.8 },
+	{ id = "Supernova", name = "Supernova", rebirth = 5, price = 0, colors = { Color3.fromRGB(255, 255, 240), Color3.fromRGB(255, 200, 60), Color3.fromRGB(255, 80, 40), Color3.fromRGB(220, 40, 160) }, glow = 1 },
+	{ id = "BlackHole", name = "Black Hole", rebirth = 8, price = 0, colors = { Color3.fromRGB(255, 170, 60), Color3.fromRGB(130, 50, 210), Color3.fromRGB(25, 10, 45) }, glow = 0.3 },
 }
 
 function Config.getTrail(id)
