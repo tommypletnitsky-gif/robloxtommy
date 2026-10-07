@@ -218,3 +218,26 @@ income. Changes:
   stage 15 ~4h, stage 20 ~9.5h (before rebirth multipliers).
 - Config.OWNER_GETS_PASSES = false: the creator no longer gets every pass free (they did,
   x2.5 money) so the owner plays like a normal player; /pass all still tests passes.
+
+## UI overhaul + improvement audit (2026-10-06/07)
+- UI: every window has the patterned frame + ribbon title, animated open/close (rise + spring,
+  ribbon drop, cards pop in one by one), dark backdrop (tap outside closes). HUD buttons are
+  "tiles" (outline, rim, stripes, name tag) with 2D sticker icons from one sprite sheet
+  (tools/make_icons.py -> assets/ui/icons.png, UIKit.IMAGES). Phones: landscape only, windows
+  never below 0.68 scale. Owner wants money top-left with the 4 side buttons right under it.
+- Improvement audit: 7 lenses (server/client bugs, security, perf, design, juice, world),
+  bug claims checked by 3 skeptics each, 39 items built in 4 reviewed rounds:
+  - Fixes: remotes wait for the save, server distance cap follows the real flight curve,
+    movement + pickup checks (DebugCap workspace attribute logs clamps), receipt + gamepass
+    safety, leaderboards never drop (pages: Farthest / Most Earned / Most Rebirths /
+    Supporters), many UI/state bugs.
+  - Clarity: stage card shows "$X more • ~N flights" while saving for a gate, REBIRTH READY
+    badge + guide, BEST PICK upgrade advice, Day 7 daily = free pet (calendar cycles weekly),
+    overhead rank tags, invite friends in the Store.
+  - Feel: landing/new-best shake, locked-gate hit, stage-entry hoop, purchase float text,
+    rarity-scaled hatch, summed coin label, money counts up with the report.
+  - World: planets ahead of the Space stages, rainbow arch, Sky / Space zone gates, finish
+    arch at stage 30, gate burst/shatter, coloured Space tracks, lobby fingerpost.
+  - Long term: rival flags for other players' bests, races ranked by % of your own track,
+    rebirth-only trails (Stardust 1, Comet 2, Aurora 3, Supernova 5, Black Hole 8), rebirth
+    celebration.
