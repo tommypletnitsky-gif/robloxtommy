@@ -331,30 +331,29 @@ Config.EventEggs = {
 		stand = Vector3.new(-150, 0, 40), pets = { "PumpkinPup", "GhostKitty", "BatDragon", "PumpkinKing" } },
 }
 
--- Scaling pets: the pets of the eggs below have no fixed bonus - it grows with the best egg you've
--- unlocked (your "tier"): multiplier = 1 + (your tier's egg base) x power, so they stay good forever.
--- Their egg sets list power per pet (worst -> best).
+-- Special eggs (Winter, limited, Royal): each pet has a fixed money multiplier (`mults`, worst ->
+-- best), the same at every stage (owner).
 local SET4 = { rarity = { "Common", "Rare", "Epic", "Legendary" }, chance = { 60, 28, 10, 2 } }
-local function scaledSet(powers, base)
+local function fixedSet(base)
 	local s = table.clone(base or SET4)
-	s.power = powers
+	s.power = { 1, 1, 1, 1 } -- (unused: these pets use the egg's `mults`)
 	return s
 end
 -- Winter 2026: snowflakes from pickups, the Frosty Gift Egg on the Spooky Egg's spot.
-table.insert(Config.EventEggs, { id = "Frosty", name = "Frosty Gift Egg", stage = 1, price = 150, currency = "Snowflakes", event = "Winter", scales = true,
-	setDef = scaledSet({ 0.85, 1, 1.15, 2.8 }), color = Color3.fromRGB(120, 200, 255), accent = Color3.fromRGB(255, 80, 90),
+table.insert(Config.EventEggs, { id = "Frosty", name = "Frosty Gift Egg", stage = 1, price = 150, currency = "Snowflakes", event = "Winter",
+	setDef = fixedSet(), mults = { 1.3, 1.45, 1.65, 2.2 }, color = Color3.fromRGB(120, 200, 255), accent = Color3.fromRGB(255, 80, 90),
 	stand = Vector3.new(-150, 0, 40), pets = { "SnowmanPup", "GingerbreadCat", "Reindeer", "FrostYeti" } })
 
 -- Limited eggs: one at a time, a new one every week (same on every server), bought with money at
--- priceMult x the price of your best unlocked egg; scaling pets. They come back in turn.
+-- money ($20K); pets x1.2 .. x3. They come back in turn.
 Config.LIMITED_EPOCH = 1791158400 -- Monday 2026-10-05 00:00 UTC
 Config.LIMITED_WEEK = 7 * 86400
 Config.LimitedEggs = {
-	{ id = "Crystal", name = "Crystal Cave Egg", stage = 1, limited = true, scales = true, priceMult = 2, setDef = scaledSet({ 1.2, 1.4, 1.6, 4 }),
+	{ id = "Crystal", name = "Crystal Cave Egg", stage = 1, limited = true, price = 20000, setDef = fixedSet(), mults = { 1.2, 1.5, 2, 3 },
 		color = Color3.fromRGB(150, 110, 255), accent = Color3.fromRGB(120, 255, 240), pets = { "GemMole", "CrystalBat", "AmethystFox", "DiamondGolem" } },
-	{ id = "Candy", name = "Candy Kingdom Egg", stage = 1, limited = true, scales = true, priceMult = 2, setDef = scaledSet({ 1.2, 1.4, 1.6, 4 }),
+	{ id = "Candy", name = "Candy Kingdom Egg", stage = 1, limited = true, price = 20000, setDef = fixedSet(), mults = { 1.2, 1.5, 2, 3 },
 		color = Color3.fromRGB(255, 150, 200), accent = Color3.fromRGB(120, 230, 255), pets = { "GummyBear", "LollipopLamb", "CupcakeKitty", "CandyDragon" } },
-	{ id = "Ocean", name = "Ocean Deep Egg", stage = 1, limited = true, scales = true, priceMult = 2, setDef = scaledSet({ 1.2, 1.4, 1.6, 4 }),
+	{ id = "Ocean", name = "Ocean Deep Egg", stage = 1, limited = true, price = 20000, setDef = fixedSet(), mults = { 1.2, 1.5, 2, 3 },
 		color = Color3.fromRGB(40, 120, 200), accent = Color3.fromRGB(120, 255, 220), pets = { "BubblePuffer", "SeahorseKnight", "OctoPup", "Megalodon" } },
 }
 -- the special eggs' stands, on the lawn north of the spawn plaza (SpecialEggsServer)
@@ -371,11 +370,11 @@ function Config.limitedEgg(now)
 	return egg, Config.LIMITED_EPOCH + (week + 1) * Config.LIMITED_WEEK
 end
 
--- Robux egg (developer products RoyalEgg1 / RoyalEgg3): rare pets only, scaling. Where paid random
+-- Robux egg (developer products RoyalEgg1 / RoyalEgg3): rare pets only, x2 / x3 / x5 / x10. Where paid random
 -- items aren't allowed (PolicyService), the egg can't be bought.
 Config.ExclusiveEggs = {
-	{ id = "Royal", name = "Royal Treasure Egg", stage = 1, robux = true, scales = true,
-		setDef = scaledSet({ 2, 3, 5, 12 }, { rarity = { "Epic", "Legendary", "Mythic", "Secret" }, chance = { 60, 30, 9, 1 } }),
+	{ id = "Royal", name = "Royal Treasure Egg", stage = 1, robux = true,
+		setDef = fixedSet({ rarity = { "Epic", "Legendary", "Mythic", "Secret" }, chance = { 60, 30, 9, 1 } }), mults = { 2, 3, 5, 10 },
 		color = Color3.fromRGB(255, 200, 60), accent = Color3.fromRGB(255, 90, 200), pets = { "RoyalCorgi", "CrownLion", "TreasureDragon", "DiamondPhoenix" } },
 }
 Config.ExclusiveEggs[1].stand = Config.ROYAL_STAND
@@ -557,8 +556,7 @@ for _, egg in ipairs(Config.allEggs()) do
 			rank = rank,
 			chance = set.chance[rank],
 			power = set.power[rank],
-			mult = math.floor((1 + (egg.base or Config.Eggs[1].base) * set.power[rank]) * 100 + 0.5) / 100,
-			scales = egg.scales and set.power[rank] or nil, -- (scaling pet: see Config.petMult)
+			mult = egg.mults and egg.mults[rank] or math.floor((1 + (egg.base or Config.Eggs[1].base) * set.power[rank]) * 100 + 0.5) / 100,
 			height = Config.PET_HEIGHT[rarity],
 			top = rank == #egg.pets,
 		}
@@ -815,15 +813,15 @@ Config.Gamepasses = {
 	{ key = "LuckyEggs", id = 2005683456, name = "Lucky Eggs", icon = "Clover", robux = 99, color = Color3.fromRGB(60, 190, 110), desc = "Epic and rarer pets are 3x more likely when you hatch." },
 	{ key = "PetSlots", id = 2006871467, name = "+3 Pet Slots", icon = "Paw", robux = 129, color = Color3.fromRGB(110, 140, 240), desc = "Equip 3 more pets at once." },
 	{ key = "MegaFuel", id = 2005743470, name = "Mega Fuel", icon = "FuelCan", robux = 49, color = Color3.fromRGB(255, 150, 40), desc = "+50% fuel on every rocket: fly much farther!" },
-	{ key = "AutoHatch", id = 0, name = "Auto Hatch", icon = "Wheel", robux = 149, color = Color3.fromRGB(255, 120, 190), desc = "Eggs keep hatching by themselves until you stop (or run out of money)." },
-	{ key = "Hatch8", id = 0, name = "Hatch 8", icon = "Gift", robux = 199, color = Color3.fromRGB(170, 90, 255), desc = "Hatch 8 eggs at once!" },
-	{ key = "PetStorage", id = 0, name = "+100 Pet Storage", icon = "Paw", robux = 99, color = Color3.fromRGB(70, 180, 220), desc = "Keep 100 more pets." },
+	{ key = "AutoHatch", id = 0, name = "Auto Hatch", icon = "Wheel", robux = 79, color = Color3.fromRGB(255, 120, 190), desc = "Eggs keep hatching by themselves until you stop (or run out of money)." },
+	{ key = "Hatch8", id = 0, name = "Hatch 8", icon = "Gift", robux = 99, color = Color3.fromRGB(170, 90, 255), desc = "Hatch 8 eggs at once!" },
+	{ key = "PetStorage", id = 0, name = "+100 Pet Storage", icon = "Paw", robux = 49, color = Color3.fromRGB(70, 180, 220), desc = "Keep 100 more pets." },
 }
 -- Developer products (bought again and again). id = 0 shows "coming soon".
 Config.Products = {
 	{ key = "SuperLuck", id = 0, robux = 39, name = "Super Luck", icon = "Clover", color = Color3.fromRGB(60, 190, 110), desc = "30 minutes of x3 luck on every egg." },
 	{ key = "RoyalEgg1", id = 0, robux = 49, egg = "Royal", count = 1, name = "Royal Egg", icon = "Crown", color = Color3.fromRGB(255, 190, 40), desc = "Hatch 1 Royal Treasure Egg." },
-	{ key = "RoyalEgg3", id = 0, robux = 129, egg = "Royal", count = 3, name = "3 Royal Eggs", icon = "Crown", color = Color3.fromRGB(255, 160, 40), desc = "Hatch 3 Royal Treasure Eggs." },
+	{ key = "RoyalEgg3", id = 0, robux = 99, egg = "Royal", count = 3, name = "3 Royal Eggs", icon = "Crown", color = Color3.fromRGB(255, 160, 40), desc = "Hatch 3 Royal Treasure Eggs." },
 }
 Config.SUPER_LUCK = 3 -- x luck from a Super Luck potion
 Config.SUPER_LUCK_TIME = 1800
