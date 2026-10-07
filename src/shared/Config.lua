@@ -813,15 +813,15 @@ Config.Gamepasses = {
 	{ key = "LuckyEggs", id = 2005683456, name = "Lucky Eggs", icon = "Clover", robux = 99, color = Color3.fromRGB(60, 190, 110), desc = "Epic and rarer pets are 3x more likely when you hatch." },
 	{ key = "PetSlots", id = 2006871467, name = "+3 Pet Slots", icon = "Paw", robux = 129, color = Color3.fromRGB(110, 140, 240), desc = "Equip 3 more pets at once." },
 	{ key = "MegaFuel", id = 2005743470, name = "Mega Fuel", icon = "FuelCan", robux = 49, color = Color3.fromRGB(255, 150, 40), desc = "+50% fuel on every rocket: fly much farther!" },
-	{ key = "AutoHatch", id = 0, name = "Auto Hatch", icon = "Wheel", robux = 79, color = Color3.fromRGB(255, 120, 190), desc = "Eggs keep hatching by themselves until you stop (or run out of money)." },
-	{ key = "Hatch8", id = 0, name = "Hatch 8", icon = "Gift", robux = 99, color = Color3.fromRGB(170, 90, 255), desc = "Hatch 8 eggs at once!" },
-	{ key = "PetStorage", id = 0, name = "+100 Pet Storage", icon = "Paw", robux = 49, color = Color3.fromRGB(70, 180, 220), desc = "Keep 100 more pets." },
+	{ key = "AutoHatch", id = 2014406494, name = "Auto Hatch", icon = "Wheel", robux = 79, color = Color3.fromRGB(255, 120, 190), desc = "Eggs keep hatching by themselves until you stop (or run out of money)." },
+	{ key = "Hatch8", id = 2016410293, name = "Hatch 8", icon = "Gift", robux = 99, color = Color3.fromRGB(170, 90, 255), desc = "Hatch 8 eggs at once!" },
+	{ key = "PetStorage", id = 2016524292, name = "+100 Pet Storage", icon = "Paw", robux = 49, color = Color3.fromRGB(70, 180, 220), desc = "Keep 100 more pets." },
 }
 -- Developer products (bought again and again). id = 0 shows "coming soon".
 Config.Products = {
-	{ key = "SuperLuck", id = 0, robux = 39, name = "Super Luck", icon = "Clover", color = Color3.fromRGB(60, 190, 110), desc = "30 minutes of x3 luck on every egg." },
-	{ key = "RoyalEgg1", id = 0, robux = 49, egg = "Royal", count = 1, name = "Royal Egg", icon = "Crown", color = Color3.fromRGB(255, 190, 40), desc = "Hatch 1 Royal Treasure Egg." },
-	{ key = "RoyalEgg3", id = 0, robux = 99, egg = "Royal", count = 3, name = "3 Royal Eggs", icon = "Crown", color = Color3.fromRGB(255, 160, 40), desc = "Hatch 3 Royal Treasure Eggs." },
+	{ key = "SuperLuck", id = 3717135334, robux = 39, name = "Super Luck", icon = "Clover", color = Color3.fromRGB(60, 190, 110), desc = "30 minutes of x3 luck on every egg." },
+	{ key = "RoyalEgg1", id = 3717135433, robux = 49, egg = "Royal", count = 1, name = "Royal Egg", icon = "Crown", color = Color3.fromRGB(255, 190, 40), desc = "Hatch 1 Royal Treasure Egg." },
+	{ key = "RoyalEgg3", id = 3717135523, robux = 99, egg = "Royal", count = 3, name = "3 Royal Eggs", icon = "Crown", color = Color3.fromRGB(255, 160, 40), desc = "Hatch 3 Royal Treasure Eggs." },
 }
 Config.SUPER_LUCK = 3 -- x luck from a Super Luck potion
 Config.SUPER_LUCK_TIME = 1800
