@@ -1,5 +1,7 @@
 -- Trading pets (client). The server (TradeServer) decides everything; this only shows it.
---   * PETS -> 🔁 Trade: the players in this server, a Trade button each, and trade requests on / off.
+--   * TRADE button (left side, under SPIN) or PETS -> 🔁 Trade: the players in this server, a Trade
+--     button each, and trade requests on / off.
+--   * Walk up to another player: a "Trade" prompt (key T) over them.
 --   * An invite pops up at the top: Accept / Decline.
 --   * Trade window: your offer and theirs (up to 8 pets each), your pets below (tap to add, tap an
 --     offered pet to take it back), Ready. When both are ready a 3 second countdown runs; any change
@@ -119,12 +121,60 @@ Players.PlayerRemoving:Connect(function()
 		end
 	end)
 end)
-script.Parent:WaitForChild("OpenTradeList").Event:Connect(function()
+local function openList()
 	refreshPlayers()
 	if not listWindow.Visible then
 		UIKit.toggle(listWindow)
 	end
-end)
+end
+script.Parent:WaitForChild("OpenTradeList").Event:Connect(openList)
+
+-- TRADE button on the left side (with QUESTS / GIFTS / DAILY / SPIN)
+local tradeTile = UIKit.button({ Parent = UIKit.sideBar(), LayoutOrder = 4, Icon = "🤝", Text = "TRADE", Color = ORANGE, Size = UDim2.fromOffset(92, 98), Radius = 22 })
+tradeTile.Instance.Activated:Connect(openList)
+
+-- a "Trade" prompt over every other player (only on your screen)
+local function promptOn(plr, char)
+	local root = char:WaitForChild("HumanoidRootPart", 10)
+	if not root or root:FindFirstChild("TradePrompt") then
+		return
+	end
+	local p = Instance.new("ProximityPrompt")
+	p.Name = "TradePrompt"
+	p.ActionText = "Trade"
+	p.ObjectText = plr.DisplayName
+	p.KeyboardKeyCode = Enum.KeyCode.T
+	p.MaxActivationDistance = 10
+	p.RequiresLineOfSight = false
+	p.HoldDuration = 0
+	p.UIOffset = Vector2.new(0, 30)
+	p.Enabled = not plr:GetAttribute("TradesOff") and not plr:GetAttribute("Flying")
+	p.Parent = root
+	p.Triggered:Connect(function()
+		UIKit.result(TradeRequest:InvokeServer(plr.UserId))
+	end)
+	local function refresh()
+		p.Enabled = not plr:GetAttribute("TradesOff") and not plr:GetAttribute("Flying") and not player:GetAttribute("Flying")
+	end
+	plr:GetAttributeChangedSignal("TradesOff"):Connect(refresh)
+	plr:GetAttributeChangedSignal("Flying"):Connect(refresh)
+	player:GetAttributeChangedSignal("Flying"):Connect(refresh)
+end
+local function watchOther(plr)
+	if plr == player then
+		return
+	end
+	plr.CharacterAdded:Connect(function(char)
+		promptOn(plr, char)
+	end)
+	if plr.Character then
+		task.spawn(promptOn, plr, plr.Character)
+	end
+end
+Players.PlayerAdded:Connect(watchOther)
+for _, plr in ipairs(Players:GetPlayers()) do
+	watchOther(plr)
+end
 
 -- Invite popup -------------------------------------------------------------------------------------
 local invite = make("Frame", { Parent = UIKit.gui(), Name = "TradeInvite", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 120), Size = UDim2.fromOffset(440, 118), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, ZIndex = 40 }, { UIKit.corner(20), UIKit.stroke(4) })

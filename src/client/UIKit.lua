@@ -1235,7 +1235,7 @@ end
 function UIKit.sideBar()
 	if not bars.side then
 		-- under the money pills, buttons in a 2-wide grid so it never runs off the bottom
-		bars.side = make("Frame", { Parent = UIKit.gui(), Name = "SideBar", Position = UDim2.fromOffset(14, 200), Size = UDim2.fromOffset(196, 232), BackgroundTransparency = 1 }, {
+		bars.side = make("Frame", { Parent = UIKit.gui(), Name = "SideBar", Position = UDim2.fromOffset(14, 200), Size = UDim2.fromOffset(196, 346), BackgroundTransparency = 1 }, {
 			make("UIGridLayout", { CellSize = UDim2.fromOffset(92, 104), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
 		UIKit.hudScale(bars.side)
