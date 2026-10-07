@@ -148,8 +148,8 @@ local function countUpTo(x)
 end
 
 -- Flights -----------------------------------------------------------------------------
--- Back home after a flight: on the spawn plaza beside the pink trail, turned a bit toward the
--- Egg Garden side with the launch path still in view.
+-- Back home after a flight: on the spawn plaza, turned a bit toward the north side with the launch
+-- path still in view.
 local function hubCFrame()
 	return CFrame.lookAt(Vector3.new(-146, 4, 10 + math.random(-3, 3)), Vector3.new(-100, 4, 25))
 end

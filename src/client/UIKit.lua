@@ -1351,7 +1351,7 @@ end
 
 -- True while something important is on screen: flying, an open window, the landing report.
 function UIKit.busy()
-	if player:GetAttribute("Flying") then
+	if player:GetAttribute("Flying") or player:GetAttribute("HatchShow") then
 		return true
 	end
 	for _, w in ipairs(windows) do

@@ -246,43 +246,83 @@ function Config.petSlots(rebirths)
 	return (Config.MAX_EQUIPPED or 3) + math.min(rebirths or 0, Config.REBIRTH_SLOTS)
 end
 
--- Eggs + pets. Each egg stands in the lobby's Egg Garden and opens once you've unlocked its stage.
+-- Eggs + pets (Eggs v2, design/features/eggs-v2): 15 eggs in the Hatchery behind the spawn, one per
+-- pair of stages, each looking like where it comes from. Each egg opens once you've unlocked its
+-- stage. Pet models live in ReplicatedStorage.PetModels / EggModels (place-only, generated meshes).
 -- A pet's `mult` is its money multiplier; equipped pets add up: total = 1 + sum(mult - 1).
--- Pet models live in ReplicatedStorage.PetModels / EggModels (place-only, generated meshes).
 Config.MAX_EQUIPPED = 3 -- pet slots before rebirths (Config.petSlots adds one per rebirth)
 Config.MAX_PETS = 60
 Config.Rarities = {
 	Common = { order = 1, color = Color3.fromRGB(170, 175, 190) },
-	Rare = { order = 2, color = Color3.fromRGB(70, 150, 255) },
-	Epic = { order = 3, color = Color3.fromRGB(180, 80, 255) },
-	Legendary = { order = 4, color = Color3.fromRGB(255, 190, 40) },
+	Uncommon = { order = 2, color = Color3.fromRGB(90, 210, 110) },
+	Rare = { order = 3, color = Color3.fromRGB(70, 150, 255) },
+	Epic = { order = 4, color = Color3.fromRGB(180, 80, 255) },
+	Legendary = { order = 5, color = Color3.fromRGB(255, 190, 40) },
+	Mythic = { order = 6, color = Color3.fromRGB(255, 70, 120) },
+	Secret = { order = 7, color = Color3.fromRGB(40, 30, 60) },
 }
--- chance (%) of each rarity inside every egg
-Config.RARITY_CHANCE = { Common = 60, Rare = 30, Epic = 8.5, Legendary = 1.5 }
--- multiplier = 1 + egg.bonus * RARITY_POWER[rarity]
--- (owner rule: each egg's Common >= the previous egg's Epic, so bonus grows >= x2.2 per egg)
-Config.RARITY_POWER = { Common = 1, Rare = 1.5, Epic = 2.2, Legendary = 5 }
+-- An egg with n pets (worst -> best): their rarities, chances (%) and powers.
+-- multiplier = 1 + egg.base * power. Owner rule: an egg's worst pet is at least the previous egg's
+-- second-best, so the second-best power (1.4) is also the step between eggs (EGG_STEP). The best pet
+-- of each egg is the chase.
+Config.EGG_STEP = 1.4
+Config.EGG_SETS = {
+	[4] = { rarity = { "Common", "Rare", "Epic", "Legendary" }, chance = { 60, 28, 10, 2 }, power = { 1, 1.2, 1.4, 3 } },
+	[5] = { rarity = { "Common", "Uncommon", "Rare", "Epic", "Legendary" }, chance = { 50, 28, 14, 6.5, 1.5 }, power = { 1, 1.1333, 1.2667, 1.4, 4 } },
+	[6] = { rarity = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }, chance = { 45, 27, 15, 9.3, 3, 0.7 }, power = { 1, 1.1, 1.2, 1.3, 1.4, 6 } },
+	[7] = { rarity = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }, chance = { 42, 26, 16, 10.2, 4.5, 1.1, 0.2 }, power = { 1, 1.08, 1.16, 1.24, 1.32, 1.4, 10 } },
+}
+-- pet height (studs) by rarity: the rarer, the bigger
+Config.PET_HEIGHT = { Common = 3, Uncommon = 3.2, Rare = 3.4, Epic = 3.8, Legendary = 4.3, Mythic = 5, Secret = 5.8 }
 
+-- id, name, stage, price, theme colors (color = main, accent = glow), pets worst -> best.
+-- `base` (money bonus) is filled in below: 0.06 for the first egg, x EGG_STEP for each next one.
 Config.Eggs = {
-	{ id = "Meadow", name = "Meadow Egg", stage = 1, price = 2500, bonus = 0.06, color = Color3.fromRGB(140, 220, 110),
-		pets = { Common = "Puppy", Rare = "Kitty", Epic = "Bunny", Legendary = "RocketCorgi" } },
-	{ id = "Jungle", name = "Jungle Egg", stage = 5, price = 60000, bonus = 0.135, color = Color3.fromRGB(60, 170, 90),
-		pets = { Common = "Monkey", Rare = "Parrot", Epic = "TigerCub", Legendary = "GoldenJaguar" } },
-	{ id = "Frost", name = "Frost Egg", stage = 8, price = 350000, bonus = 0.3, color = Color3.fromRGB(150, 215, 255),
-		pets = { Common = "Penguin", Rare = "PolarBear", Epic = "SnowFox", Legendary = "IceDragon" } },
-	{ id = "Cloud", name = "Cloud Egg", stage = 13, price = 5000000, bonus = 0.66, color = Color3.fromRGB(255, 200, 235),
-		pets = { Common = "CloudSheep", Rare = "Owl", Epic = "Pegasus", Legendary = "ThunderBird" } },
-	{ id = "Moon", name = "Moon Egg", stage = 22, price = 600000000, bonus = 1.46, color = Color3.fromRGB(200, 205, 220),
-		pets = { Common = "MoonBunny", Rare = "Alien", Epic = "RoboDog", Legendary = "UFOCat" } },
-	{ id = "Galaxy", name = "Galaxy Egg", stage = 27, price = 9000000000, bonus = 3.22, color = Color3.fromRGB(140, 80, 230),
-		pets = { Common = "StarPuppy", Rare = "CometFox", Epic = "NebulaDragon", Legendary = "GalaxyUnicorn" } },
+	{ id = "Meadow", name = "Meadow Egg", stage = 1, price = 2500, color = Color3.fromRGB(140, 220, 110), accent = Color3.fromRGB(255, 240, 120),
+		pets = { "Puppy", "Kitty", "Bunny", "RocketCorgi" } },
+	{ id = "Ancient", name = "Ancient Sands Egg", stage = 3, price = 8000, color = Color3.fromRGB(226, 190, 120), accent = Color3.fromRGB(190, 110, 255),
+		pets = { "Fennec", "ScarabBeetle", "MummyCat", "PharaohSphinx" } },
+	{ id = "Jungle", name = "Jungle Egg", stage = 5, price = 25000, color = Color3.fromRGB(60, 170, 90), accent = Color3.fromRGB(255, 120, 200),
+		pets = { "Monkey", "Parrot", "TigerCub", "GoldenJaguar" } },
+	{ id = "IceAge", name = "Ice Age Egg", stage = 7, price = 90000, color = Color3.fromRGB(150, 215, 255), accent = Color3.fromRGB(200, 245, 255),
+		pets = { "Penguin", "SnowFox", "PolarBear", "WoollyMammoth", "IceDragon" } },
+	{ id = "Magma", name = "Magma Egg", stage = 9, price = 300000, color = Color3.fromRGB(50, 35, 40), accent = Color3.fromRGB(255, 130, 30),
+		pets = { "LavaSlime", "FireSalamander", "MagmaGolem", "Phoenix", "InfernoDragon" } },
+	{ id = "Cloud", name = "Cloud Egg", stage = 11, price = 1000000, color = Color3.fromRGB(245, 245, 255), accent = Color3.fromRGB(255, 215, 90),
+		pets = { "CloudSheep", "Owl", "Pegasus", "CloudWhale", "SkyGriffin" } },
+	{ id = "Thunder", name = "Thunder Egg", stage = 13, price = 3500000, color = Color3.fromRGB(90, 95, 120), accent = Color3.fromRGB(255, 235, 60),
+		pets = { "StaticHedgehog", "StormBat", "LightningWolf", "ThunderBird", "ThunderHydra" } },
+	{ id = "SkyIsland", name = "Sky Island Egg", stage = 15, price = 11000000, color = Color3.fromRGB(150, 210, 120), accent = Color3.fromRGB(255, 170, 110),
+		pets = { "SkySquirrel", "SunsetToucan", "IslandTurtle", "WindFox", "SunLion", "SkyLeviathan" } },
+	{ id = "Aurora", name = "Aurora Egg", stage = 17, price = 36000000, color = Color3.fromRGB(120, 230, 200), accent = Color3.fromRGB(190, 110, 255),
+		pets = { "AuroraHare", "CrystalOwl", "SpiritDeer", "AuroraWolf", "AuroraSerpent", "CelestialKirin" } },
+	{ id = "JetStream", name = "Jet Stream Egg", stage = 19, price = 120000000, color = Color3.fromRGB(235, 240, 250), accent = Color3.fromRGB(80, 170, 255),
+		pets = { "JetPenguin", "TurboHamster", "RocketHawk", "MechaShark", "TurboCheetah", "MechaDragon" } },
+	{ id = "Moon", name = "Moon Egg", stage = 21, price = 400000000, color = Color3.fromRGB(200, 205, 220), accent = Color3.fromRGB(220, 230, 255),
+		pets = { "MoonBunny", "Alien", "RoboDog", "UFOCat", "AstronautPup", "LunarWolf" } },
+	{ id = "Mars", name = "Mars Egg", stage = 23, price = 1300000000, color = Color3.fromRGB(200, 90, 50), accent = Color3.fromRGB(255, 110, 180),
+		pets = { "RockCrab", "MartianBlob", "RoverPup", "AsteroidGolem", "CrystalScorpion", "MarsDragon", "MarsCerberus" } },
+	{ id = "GasGiant", name = "Gas Giant Egg", stage = 25, price = 4500000000, color = Color3.fromRGB(220, 160, 100), accent = Color3.fromRGB(255, 220, 120),
+		pets = { "PuffCloudfish", "RingRay", "MoonTurtle", "JupiterJelly", "SaturnWhale", "CosmicKraken", "TwinRingDragon" } },
+	{ id = "Nebula", name = "Nebula Egg", stage = 27, price = 15000000000, color = Color3.fromRGB(150, 80, 230), accent = Color3.fromRGB(255, 120, 220),
+		pets = { "StarPuppy", "CometFox", "NebulaJelly", "NebulaDragon", "CosmicKitsune", "CrystalMammoth", "StarbornChimera" } },
+	{ id = "BlackHole", name = "Black Hole Egg", stage = 29, price = 50000000000, color = Color3.fromRGB(25, 15, 40), accent = Color3.fromRGB(190, 90, 255),
+		pets = { "VoidKitten", "QuasarBunny", "GalaxyUnicorn", "SingularitySerpent", "DarkMatterPanther", "VoidDragon", "GalaxyEmperor" } },
 }
+do
+	local base = 0.06
+	for i, egg in ipairs(Config.Eggs) do
+		egg.index = i
+		egg.base = base
+		base *= Config.EGG_STEP
+	end
+end
 
 -- Event eggs: hatched with an event currency, only while their event runs; built at runtime by
 -- the event's server script (HalloweenServer). Their pets are kept forever and have an Index set.
 Config.EventEggs = {
-	{ id = "Spooky", name = "Spooky Egg", stage = 1, price = 150, currency = "Candy", event = "Halloween", bonus = 0.18, color = Color3.fromRGB(130, 70, 200),
-		stand = Vector3.new(-150, 0, 40), pets = { Common = "PumpkinPup", Rare = "GhostKitty", Epic = "BatDragon", Legendary = "PumpkinKing" } },
+	{ id = "Spooky", name = "Spooky Egg", stage = 1, price = 150, currency = "Candy", event = "Halloween", base = 0.3, color = Color3.fromRGB(130, 70, 200), accent = Color3.fromRGB(255, 150, 40),
+		stand = Vector3.new(-150, 0, 40), pets = { "PumpkinPup", "GhostKitty", "BatDragon", "PumpkinKing" } },
 }
 
 -- Halloween 2026: candy from pickups, the Spooky Egg, lobby pumpkins. Ends by itself.
@@ -300,12 +340,89 @@ end
 
 Config.PET_NAMES = {
 	Puppy = "Puppy", Kitty = "Kitty", Bunny = "Bunny", RocketCorgi = "Rocket Corgi",
+	Fennec = "Fennec Fox", ScarabBeetle = "Scarab Beetle", MummyCat = "Mummy Cat", PharaohSphinx = "Pharaoh Sphinx",
 	Monkey = "Monkey", Parrot = "Parrot", TigerCub = "Tiger Cub", GoldenJaguar = "Golden Jaguar",
-	Penguin = "Penguin", PolarBear = "Polar Bear", SnowFox = "Snow Fox", IceDragon = "Ice Dragon",
-	CloudSheep = "Cloud Sheep", Owl = "Owl", Pegasus = "Pegasus", ThunderBird = "Thunder Bird",
-	MoonBunny = "Moon Bunny", Alien = "Alien", RoboDog = "Robo Dog", UFOCat = "UFO Cat",
-	StarPuppy = "Star Puppy", CometFox = "Comet Fox", NebulaDragon = "Nebula Dragon", GalaxyUnicorn = "Galaxy Unicorn",
+	Penguin = "Penguin", SnowFox = "Snow Fox", PolarBear = "Polar Bear", WoollyMammoth = "Woolly Mammoth", IceDragon = "Ice Dragon",
+	LavaSlime = "Lava Slime", FireSalamander = "Fire Salamander", MagmaGolem = "Magma Golem", Phoenix = "Phoenix", InfernoDragon = "Inferno Dragon",
+	CloudSheep = "Cloud Sheep", Owl = "Owl", Pegasus = "Pegasus", CloudWhale = "Cloud Whale", SkyGriffin = "Sky Griffin",
+	StaticHedgehog = "Static Hedgehog", StormBat = "Storm Bat", LightningWolf = "Lightning Wolf", ThunderBird = "Thunder Bird", ThunderHydra = "Thunder Hydra",
+	SkySquirrel = "Sky Squirrel", SunsetToucan = "Sunset Toucan", IslandTurtle = "Island Turtle", WindFox = "Wind Fox", SunLion = "Sun Lion", SkyLeviathan = "Sky Leviathan",
+	AuroraHare = "Aurora Hare", CrystalOwl = "Crystal Owl", SpiritDeer = "Spirit Deer", AuroraWolf = "Aurora Wolf", AuroraSerpent = "Aurora Serpent", CelestialKirin = "Celestial Kirin",
+	JetPenguin = "Jet Penguin", TurboHamster = "Turbo Hamster", RocketHawk = "Rocket Hawk", MechaShark = "Mecha Shark", TurboCheetah = "Turbo Cheetah", MechaDragon = "Mecha Dragon",
+	MoonBunny = "Moon Bunny", Alien = "Alien", RoboDog = "Robo Dog", UFOCat = "UFO Cat", AstronautPup = "Astronaut Pup", LunarWolf = "Lunar Wolf",
+	RockCrab = "Rock Crab", MartianBlob = "Martian Blob", RoverPup = "Rover Pup", AsteroidGolem = "Asteroid Golem", CrystalScorpion = "Crystal Scorpion", MarsDragon = "Mars Dragon", MarsCerberus = "Mars Cerberus",
+	PuffCloudfish = "Puff Cloudfish", RingRay = "Ring Ray", MoonTurtle = "Moon Turtle", JupiterJelly = "Jupiter Jelly", SaturnWhale = "Saturn Whale", CosmicKraken = "Cosmic Kraken", TwinRingDragon = "Twin Ring Dragon",
+	StarPuppy = "Star Puppy", CometFox = "Comet Fox", NebulaJelly = "Nebula Jelly", NebulaDragon = "Nebula Dragon", CosmicKitsune = "Cosmic Kitsune", CrystalMammoth = "Crystal Mammoth", StarbornChimera = "Starborn Chimera",
+	VoidKitten = "Void Kitten", QuasarBunny = "Quasar Bunny", GalaxyUnicorn = "Galaxy Unicorn", SingularitySerpent = "Singularity Serpent", DarkMatterPanther = "Dark Matter Panther", VoidDragon = "Void Dragon", GalaxyEmperor = "Galaxy Emperor",
 	PumpkinPup = "Pumpkin Pup", GhostKitty = "Ghost Kitty", BatDragon = "Bat Dragon", PumpkinKing = "Pumpkin King",
+}
+
+-- Pet effects (drawn by the client's PetFx module wherever the pet shows up). Each entry is a list
+-- of { preset, color? }: flame, embers, frost, spark, sparkle, glow (a light), jet, dust, void, aura.
+local C3 = Color3.fromRGB
+Config.PET_FX = {
+	RocketCorgi = { { "jet", C3(255, 150, 40) } },
+	MummyCat = { { "dust", C3(230, 200, 140) }, { "glow", C3(120, 255, 120) } },
+	PharaohSphinx = { { "sparkle", C3(255, 210, 80) }, { "dust", C3(230, 200, 140) }, { "glow", C3(255, 200, 90) } },
+	GoldenJaguar = { { "sparkle", C3(255, 210, 80) } },
+	IceDragon = { { "frost", C3(200, 240, 255) }, { "glow", C3(120, 210, 255) } },
+	LavaSlime = { { "embers", C3(255, 140, 40) }, { "glow", C3(255, 120, 30) } },
+	FireSalamander = { { "flame", C3(255, 120, 30) } },
+	MagmaGolem = { { "embers", C3(255, 140, 40) }, { "glow", C3(255, 110, 20) } },
+	Phoenix = { { "flame", C3(255, 150, 40) }, { "embers", C3(255, 200, 80) }, { "glow", C3(255, 140, 40) } },
+	InfernoDragon = { { "flame", C3(255, 100, 20) }, { "embers", C3(255, 170, 50) }, { "glow", C3(255, 110, 20) } },
+	SkyGriffin = { { "sparkle", C3(255, 230, 140) }, { "glow", C3(255, 220, 120) } },
+	StaticHedgehog = { { "spark", C3(255, 240, 80) } },
+	LightningWolf = { { "spark", C3(255, 240, 80) } },
+	ThunderBird = { { "spark", C3(255, 240, 80) }, { "glow", C3(255, 240, 120) } },
+	ThunderHydra = { { "spark", C3(255, 240, 80) }, { "glow", C3(150, 200, 255) }, { "aura", C3(120, 160, 255) } },
+	WindFox = { { "sparkle", C3(170, 255, 230) } },
+	SunLion = { { "sparkle", C3(255, 210, 80) }, { "glow", C3(255, 200, 80) } },
+	SkyLeviathan = { { "sparkle", C3(170, 220, 255) }, { "glow", C3(150, 210, 255) }, { "aura", C3(255, 220, 140) } },
+	AuroraHare = { { "sparkle", C3(140, 255, 190) } },
+	CrystalOwl = { { "sparkle", C3(170, 240, 255) } },
+	SpiritDeer = { { "sparkle", C3(200, 255, 230) }, { "glow", C3(180, 255, 220) } },
+	AuroraWolf = { { "sparkle", C3(150, 255, 200) }, { "glow", C3(170, 120, 255) } },
+	AuroraSerpent = { { "sparkle", C3(140, 255, 190) }, { "glow", C3(180, 120, 255) } },
+	CelestialKirin = { { "sparkle", C3(150, 255, 210) }, { "glow", C3(190, 140, 255) }, { "aura", C3(140, 255, 200) } },
+	JetPenguin = { { "jet", C3(255, 150, 40) } },
+	TurboHamster = { { "jet", C3(255, 150, 40) } },
+	RocketHawk = { { "jet", C3(90, 180, 255) } },
+	MechaShark = { { "jet", C3(80, 170, 255) }, { "glow", C3(80, 170, 255) } },
+	TurboCheetah = { { "jet", C3(80, 170, 255) }, { "spark", C3(140, 210, 255) } },
+	MechaDragon = { { "jet", C3(80, 170, 255) }, { "glow", C3(90, 180, 255) }, { "aura", C3(90, 180, 255) } },
+	UFOCat = { { "glow", C3(120, 255, 160) } },
+	AstronautPup = { { "sparkle", C3(220, 230, 255) } },
+	LunarWolf = { { "sparkle", C3(220, 230, 255) }, { "glow", C3(200, 215, 255) }, { "aura", C3(200, 215, 255) } },
+	MartianBlob = { { "glow", C3(120, 255, 120) } },
+	RoverPup = { { "dust", C3(210, 120, 80) } },
+	AsteroidGolem = { { "dust", C3(160, 150, 140) }, { "glow", C3(255, 150, 60) } },
+	CrystalScorpion = { { "sparkle", C3(255, 130, 200) }, { "glow", C3(255, 110, 180) } },
+	MarsDragon = { { "dust", C3(210, 110, 70) }, { "glow", C3(255, 120, 160) }, { "aura", C3(255, 110, 90) } },
+	MarsCerberus = { { "embers", C3(255, 120, 40) }, { "dust", C3(200, 100, 60) }, { "glow", C3(255, 90, 40) }, { "aura", C3(255, 90, 60) } },
+	PuffCloudfish = { { "dust", C3(255, 190, 120) } },
+	RingRay = { { "sparkle", C3(255, 220, 120) } },
+	JupiterJelly = { { "glow", C3(255, 170, 90) }, { "sparkle", C3(255, 200, 140) } },
+	SaturnWhale = { { "sparkle", C3(255, 225, 140) }, { "glow", C3(255, 220, 140) } },
+	CosmicKraken = { { "sparkle", C3(120, 160, 255) }, { "glow", C3(90, 130, 255) }, { "aura", C3(120, 160, 255) } },
+	TwinRingDragon = { { "sparkle", C3(255, 220, 120) }, { "glow", C3(255, 200, 100) }, { "aura", C3(255, 210, 110) } },
+	StarPuppy = { { "sparkle", C3(255, 240, 160) } },
+	CometFox = { { "sparkle", C3(170, 220, 255) } },
+	NebulaJelly = { { "sparkle", C3(255, 140, 230) }, { "glow", C3(220, 110, 255) } },
+	NebulaDragon = { { "sparkle", C3(220, 140, 255) }, { "glow", C3(200, 110, 255) } },
+	CosmicKitsune = { { "sparkle", C3(190, 140, 255) }, { "glow", C3(160, 110, 255) } },
+	CrystalMammoth = { { "frost", C3(180, 230, 255) }, { "glow", C3(120, 200, 255) }, { "aura", C3(140, 210, 255) } },
+	StarbornChimera = { { "sparkle", C3(230, 150, 255) }, { "glow", C3(200, 110, 255) }, { "aura", C3(255, 140, 230) } },
+	VoidKitten = { { "void", C3(170, 90, 255) } },
+	QuasarBunny = { { "sparkle", C3(190, 220, 255) }, { "glow", C3(170, 210, 255) } },
+	GalaxyUnicorn = { { "sparkle", C3(220, 160, 255) } },
+	SingularitySerpent = { { "void", C3(170, 90, 255) }, { "glow", C3(150, 70, 255) } },
+	DarkMatterPanther = { { "void", C3(190, 100, 255) }, { "glow", C3(160, 80, 255) } },
+	VoidDragon = { { "flame", C3(170, 70, 255) }, { "void", C3(190, 100, 255) }, { "glow", C3(160, 70, 255) }, { "aura", C3(150, 70, 255) } },
+	GalaxyEmperor = { { "sparkle", C3(255, 215, 110) }, { "void", C3(190, 110, 255) }, { "glow", C3(255, 200, 120) }, { "aura", C3(255, 210, 120) } },
+	GhostKitty = { { "sparkle", C3(220, 225, 255) } },
+	BatDragon = { { "void", C3(150, 80, 220) }, { "embers", C3(255, 150, 40) } },
+	PumpkinKing = { { "flame", C3(255, 140, 30) }, { "embers", C3(255, 150, 40) }, { "glow", C3(255, 140, 40) }, { "aura", C3(170, 90, 255) } },
 }
 
 -- every egg (regular + event), for building pets and the Pet Index
@@ -317,27 +434,36 @@ function Config.allEggs()
 	return list
 end
 
--- Pets[kind] = { id, name, egg, rarity, mult } (built from the eggs above)
+-- Pets[kind] = { id, name, egg, rarity, rank, chance, power, mult, height, top } (built from the eggs)
+-- top = the egg's best pet (announced to everyone when hatched).
 Config.Pets = {}
 for _, egg in ipairs(Config.allEggs()) do
-	for rarity, kind in pairs(egg.pets) do
+	local set = Config.EGG_SETS[#egg.pets]
+	egg.set = set
+	for rank, kind in ipairs(egg.pets) do
+		local rarity = set.rarity[rank]
 		Config.Pets[kind] = {
 			id = kind,
 			name = Config.PET_NAMES[kind] or kind,
 			egg = egg.id,
 			rarity = rarity,
-			mult = math.floor((1 + egg.bonus * Config.RARITY_POWER[rarity]) * 100 + 0.5) / 100,
+			rank = rank,
+			chance = set.chance[rank],
+			power = set.power[rank],
+			mult = math.floor((1 + egg.base * set.power[rank]) * 100 + 0.5) / 100,
+			height = Config.PET_HEIGHT[rarity],
+			top = rank == #egg.pets,
 		}
 	end
 end
 
--- Pet Index: owning all 4 pets of an egg (ever) completes its set: +10% money each.
-Config.INDEX_SET_BONUS = 0.1
+-- Pet Index: owning every pet of an egg (ever) completes its set: +6% money each.
+Config.INDEX_SET_BONUS = 0.06
 function Config.indexSets(index) -- index = { [kind] = true }
 	local n = 0
 	for _, egg in ipairs(Config.allEggs()) do
 		local all = true
-		for _, kind in pairs(egg.pets) do
+		for _, kind in ipairs(egg.pets) do
 			if not index[kind] then
 				all = false
 			end
@@ -499,7 +625,7 @@ Config.EVENT_EVERY = 900
 Config.EVENT_LENGTH = 300
 Config.EVENT_MONEY = 2 -- x money from flights
 Config.EVENT_FUEL = 1.25 -- x fuel
-Config.EVENT_LUCK = 2 -- x Epic / Legendary chance
+Config.EVENT_LUCK = 2 -- x Epic-and-better chance
 Config.Events = {
 	Money = { name = "x2 MONEY", desc = "All flight money is doubled!", color = Color3.fromRGB(80, 210, 90), icon = "MoneyBag" },
 	Luck = { name = "LUCKY EGGS x2", desc = "Epic + Legendary pets are 2x more likely!", color = Color3.fromRGB(60, 190, 110), icon = "Clover" },
@@ -531,7 +657,7 @@ Config.Gamepasses = {
 	{ key = "DoubleMoney", id = 2006181522, name = "2x Money", icon = "MoneyBag", robux = 149, color = Color3.fromRGB(80, 200, 90), desc = "Earn double money from every flight, coin and gem!" },
 	{ key = "VIP", id = 2008281539, name = "VIP", icon = "Crown", robux = 199, color = Color3.fromRGB(255, 190, 40), desc = "+25% money, +1 pet slot, gold VIP tag over your head and in chat." },
 	{ key = "RainbowPets", id = 2006865453, name = "Rainbow Pets", icon = "Rainbow", robux = 179, color = Color3.fromRGB(235, 90, 200), desc = "Your pets turn rainbow: their money boost is x1.5!" },
-	{ key = "LuckyEggs", id = 2005683456, name = "Lucky Eggs", icon = "Clover", robux = 99, color = Color3.fromRGB(60, 190, 110), desc = "Epic and Legendary pets are 3x more likely when you hatch." },
+	{ key = "LuckyEggs", id = 2005683456, name = "Lucky Eggs", icon = "Clover", robux = 99, color = Color3.fromRGB(60, 190, 110), desc = "Epic and rarer pets are 3x more likely when you hatch." },
 	{ key = "PetSlots", id = 2006871467, name = "+3 Pet Slots", icon = "Paw", robux = 129, color = Color3.fromRGB(110, 140, 240), desc = "Equip 3 more pets at once." },
 	{ key = "MegaFuel", id = 2005743470, name = "Mega Fuel", icon = "FuelCan", robux = 49, color = Color3.fromRGB(255, 150, 40), desc = "+50% fuel on every rocket: fly much farther!" },
 }
@@ -549,16 +675,20 @@ Config.PASS = {
 }
 -- hatch chances (%) per rarity; Lucky Eggs pass: Epic + Legendary x3, the Lucky Eggs server
 -- event another x2; the extra chance is taken from Common
-function Config.rarityChances(lucky, luckEvent)
-	local chance = table.clone(Config.RARITY_CHANCE)
+-- Chance (%) of each pet in `egg` (same order as egg.pets). Lucky Eggs pass / luck events
+-- multiply Epic-and-better chances; the Common pays for it.
+function Config.eggChances(egg, lucky, luckEvent)
+	local chance = table.clone(egg.set.chance)
 	local factor = (lucky and Config.PASS.LuckyEggs or 1) * (luckEvent and Config.EVENT_LUCK or 1)
 	if factor > 1 then
 		local extra = 0
-		for _, r in ipairs({ "Epic", "Legendary" }) do
-			extra += chance[r] * (factor - 1)
-			chance[r] *= factor
+		for rank, rarity in ipairs(egg.set.rarity) do
+			if Config.Rarities[rarity].order >= Config.Rarities.Epic.order then
+				extra += chance[rank] * (factor - 1)
+				chance[rank] *= factor
+			end
 		end
-		chance.Common = math.max(0, chance.Common - extra)
+		chance[1] = math.max(0, chance[1] - extra)
 	end
 	return chance
 end

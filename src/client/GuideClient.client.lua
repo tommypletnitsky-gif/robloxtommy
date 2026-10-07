@@ -99,9 +99,9 @@ local function currentStep()
 	end
 	local egg = Config.Eggs[1]
 	if (player:GetAttribute("StatEggs") or 0) == 0 and flights >= 2 and money >= egg.price then
-		local garden = hub() and hub():FindFirstChild("EggGarden")
-		local stand = garden and garden:FindFirstChild("Egg_" .. egg.id)
-		return "world", stand and stand:FindFirstChild("PromptPart"), "Hatch your first pet in the Egg Garden! 🥚"
+		local hatchery = hub() and hub():FindFirstChild("Hatchery")
+		local stand = hatchery and hatchery:FindFirstChild("Egg_" .. egg.id)
+		return "world", stand and stand:FindFirstChild("PromptPart"), "Hatch your first pet in the Hatchery! 🥚"
 	end
 	if (player:GetAttribute("Rebirths") or 0) == 0 and unlocked >= Config.rebirthStage(0) then
 		-- (the portal's own "Door" prompt part is a direct child; the stone portal model is nested)

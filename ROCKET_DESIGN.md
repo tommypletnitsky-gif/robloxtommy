@@ -241,3 +241,29 @@ income. Changes:
   - Long term: rival flags for other players' bests, races ranked by % of your own track,
     rebirth-only trails (Stardust 1, Comet 2, Aurora 3, Supernova 5, Black Hole 8), rebirth
     celebration.
+
+## Eggs + Pets v2 (2026-10-07, owner: "ONLY do the eggs and pets ... really make it look good")
+- 15 eggs, one per pair of stages, each looking like where it comes from: Meadow, Ancient Sands
+  (bones floating on a purple magnetic chain), Jungle, Ice Age (frozen egg with mammoth tusks),
+  Magma (obsidian with glowing lava cracks, embers, flickering light), Cloud (halo), Thunder
+  (storm clouds + electric arcs), Sky Island, Aurora (light ribbons), Jet Stream (mini jets with
+  contrails), Moon (satellite), Mars (asteroids, dust storm), Gas Giant (ring + moons), Nebula
+  (comets), Black Hole (accretion disk, stars spiralling in). Cheap eggs move a little, expensive
+  eggs a lot (EggLooks).
+- 84 pets (+4 Halloween): 4 per egg early, then 5, 6, 7; rarities Common .. Legendary, Mythic,
+  Secret; bosses have several heads (Thunder Hydra, Mars Cerberus, Twin Ring Dragon, Starborn
+  Chimera, Galaxy Emperor). Effects per pet (PetFx: flames, embers, frost, sparks, glow, jets,
+  void, aura), rarer = bigger.
+- Economy: base 0.06 x1.4 per egg; inside an egg powers 1 .. 1.4 + a chase pet (x3/4/6/10);
+  the owner's rule holds (an egg's worst pet >= the previous egg's 2nd best). Prices 2.5K .. 50B.
+  Sim: stage 10 ~85 min, stage 20 ~8 h. Index set bonus 6% (15 sets).
+- The Hatchery: the meadow behind the spawn, a walk through Earth / Sky / Space areas with an
+  arch each; every egg on its own diorama. 3D hatch show (HatchShow): eggs drop in, shake harder,
+  Epic+ glow in their rarity colour, burst into shell pieces, the pet springs out with effects.
+- Assets: generate_mesh -> ServerStorage.EggGen -> tools/normalize_eggs.lua -> EggModels /
+  PetModels / EggProps (place-only: Save + Publish).
+- Halloween: the Spooky Egg is a carved purple jack-o'-lantern lit from inside, with bats circling,
+  ghost wisps and fog, on a little graveyard (gravestones, dead tree, candles) at the Hatchery
+  entrance; a new Pumpkin King (crown, scepter, cape, flames).
+- Egg window: 6-7 pet eggs show two centred rows; the hatch buttons stay pinned under the cards
+  (they scrolled out of sight on phones). Hatch show text shrinks on phones; the joystick hides.

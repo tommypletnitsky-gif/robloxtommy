@@ -1,5 +1,5 @@
 -- Lobby life (client-only visuals): things tagged LobbySpin turn slowly (attribute SpinSpeed) and
--- bob up and down (attribute Bob = height), e.g. the eggs in the Egg Garden.
+-- bob up and down (attribute Bob = height), e.g. the landmark labels and the event egg.
 -- Only runs while the camera is near the lobby.
 local CollectionService = game:GetService("CollectionService")
 local RunService = game:GetService("RunService")

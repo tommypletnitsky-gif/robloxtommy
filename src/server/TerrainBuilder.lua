@@ -76,7 +76,7 @@ local plazaMinX, plazaMaxX = Config.HUB_CENTER.X - 92, Config.HUB_CENTER.X + 92
 
 -- Paved spots in the lobby park: the terrain sits a little lower there and has no grass blades.
 local function underPaving(x, z)
-	return LobbyLayout.inPark(x, z) and LobbyLayout.isPaved(x, z)
+	return (LobbyLayout.inPark(x, z) or LobbyLayout.inHatchery(x, z)) and LobbyLayout.isPaved(x, z)
 end
 
 -- Height of the ground (top surface) at (x, z), and whether water fills above it.
@@ -92,6 +92,10 @@ function TerrainBuilder.height(x, z)
 		local plazaFlat = (1 - smoothstep(0, 40, dx)) * (1 - smoothstep(88, 140, d))
 		flat = math.max(flat, plazaFlat)
 	end
+	-- the Hatchery behind the spawn: flat, easing back into the hills over 30 studs
+	local hf = LobbyLayout.HATCHERY.flat
+	local out = math.max(hf[1] - x, x - hf[2], hf[3] - z, z - hf[4], 0)
+	flat = math.max(flat, 1 - smoothstep(0, 30, out))
 
 	local hillsAmp = blended(x, "hills")
 	local mountAmp = blended(x, "mountains")

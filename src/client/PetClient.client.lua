@@ -1,14 +1,13 @@
 -- Eggs + pets (client):
---   * Egg window: walk up to an egg in the Egg Garden and press E. Shows its 4 pets (chance + money
---     boost) and Hatch x1 / x3.
---   * Hatch show: the egg wobbles while a "roll" flickers through its pets, then cracks with a flash
---     and reveals what you got (rarity color, boost, NEW!). Click / tap or wait to close.
+--   * Egg window: walk up to an egg in the Hatchery and press E. Shows its 4-7 pets (rarity, money
+--     boost, chance) and Hatch x1 / x3.
+--   * Hatch show: the 3D show in HatchShow (egg shakes, cracks, the pet springs out with its effects).
 --   * PETS button: your pets. Click a pet to equip / unequip, Equip Best, delete (click twice).
 --   * Golden pets: a "⭐ n/5" tag shows how many copies you have; with 5 it turns gold: press it
 --     twice to fuse 5 copies into one Golden pet (2.5x the bonus), with its own reveal show.
---   * Pets follow every player (drawn on each client, so they move smoothly): they hop behind you
---     when you walk (they stay behind while you fly).
---   * The boards above the eggs show 🔒 for eggs you haven't unlocked yet.
+--   * Pets follow every player (drawn on each client, so they move smoothly) with their effects
+--     (PetFx): they hop behind you when you walk (they stay behind while you fly).
+--   * (The boards above the eggs: HatcheryClient.)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -29,7 +28,14 @@ local abbreviate, multText = Config.abbreviate, Config.multText
 local INK_SOFT = Color3.fromRGB(70, 70, 100)
 local GREEN, BLUE, GREY, RED = Color3.fromRGB(80, 200, 90), Color3.fromRGB(70, 140, 255), Color3.fromRGB(160, 165, 185), Color3.fromRGB(235, 90, 90)
 local PINK = Color3.fromRGB(255, 120, 190)
-local RARITIES = { "Common", "Rare", "Epic", "Legendary" }
+local modules = script.Parent:WaitForChild("ClientModules")
+local PetFx = require(modules:WaitForChild("PetFx"))
+local HatchShow = require(modules:WaitForChild("HatchShow"))
+
+-- rarity colour for UI (Secret is black in the game: draw it a deep purple-black with white text)
+local function rarityColor(rarity)
+	return Config.Rarities[rarity].color
+end
 
 -- Models ---------------------------------------------------------------------------------------
 local petFolder = ReplicatedStorage:WaitForChild("PetModels", 10)
@@ -161,32 +167,50 @@ local function windowTitle(w)
 end
 
 -- Egg window --------------------------------------------------------------------------------------
-local eggWindow, eggList = UIKit.window("Egg", GREEN, UDim2.fromOffset(640, 400))
+local eggWindow, eggList = UIKit.window("Egg", GREEN, UDim2.fromOffset(700, 372))
 local eggTitle = windowTitle(eggWindow)
 local currentEgg = nil -- the egg def while its window is open
 local eggPrompt = nil -- the prompt's part (window closes when you walk away)
 local hatching = false
 
-local cardsRow = make("Frame", { Parent = eggList, LayoutOrder = 1, Size = UDim2.new(1, -12, 0, 196), BackgroundTransparency = 1, ZIndex = 11 }, {
-	make("UIGridLayout", { CellSize = UDim2.fromOffset(128, 190), CellPadding = UDim2.fromOffset(8, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
+-- the cards wrap into centered rows; `cards` is narrowed to force 3+3 / 4+3 for the big eggs
+-- (both have a layout, so the window's opening animation still pops the cards one by one)
+local cardsRow = make("Frame", { Parent = eggList, LayoutOrder = 1, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
+	make("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center }),
 })
-local eggCards = {}
-for i, rarity in ipairs(RARITIES) do
-	local color = Config.Rarities[rarity].color
-	local card = make("Frame", { Parent = cardsRow, LayoutOrder = i, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(16), UIKit.stroke(4, color) })
-	make("UIGradient", { Parent = card, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), UIKit.lighter(color, 0.7)) })
-	if rarity == "Legendary" then
-		UIKit.rays(card, { Position = UDim2.fromOffset(64, 52), Size = UDim2.fromOffset(124, 124), Color = color, Transparency = 0.2, ZIndex = 12 })
+local cards = make("Frame", { Parent = cardsRow, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Wraps = true, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
+})
+
+-- one card per pet of the egg: picture, name, rarity, money multiplier, chance
+local function eggCard(egg, rank, kind, chance)
+	local pet = Config.Pets[kind]
+	local color = rarityColor(pet.rarity)
+	local card = make("Frame", { Parent = cards, LayoutOrder = rank, Size = UDim2.fromOffset(118, 178), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(16), UIKit.stroke(pet.top and 5 or 3.5, color) })
+	make("UIGradient", { Parent = card, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), UIKit.lighter(color, pet.rarity == "Secret" and 0.35 or 0.7)) })
+	if Config.Rarities[pet.rarity].order >= Config.Rarities.Legendary.order then
+		UIKit.rays(card, { Position = UDim2.fromOffset(59, 50), Size = UDim2.fromOffset(118, 118), Color = pet.rarity == "Secret" and Color3.fromRGB(200, 120, 255) or color, Transparency = 0.2, ZIndex = 12 })
 	end
-	local holder = make("Frame", { Parent = card, Position = UDim2.fromOffset(9, 6), Size = UDim2.fromOffset(110, 92), BackgroundTransparency = 1, ZIndex = 13 })
-	local name = label({ Parent = card, Position = UDim2.fromOffset(4, 98), Size = UDim2.new(1, -8, 0, 24), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
-	label({ Parent = card, Position = UDim2.fromOffset(4, 122), Size = UDim2.new(1, -8, 0, 20), Text = rarity, TextColor3 = color, StrokeThickness = 1.5, ZIndex = 13 })
-	local boost = label({ Parent = card, Position = UDim2.fromOffset(4, 143), Size = UDim2.new(1, -8, 0, 22), Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 13 })
-	local chanceText = label({ Parent = card, Position = UDim2.fromOffset(4, 165), Size = UDim2.new(1, -8, 0, 20), Text = Config.RARITY_CHANCE[rarity] .. "%", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
-	eggCards[rarity] = { holder = holder, name = name, boost = boost, chance = chanceText }
+	local holder = make("Frame", { Parent = card, Position = UDim2.fromOffset(6, 4), Size = UDim2.fromOffset(106, 90), BackgroundTransparency = 1, ZIndex = 13 })
+	viewport(holder, petModel(kind), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })
+	label({ Parent = card, Position = UDim2.fromOffset(4, 94), Size = UDim2.new(1, -8, 0, 24), Text = pet.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
+	local r = label({ Parent = card, Position = UDim2.fromOffset(4, 118), Size = UDim2.new(1, -8, 0, 18), Text = pet.rarity, TextColor3 = pet.rarity == "Secret" and Color3.new(1, 1, 1) or color, StrokeThickness = pet.rarity == "Secret" and 2.5 or 1.5, ZIndex = 13 })
+	if pet.rarity == "Secret" then
+		r.TextColor3 = Color3.fromRGB(40, 20, 60)
+		r:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(200, 120, 255)
+	end
+	label({ Parent = card, Position = UDim2.fromOffset(4, 137), Size = UDim2.new(1, -8, 0, 20), Text = multText(pet.mult) .. " 💰", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 13 })
+	local lucky = Config.hasPass(player, "LuckyEggs")
+	local pct = chance >= 1 and string.format("%.4g%%", chance) or string.format("%.2g%%", chance)
+	label({ Parent = card, Position = UDim2.fromOffset(4, 157), Size = UDim2.new(1, -8, 0, 17), Text = (lucky and "🍀 " or "") .. pct, TextColor3 = lucky and Color3.fromRGB(40, 160, 70) or INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
 end
 
-local hatchRow = UIKit.row(eggList, 2, 84)
+-- the hatch buttons sit pinned under the scrolling cards, so they never scroll out of sight (phones)
+local hatchRow = UIKit.row(eggWindow, 0, 84)
+hatchRow.AnchorPoint = Vector2.new(0.5, 1)
+hatchRow.Position = UDim2.new(0.5, 0, 1, -14)
+hatchRow.Size = UDim2.new(1, -44, 0, 84)
+eggList.Size = UDim2.new(1, -32, 1, -168)
 local lockLabel = label({ Parent = hatchRow, Position = UDim2.fromOffset(16, 10), Size = UDim2.new(1, -32, 1, -20), Text = "", TextColor3 = RED, StrokeThickness = 0, ZIndex = 12, Visible = false })
 local hatch1 = UIKit.button({ Parent = hatchRow, Text = "", Color = GREEN, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.5, 0), Size = UDim2.new(0.5, -21, 0, 62), ZIndex = 12 })
 local hatch3 = UIKit.button({ Parent = hatchRow, Text = "", Color = BLUE, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0), Size = UDim2.new(0.5, -21, 0, 62), ZIndex = 12 })
@@ -217,21 +241,32 @@ local function openEgg(egg, promptPart)
 	currentEgg = egg
 	eggPrompt = promptPart
 	eggTitle.Text = egg.name
-	local eggModel = promptPart and promptPart.Parent and promptPart.Parent:FindFirstChild("Egg")
-	UIKit.setWindowIcon(eggWindow, eggModel and eggModel:IsA("Model") and eggModel or nil)
-	for rarity, c in pairs(eggCards) do
-		local kind = egg.pets[rarity]
-		local pet = Config.Pets[kind]
-		c.name.Text = pet.name
-		c.boost.Text = multText(pet.mult) .. " 💰"
-		local lucky = Config.hasPass(player, "LuckyEggs")
-		c.chance.Text = (lucky and "🍀 " or "") .. Config.rarityChances(lucky, Config.activeEvent() == "Luck" or (player:GetAttribute("BoostLuckUntil") or 0) > workspace:GetServerTimeNow())[rarity] .. "%"
-		c.chance.TextColor3 = lucky and Color3.fromRGB(40, 160, 70) or INK_SOFT
-		c.holder:ClearAllChildren()
-		viewport(c.holder, petModel(kind), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })
+	local template = eggFolder and eggFolder:FindFirstChild(egg.id)
+	UIKit.setWindowIcon(eggWindow, template and template:IsA("Model") and template or nil)
+	for _, c in ipairs(cards:GetChildren()) do
+		if c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+	local luck = Config.activeEvent() == "Luck" or (player:GetAttribute("BoostLuckUntil") or 0) > workspace:GetServerTimeNow()
+	local chances = Config.eggChances(egg, Config.hasPass(player, "LuckyEggs"), luck)
+	for rank, kind in ipairs(egg.pets) do
+		eggCard(egg, rank, kind, chances[rank])
+	end
+	-- 6-7 pets: two rows (3+3 / 4+3) in a taller window, so the hatch buttons stay in view
+	local n = #egg.pets
+	cards.Size = n == 6 and UDim2.fromOffset(380, 0) or n == 7 and UDim2.fromOffset(504, 0) or UDim2.new(1, 0, 0, 0)
+	local design = Vector2.new(700, n > 5 and 556 or 372)
+	local reopen = false
+	if eggWindow:GetAttribute("DesignSize") ~= design then
+		eggWindow:SetAttribute("DesignSize", design)
+		if eggWindow.Visible then
+			UIKit.close(eggWindow) -- (opens again below at the new size)
+			reopen = true
+		end
 	end
 	refreshEggWindow()
-	if not eggWindow.Visible then
+	if reopen or not eggWindow.Visible then
 		UIKit.toggle(eggWindow)
 	end
 end
@@ -262,23 +297,6 @@ local function makeSlot(count)
 	return { slot = slot, rays = rays, holder = holder, roll = roll, sub = sub, new = new }
 end
 
--- 8 bits of white shell fly out of the egg as it cracks
-local function crackShells(s)
-	local ar = s.slot.AbsoluteSize.X / math.max(s.slot.AbsoluteSize.Y, 1) -- keeps the burst round
-	local from = s.holder.Position
-	for i = 1, 8 do
-		local a = (i / 8 + math.random() * 0.06) * math.pi * 2
-		local d = 0.35 + math.random() * 0.2
-		local piece = make("Frame", { Parent = s.slot, AnchorPoint = Vector2.new(0.5, 0.5), Position = from, Size = UDim2.fromScale(0.07, 0.07), Rotation = math.random(0, 90), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 53 }, {
-			make("UIAspectRatioConstraint", { AspectRatio = 1.3 }),
-			make("UICorner", { CornerRadius = UDim.new(0.35, 0) }),
-		})
-		local to = from + UDim2.fromScale(math.cos(a) * d, math.sin(a) * d * ar)
-		TweenService:Create(piece, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = to, Rotation = piece.Rotation + math.random(-200, 200), BackgroundTransparency = 1 }):Play()
-		game:GetService("Debris"):AddItem(piece, 0.6)
-	end
-end
-
 local spinning = {} -- models spinning in the show
 RunService.RenderStepped:Connect(function(dt)
 	if not overlay.Visible then
@@ -307,137 +325,15 @@ local function playHatch(egg, results)
 			before[p.kind] = true
 		end
 	end
-
-	for _, c in ipairs(slotsHolder:GetChildren()) do
-		if c:IsA("Frame") then
-			c:Destroy()
-		end
-	end
-	table.clear(spinning)
-	hint.Visible = false
-	overlay.Visible = true
-	overlay.BackgroundTransparency = 1
-	TweenService:Create(overlay, TweenInfo.new(0.25), { BackgroundTransparency = 0.35 }):Play()
 	local eggWasOpen = eggWindow.Visible
 	eggWindow.Visible = false -- the show gets the whole screen
-
-	local slots = {}
-	for i, r in ipairs(results) do
-		local s = makeSlot(#results)
-		s.result = r
-		s.eggModel = eggModel(egg)
-		s.eggVp = viewport(s.holder, s.eggModel, { Size = UDim2.fromScale(1, 1), ZIndex = 52 })
-		slots[i] = s
-		UIKit.bounce(s.holder)
-	end
-
-	-- the roll: names flicker faster than you can read, then slow down... while the egg wobbles
-	local kinds = {}
-	for _, rarity in ipairs(RARITIES) do
-		table.insert(kinds, egg.pets[rarity])
-	end
-	-- the best rarity in this hatch: Epic / Legendary eggs tease it at the end of the roll
-	local best = "Common"
-	for _, r in ipairs(results) do
-		local rarity = Config.Pets[r.kind].rarity
-		if Config.Rarities[rarity].order > Config.Rarities[best].order then
-			best = rarity
-		end
-	end
-	local bestColor = Config.Rarities[best].color
-	local tease = Config.Rarities[best].order >= 3
-	local ambient = slots[1].eggVp.Ambient
-	local t0 = os.clock()
-	local DUR = 2.1
-	local nextTick, idx = 0, 0
-	while os.clock() - t0 < DUR do
-		local t = os.clock() - t0
-		local p = t / DUR
-		local amp = math.rad(4 + 26 * p)
-		-- last 0.4 s: a harder wobble and the egg glows with the rarity color
-		local glow = (tease and p > 0.8) and (p - 0.8) / 0.2 or 0
-		if glow > 0 then
-			amp *= 1 + 0.6 * math.min(glow * 4, 1)
-		end
-		for _, s in ipairs(slots) do
-			s.eggModel:PivotTo(CFrame.Angles(0, 0, math.sin(t * (14 + 16 * p)) * amp))
-			if glow > 0 then
-				s.eggVp.Ambient = ambient:Lerp(bestColor, glow * 0.8)
-			end
-		end
-		if t >= nextTick then
-			idx += 1
-			for k, s in ipairs(slots) do
-				local kind = kinds[(idx + k) % #kinds + 1]
-				local pet = Config.Pets[kind]
-				s.roll.Text = pet.name
-				s.roll.TextColor3 = Config.Rarities[pet.rarity].color
-			end
-			UIKit.sound("Tick", 0.35, 0.9 + p * 0.7)
-			nextTick = t + 0.05 + p * p * 0.3
-		end
-		RunService.RenderStepped:Wait()
-	end
-
-	-- crack!
-	UIKit.sound("Boom", 0.35, 1.6)
-	UIKit.sound("Pop", 0.7, 0.8)
-	-- the flash takes the best rarity's color (white for Common)
-	flash.BackgroundColor3 = best == "Common" and Color3.new(1, 1, 1) or bestColor:Lerp(Color3.new(1, 1, 1), 0.4)
-	flash.BackgroundTransparency = 0
-	TweenService:Create(flash, TweenInfo.new(0.45), { BackgroundTransparency = 1 }):Play()
-	for _, s in ipairs(slots) do
-		local pet = Config.Pets[s.result.kind]
-		local color = Config.Rarities[pet.rarity].color
-		crackShells(s)
-		s.holder:ClearAllChildren()
-		local m = petModel(s.result.kind)
-		viewport(s.holder, m, { Size = UDim2.fromScale(1, 1), ZIndex = 52 })
-		UIKit.bounce(s.holder)
-		s.roll.Text = pet.name
-		s.roll.TextColor3 = Color3.new(1, 1, 1)
-		s.sub.Text = pet.rarity .. "  •  " .. multText(pet.mult) .. " 💰"
-		s.sub.TextColor3 = color
-		s.rays.ImageColor3 = color
-		s.rays.ImageTransparency = 0.1
-		if pet.rarity == "Legendary" then
-			-- Legendary: the rays grow to 1.6x
-			local sz = s.rays.Size
-			TweenService:Create(s.rays, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromScale(sz.X.Scale * 1.6, sz.Y.Scale * 1.6) }):Play()
-		end
-		s.new.Visible = not before[s.result.kind]
-		if s.new.Visible then
-			UIKit.bounce(s.new)
-		end
-		table.insert(spinning, { rays = s.rays, model = m, spin = true })
-	end
-	-- the rarer the pet, the bigger the sound
-	if best == "Legendary" then
-		UIKit.sound("Fanfare", 0.8)
-		UIKit.sound("Jingle", 0.5, 1.2)
-	elseif best == "Epic" then
-		UIKit.sound("Jingle", 0.65, 1)
-	elseif best == "Rare" then
-		-- a moment after the Boom, or UIKit skips it as a stacked small sound
-		task.delay(0.08, UIKit.sound, "Gem", 0.6, 1.1)
-	else
-		task.delay(0.08, UIKit.sound, "Gem", 0.5, 0.95)
-	end
-
-	-- wait for a click (or a few seconds)
-	task.wait(0.6)
-	hint.Visible = true
-	local closed = false
-	local conn = overlay.Activated:Connect(function()
-		closed = true
-	end)
-	local tEnd = os.clock() + 3.5
-	while not closed and os.clock() < tEnd do
-		task.wait(0.05)
-	end
-	conn:Disconnect()
-	overlay.Visible = false
-	table.clear(spinning)
+	HatchShow.play(egg, results, {
+		petModel = petModel,
+		eggModel = eggModel,
+		isNew = function(kind)
+			return not before[kind]
+		end,
+	})
 	eggWindow.Visible = eggWasOpen and currentEgg == egg
 	hatching = false
 	refreshEggWindow()
@@ -488,35 +384,6 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
--- Boards above the eggs: 🔒 until you unlock the egg's stage
-local function refreshBoards()
-	local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
-	local garden = hub and hub:FindFirstChild("EggGarden")
-	if not garden then
-		return
-	end
-	local stage = player:GetAttribute("UnlockedStage") or 1
-	for _, stand in ipairs(garden:GetChildren()) do
-		local egg = Config.getEgg(stand:GetAttribute("Egg") or "")
-		local board = stand:FindFirstChild("Board")
-		local lock = board and board:FindFirstChild("Lock", true)
-		if egg and lock then
-			if stage >= egg.stage then
-				lock.Text = "Press E to hatch!"
-				lock.TextColor3 = Color3.fromRGB(255, 255, 255)
-			else
-				lock.Text = "🔒 Stage " .. egg.stage
-				lock.TextColor3 = Color3.fromRGB(255, 120, 120)
-			end
-		end
-	end
-end
-player:GetAttributeChangedSignal("UnlockedStage"):Connect(refreshBoards)
-task.spawn(function()
-	workspace:WaitForChild("World"):WaitForChild("Hub"):WaitForChild("EggGarden", 30)
-	refreshBoards()
-end)
-
 -- Pets window ---------------------------------------------------------------------------------------
 local petsWindow, petsList = UIKit.window("Pets", PINK, UDim2.fromOffset(680, 500), "Paw")
 local topRow = UIKit.row(petsList, 0, 66)
@@ -533,18 +400,19 @@ local indexHeadText = label({ Parent = indexHead, Position = UDim2.fromOffset(14
 local indexCards = {} -- [kind] = { vp, name }
 local eggHeads = {} -- [egg.id] = { label, card }
 for i, egg in ipairs(Config.allEggs()) do
-	local section = UIKit.card(indexList, { LayoutOrder = i, Size = UDim2.new(1, -12, 0, 214), ZIndex = 11, Tint = UIKit.lighter(egg.color, 0.7) })
+	local rows = math.ceil(#egg.pets / 5)
+	local section = UIKit.card(indexList, { LayoutOrder = i, Size = UDim2.new(1, -12, 0, 52 + rows * 148), ZIndex = 11, Tint = UIKit.lighter(egg.color, 0.7) })
 	local head = label({ Parent = section, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-	local row = make("Frame", { Parent = section, Position = UDim2.fromOffset(10, 44), Size = UDim2.new(1, -20, 0, 160), BackgroundTransparency = 1, ZIndex = 12 }, {
-		make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
+	local row = make("Frame", { Parent = section, Position = UDim2.fromOffset(10, 44), Size = UDim2.new(1, -20, 0, rows * 148), BackgroundTransparency = 1, ZIndex = 12 }, {
+		make("UIGridLayout", { CellSize = UDim2.fromOffset(118, 140), CellPadding = UDim2.fromOffset(8, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
-	for j, rarity in ipairs(RARITIES) do
-		local kind = egg.pets[rarity]
-		local color = Config.Rarities[rarity].color
-		local card = make("Frame", { Parent = row, LayoutOrder = j, Size = UDim2.fromOffset(140, 156), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(16), UIKit.stroke(3.5, color) })
-		local vp = viewport(card, petModel(kind), { Position = UDim2.fromOffset(10, 4), Size = UDim2.fromOffset(120, 100), ZIndex = 13 })
-		local name = label({ Parent = card, Position = UDim2.fromOffset(4, 104), Size = UDim2.new(1, -8, 0, 24), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
-		label({ Parent = card, Position = UDim2.fromOffset(4, 128), Size = UDim2.new(1, -8, 0, 20), Text = rarity, TextColor3 = color, StrokeThickness = 1.5, ZIndex = 13 })
+	for j, kind in ipairs(egg.pets) do
+		local rarity = Config.Pets[kind].rarity
+		local color = rarityColor(rarity)
+		local card = make("Frame", { Parent = row, LayoutOrder = j, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(16), UIKit.stroke(3.5, color) })
+		local vp = viewport(card, petModel(kind), { Position = UDim2.fromOffset(9, 4), Size = UDim2.fromOffset(100, 88), ZIndex = 13 })
+		local name = label({ Parent = card, Position = UDim2.fromOffset(4, 92), Size = UDim2.new(1, -8, 0, 22), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
+		label({ Parent = card, Position = UDim2.fromOffset(4, 114), Size = UDim2.new(1, -8, 0, 18), Text = rarity, TextColor3 = rarity == "Secret" and Color3.fromRGB(40, 20, 60) or color, StrokeThickness = 1.5, ZIndex = 13 })
 		indexCards[kind] = { vp = vp, name = name }
 	end
 	eggHeads[egg.id] = { label = head, egg = egg }
@@ -565,11 +433,13 @@ local function refreshIndex()
 	end
 	for _, h in pairs(eggHeads) do
 		local n = 0
-		for _, kind in pairs(h.egg.pets) do
+		for _, kind in ipairs(h.egg.pets) do
 			n += have[kind] and 1 or 0
 		end
-		local done = n == 4
-		h.label.Text = h.egg.name .. "   " .. n .. " / 4" .. (done and "   ✔ +10% money!" or "   (find all 4: +10% money)")
+		local total = #h.egg.pets
+		local bonus = math.floor(Config.INDEX_SET_BONUS * 100 + 0.5)
+		local done = n == total
+		h.label.Text = h.egg.name .. "   " .. n .. " / " .. total .. (done and ("   ✔ +" .. bonus .. "% money!") or ("   (find all " .. total .. ": +" .. bonus .. "% money)"))
 		h.label.TextColor3 = done and Color3.fromRGB(40, 160, 70) or UIKit.INK
 	end
 	local total = 0
@@ -597,7 +467,7 @@ local emptyIcon = make("Frame", { Parent = emptyLabel, AnchorPoint = Vector2.new
 UIKit.rays(emptyLabel, { Position = UDim2.new(0.5, 0, 0, 62), Size = UDim2.fromOffset(170, 170), Color = Color3.fromRGB(255, 160, 210), ZIndex = 12 })
 UIKit.icon3D(emptyIcon, petFolder and petFolder:FindFirstChild("Puppy") or "Paw", { ZIndex = 13 })
 label({ Parent = emptyLabel, Position = UDim2.fromOffset(14, 120), Size = UDim2.new(1, -28, 0, 40), Text = "No pets yet!", TextColor3 = UIKit.darker(PINK, 0.15), StrokeThickness = 0, ZIndex = 13 })
-label({ Parent = emptyLabel, Position = UDim2.fromOffset(14, 162), Size = UDim2.new(1, -28, 0, 30), Text = "🥚 Hatch eggs in the Egg Garden next to the spawn", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
+label({ Parent = emptyLabel, Position = UDim2.fromOffset(14, 162), Size = UDim2.new(1, -28, 0, 30), Text = "🥚 Hatch eggs in the Hatchery behind the spawn", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
 local grid = make("Frame", { Parent = petsList, LayoutOrder = 2, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
 	make("UIGridLayout", { CellSize = UDim2.fromOffset(100, 126), CellPadding = UDim2.fromOffset(8, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
@@ -661,7 +531,7 @@ end
 local cards = {} -- [uid] = card info
 local function makeCard(p)
 	local pet = Config.Pets[p.kind]
-	local color = p.golden and GOLD or Config.Rarities[pet.rarity].color
+	local color = p.golden and GOLD or rarityColor(pet.rarity)
 	local card = make("TextButton", { Parent = grid, Text = "", AutoButtonColor = false, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(14) })
 	local stroke = UIKit.stroke(3.5, color)
 	stroke.Parent = card
@@ -839,6 +709,9 @@ local function rebuildFollowers(plr)
 		if kind and Config.Pets[kind] then
 			local golden = flag == "G"
 			local m = petModel(kind, golden)
+			PetFx.apply(m, kind)
+			local _, size = m:GetBoundingBox()
+			f.spread = math.max(f.spread or 1, math.clamp(math.max(size.X, size.Z) / 3, 1, 1.9))
 			if golden then
 				-- golden pets glitter
 				local e = Instance.new("ParticleEmitter")
@@ -942,7 +815,7 @@ RunService.RenderStepped:Connect(function(dt)
 			local look = root.CFrame.LookVector * Vector3.new(1, 0, 1)
 			look = look.Magnitude > 0.01 and look.Unit or Vector3.new(1, 0, 0)
 			local yaw = CFrame.lookAt(Vector3.zero, look)
-			local slot = (flying and FLY_SLOTS or WALK_SLOTS)[i] or Vector3.new(0, 0, 4 + i * 2)
+			local slot = ((flying and FLY_SLOTS or WALK_SLOTS)[i] or Vector3.new(0, 0, 4 + i * 2)) * (f.spread or 1)
 			local target = root.Position + yaw:VectorToWorldSpace(slot)
 			local lift = 0
 			if flying then

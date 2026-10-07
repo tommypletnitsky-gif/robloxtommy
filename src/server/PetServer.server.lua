@@ -27,7 +27,6 @@ local Notify = remote("RemoteEvent", "Notify")
 
 local rng = Random.new()
 local busy = {} -- [player] = true while a hatch is being handled
-local RARITY_ORDER = { "Common", "Rare", "Epic", "Legendary" }
 
 -- Pet list helpers ----------------------------------------------------------------------------
 local function slots(player) -- 3 pet slots, +1 per rebirth, + gamepasses (Config.petSlotsFor)
@@ -86,7 +85,7 @@ local function refresh(player)
 	player:SetAttribute("PetKinds", table.concat(kinds, ","))
 
 	-- Pet Index: every kind you've ever owned (kept even if you delete the pet); a full egg set
-	-- (all 4 of its pets) gives +10% money forever (IndexSets, used by GameServer).
+	-- (all of its pets) gives +6% money forever (IndexSets, used by GameServer).
 	local index = {}
 	for kind in string.gmatch(player:GetAttribute("PetIndex") or "", "%w+") do
 		index[kind] = true
@@ -118,20 +117,20 @@ local function bestFirst(a, b)
 end
 
 -- Hatching --------------------------------------------------------------------------------------
-local function rollRarity(lucky, player)
-	-- x2 from the Lucky Eggs server event or a Lucky Spin luck boost
+-- One pet from `egg` (Lucky Eggs pass, the Lucky Eggs server event and a Lucky Spin boost raise
+-- the Epic-and-better chances).
+local function rollPet(egg, player)
 	local luckBoost = Config.activeEvent() == "Luck" or (player and (player:GetAttribute("BoostLuckUntil") or 0) > os.time())
-	local chance = Config.rarityChances(lucky, luckBoost)
+	local chance = Config.eggChances(egg, player and Config.hasPass(player, "LuckyEggs"), luckBoost)
 	local roll = rng:NextNumber(0, 100)
 	local acc = 0
-	for i = #RARITY_ORDER, 1, -1 do -- rarest first so rounding never eats a Legendary
-		local r = RARITY_ORDER[i]
-		acc += chance[r]
+	for rank = #egg.pets, 1, -1 do -- rarest first so rounding never eats the best pet
+		acc += chance[rank]
 		if roll < acc then
-			return r
+			return egg.pets[rank]
 		end
 	end
-	return "Common"
+	return egg.pets[1]
 end
 
 local function eggIndex(id)
@@ -164,7 +163,7 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 		return false, "Unlock Stage " .. egg.stage .. " to open the " .. egg.name .. "!"
 	end
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	local standPos = egg.stand or LobbyLayout.eggStand(index, #Config.Eggs)
+	local standPos = egg.stand or LobbyLayout.eggStand(index)
 	if not root or (root.Position - standPos).Magnitude > 24 then
 		return false, "Walk up to the egg first!"
 	end
@@ -187,13 +186,13 @@ HatchEgg.OnServerInvoke = function(player, eggId, count)
 	local nextId = player:GetAttribute("NextPetId") or 1
 	local results = {}
 	for _ = 1, count do
-		local rarity = rollRarity(Config.hasPass(player, "LuckyEggs"), player)
-		local kind = egg.pets[rarity]
+		local kind = rollPet(egg, player)
+		local pet = Config.Pets[kind]
 		table.insert(pets, { uid = nextId, kind = kind })
 		table.insert(results, { uid = nextId, kind = kind })
 		nextId += 1
-		if rarity == "Legendary" then
-			Notify:FireAllClients("🌟 " .. player.DisplayName .. " hatched a LEGENDARY " .. Config.Pets[kind].name .. "!", Config.Rarities.Legendary.color)
+		if pet.top then -- (only an egg's best pet is announced to the whole server)
+			Notify:FireAllClients("🌟 " .. player.DisplayName .. " hatched a " .. string.upper(pet.rarity) .. " " .. pet.name .. "!", Config.Rarities[pet.rarity].color)
 		end
 	end
 	player:SetAttribute("NextPetId", nextId)
@@ -325,7 +324,7 @@ PetAction.OnServerInvoke = function(player, action, uid)
 		refresh(player)
 		PlayerData.saveSoon(player)
 		local pet = Config.Pets[base.kind]
-		if pet.rarity == "Epic" or pet.rarity == "Legendary" then
+		if Config.Rarities[pet.rarity].order >= Config.Rarities.Epic.order then
 			Notify:FireAllClients("⭐ " .. player.DisplayName .. " made a GOLDEN " .. pet.name .. "!", Color3.fromRGB(255, 215, 60))
 		end
 		return true, newUid
@@ -363,8 +362,7 @@ GivePet.OnInvoke = function(player)
 			egg = e
 		end
 	end
-	local rarity = rollRarity(Config.hasPass(player, "LuckyEggs"), player)
-	local kind = egg.pets[rarity]
+	local kind = rollPet(egg, player)
 	local uid = player:GetAttribute("NextPetId") or 1
 	table.insert(pets, { uid = uid, kind = kind })
 	player:SetAttribute("NextPetId", uid + 1)

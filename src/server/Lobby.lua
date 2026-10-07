@@ -17,6 +17,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Kit = require(ServerScriptService.BuildKit)
 local Foliage = require(ServerScriptService.Foliage)
 local LobbyLayout = require(ServerScriptService.LobbyLayout)
+local Hatchery = require(ServerScriptService.Hatchery)
 
 local part, cyl, sign = Kit.part, Kit.cyl, Kit.sign
 local darker = Kit.darker
@@ -215,99 +216,7 @@ local function launchArea(hub)
 	m.Parent = hub
 end
 
--- Egg Garden ---------------------------------------------------------------------------------------
--- A round plaza beside the spawn with one stand per egg (Config.Eggs) in an arc: pedestal, the egg
--- (ReplicatedStorage.EggModels, spun + bobbed by LobbyClient), a name/price board (PetClient marks
--- locked eggs per player) and an E prompt with attribute Egg = id (PetClient opens the egg window).
-local function fallbackEgg(color)
-	local m = Instance.new("Model")
-	local p = part(m, { Name = "Shell", Size = Vector3.new(3.6, 4.6, 3.6), CFrame = CFrame.new(0, 2.3, 0), Color = color })
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.Sphere
-	mesh.Parent = p
-	m.WorldPivot = CFrame.new()
-	return m
-end
-
-local function eggGarden(hub)
-	local g = LobbyLayout.EGG_GARDEN
-	local cx, cz = g.center.X, g.center.Z
-	local m = Instance.new("Model")
-	m.Name = "EggGarden"
-	m.Parent = hub
-	local tileMat, tileVar = surface("LobbyPathTiles", M.Cobblestone)
-	path(m, -155, 15, -145, 31, false)
-	disc(m, g.radius, cx, cz, EDGE_TOP + 0.04, BORDER)
-	disc(m, g.radius - 1.4, cx, cz, PAVE_TOP + 0.04, TILE, tileMat, tileVar)
-	disc(m, 5, cx, cz, PAVE_TOP + 0.08, BORDER)
-	disc(m, 3.8, cx, cz, PAVE_TOP + 0.12, TILE, tileMat, tileVar)
-
-	local eggModels = ReplicatedStorage:FindFirstChild("EggModels")
-	for i, egg in ipairs(Config.Eggs) do
-		local pos = LobbyLayout.eggStand(i, #Config.Eggs)
-		local stand = Instance.new("Model")
-		stand.Name = "Egg_" .. egg.id
-		stand:SetAttribute("Egg", egg.id)
-		stand.Parent = m
-		cyl(stand, 1.2, 7, CFrame.new(pos + Vector3.new(0, PAVE_TOP + 0.6, 0)) * UP, BORDER)
-		cyl(stand, 1, 6, CFrame.new(pos + Vector3.new(0, PAVE_TOP + 1.7, 0)) * UP, TILE)
-		cyl(stand, 0.4, 6.4, CFrame.new(pos + Vector3.new(0, PAVE_TOP + 2.3, 0)) * UP, egg.color)
-		local top = PAVE_TOP + 2.5
-
-		local template = eggModels and eggModels:FindFirstChild(egg.id)
-		local e = template and template:Clone() or fallbackEgg(egg.color)
-		e.Name = "Egg"
-		e:PivotTo(CFrame.new(pos + Vector3.new(0, top, 0)))
-		for _, p in ipairs(e:GetDescendants()) do
-			if p:IsA("BasePart") then
-				p.Anchored = true
-				p.CanCollide = false
-			end
-		end
-		e:SetAttribute("SpinSpeed", 0.7)
-		e:SetAttribute("Bob", 0.35)
-		e.Parent = stand
-		CollectionService:AddTag(e, "LobbySpin")
-
-		-- name / price board floating above the egg
-		local anchor = part(stand, { Name = "Board", Size = Vector3.one, CFrame = CFrame.new(pos + Vector3.new(0, top + 7, 0)), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
-		local bb = Instance.new("BillboardGui")
-		bb.Size = UDim2.fromScale(8, 3.5) -- in studs, so far-away boards shrink and don't overlap
-		bb.MaxDistance = 44 -- only boards near you (from the spawn they stacked into a pile)
-		bb.LightInfluence = 0
-		bb.Parent = anchor
-		local function line(name, y, h, text, color)
-			local l = Instance.new("TextLabel")
-			l.Name = name
-			l.BackgroundTransparency = 1
-			l.Position = UDim2.fromScale(0, y)
-			l.Size = UDim2.fromScale(1, h)
-			l.Font = Enum.Font.FredokaOne
-			l.TextScaled = true
-			l.Text = text
-			l.TextColor3 = color
-			local st = Instance.new("UIStroke")
-			st.Thickness = 2.5
-			st.Color = Color3.fromRGB(30, 30, 50)
-			st.Parent = l
-			l.Parent = bb
-			return l
-		end
-		line("Title", 0, 0.42, egg.name, WHITE)
-		line("Price", 0.42, 0.32, "$" .. Config.abbreviate(egg.price), C(130, 255, 130))
-		line("Lock", 0.74, 0.26, "Stage " .. egg.stage, C(255, 220, 120))
-
-		local hit = part(stand, { Name = "PromptPart", Size = Vector3.new(5, 6, 5), CFrame = CFrame.new(pos + Vector3.new(0, 3.5, 0)), Transparency = 1, CanCollide = false, CanTouch = false })
-		local p = Instance.new("ProximityPrompt")
-		p.ActionText = "Open"
-		p.ObjectText = egg.name
-		p.KeyboardKeyCode = Enum.KeyCode.E
-		p.MaxActivationDistance = 11
-		p.RequiresLineOfSight = false
-		p:SetAttribute("Egg", egg.id)
-		p.Parent = hit
-	end
-end
+-- (The eggs live in the Hatchery behind the spawn: src/server/Hatchery.lua.)
 
 -- Rebirth Portal ------------------------------------------------------------------------------------
 -- A round plaza on the other side of the spawn with the stone portal at its back, a sign and an
@@ -450,7 +359,7 @@ local function decor(hub)
 			prop(d, i % 2 == 0 and "FlowerYellow" or "FlowerRed", fx, -11.8, rng:NextNumber(0, 360))
 		end
 	end
-	-- flower ring around the spawn plaza (open toward the main path and the Egg Garden path; the
+	-- flower ring around the spawn plaza (open toward the main path and the Hatchery walk; the
 	-- signpost stands in the gap at 40 degrees)
 	for i, deg in ipairs({ 128, 160, 200, 232, 312 }) do
 		local a = math.rad(deg)
@@ -485,14 +394,10 @@ local function decor(hub)
 			end
 		end
 	end
-	for z = pz0 + FENCE / 2, pz1 - FENCE / 2, FENCE do
-		if not blockedByHill(px0, z) then
-			prop(d, "Fence", px0, z, 90)
-		end
-	end
+	-- (no fence on the west side: the park opens into the Hatchery there)
 
 	-- welcome board behind the spawn plaza, facing down the path to the launcher
-	local bx, bz = -176, 0
+	local bx, bz = -178, -22 -- (beside the Hatchery walk)
 	local toward = Vector3.new(1, 0, 0)
 	local board = prop(d, "Board", bx, bz, math.deg(math.atan2(-toward.Z, toward.X)), { scale = 0.8 })
 	if board then
@@ -507,10 +412,10 @@ end
 -- Wayfinding ------------------------------------------------------------------------------------------
 -- A wooden fingerpost at the plaza's edge (in the flower ring's gap toward the main path) with an
 -- arrow board per place in its landmark colour, and pink / purple stepping stones across the plaza
--- to the Egg Garden and Rebirth paths (the plaza already reaches both path entrances).
+-- to the Hatchery walk and the Rebirth path.
 local POST_AT = SPAWN + Vector3.new(math.cos(math.rad(40)), 0, math.sin(math.rad(40))) * 20.5 -- ~(-134.3, 13.2), clear of the lamp at (-128, 10.2)
 local ARROWS = { -- { text, colour, direction, height of the board's middle }
-	{ "🥚 EGGS", C(255, 120, 190), Vector3.new(0, 0, 1), 8 },
+	{ "🥚 EGGS", C(255, 120, 190), Vector3.new(-1, 0, 0), 8 },
 	{ "🌟 REBIRTH", C(170, 105, 245), Vector3.new(0, 0, -1), 6.5 },
 	{ "🚀 LAUNCH", C(255, 150, 40), Vector3.new(1, 0, 0), 5 },
 }
@@ -541,10 +446,11 @@ local function wayfinding(hub)
 	end
 
 	-- stepping stones from the plaza's middle ring to each path entrance, zig-zagging a little
-	for _, t in ipairs({ { 1, ARROWS[1][2] }, { -1, ARROWS[2][2] } }) do
-		for k = 0, 3 do
-			disc(m, 1.25, SPAWN.X + (k % 2 == 0 and -0.9 or 0.9), SPAWN.Z + t[1] * (8.6 + k * 2.6), PAVE_TOP + 0.1, t[2])
-		end
+	for k = 0, 3 do -- pink: west to the Hatchery walk
+		disc(m, 1.25, SPAWN.X - (8.6 + k * 2.6), SPAWN.Z + (k % 2 == 0 and -0.9 or 0.9), PAVE_TOP + 0.1, ARROWS[1][2])
+	end
+	for k = 0, 3 do -- purple: to the Rebirth path
+		disc(m, 1.25, SPAWN.X + (k % 2 == 0 and -0.9 or 0.9), SPAWN.Z - (8.6 + k * 2.6), PAVE_TOP + 0.1, ARROWS[2][2])
 	end
 end
 
@@ -617,8 +523,8 @@ local function topBoard(hub)
 end
 
 -- Landmarks: a soft light pillar + a big floating label over the places that matter (cannon,
--- Egg Garden, Rebirth Portal), so you can find them from anywhere in the lobby.
-local function landmark(hub, name, pos, color, text, height, labelWidth)
+-- Hatchery, Rebirth Portal), so you can find them from anywhere in the lobby.
+local function landmark(hub, name, pos, color, text, height, labelWidth, noBeam)
 	local m = Instance.new("Model")
 	m.Name = "Landmark_" .. name
 	m.Parent = hub
@@ -637,7 +543,7 @@ local function landmark(hub, name, pos, color, text, height, labelWidth)
 	beam.Color = ColorSequence.new(color, color:Lerp(WHITE, 0.4))
 	beam.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(0.6, 0.7), NumberSequenceKeypoint.new(1, 1) })
 	beam.Segments = 2
-	beam.Parent = base
+	beam.Parent = not noBeam and base or nil
 	-- the label: sized in studs, so it shrinks with distance instead of covering the screen
 	local labelPart = part(m, { Name = "Label", Size = Vector3.one, CFrame = CFrame.new(pos + Vector3.new(0, height * 0.75, 0)), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
 	local bb = Instance.new("BillboardGui")
@@ -684,7 +590,7 @@ end
 function Lobby.build(hub)
 	topBoard(hub)
 	landmark(hub, "Cannon", Vector3.new(PAD_X, LAWN_TOP, 0), C(255, 150, 40), "🚀 LAUNCH PAD", 50, 36)
-	landmark(hub, "Eggs", LobbyLayout.EGG_GARDEN.center + Vector3.new(0, LAWN_TOP, 0), C(255, 120, 190), "🥚 EGGS", 36, 15)
+	landmark(hub, "Eggs", Vector3.new(-180, LAWN_TOP, 0), C(255, 120, 190), "🥚 HATCHERY", 26, 20, true) -- (over the first arch; no light pillar in the walk)
 	landmark(hub, "Rebirth", LobbyLayout.REBIRTH.portal + Vector3.new(0, LAWN_TOP, 0), C(170, 105, 245), "🌟 REBIRTH", 36, 16)
 	ground(hub)
 	spawnArea(hub)
@@ -692,7 +598,7 @@ function Lobby.build(hub)
 		placeShop(hub, info)
 	end
 	launchArea(hub)
-	eggGarden(hub)
+	Hatchery.build(hub)
 	rebirthPortal(hub)
 	wayfinding(hub)
 	decor(hub)

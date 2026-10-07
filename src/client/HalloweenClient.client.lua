@@ -23,7 +23,7 @@ local text = label({ Parent = pill, Position = UDim2.fromOffset(12, 7), Size = U
 pill.Activated:Connect(function()
 	UIKit.bounce(pill)
 	UIKit.toast("🎃 HALLOWEEN! Grab coins, gems and rings in flight to collect 🍬 candy.", Color3.fromRGB(255, 190, 90))
-	UIKit.toast("Spend candy on the SPOOKY EGG in the Egg Garden: 4 limited Halloween pets!", Color3.fromRGB(220, 160, 255))
+	UIKit.toast("Spend candy on the SPOOKY EGG next to the spawn: 4 limited Halloween pets!", Color3.fromRGB(220, 160, 255))
 end)
 
 local function timeLeft()
