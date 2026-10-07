@@ -222,6 +222,6 @@ task.spawn(function()
 		elseif not active and built then
 			teardown()
 		end
-		task.wait(60)
+		task.wait(10)
 	end
 end)

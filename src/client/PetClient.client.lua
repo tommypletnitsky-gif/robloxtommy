@@ -1,24 +1,20 @@
--- Eggs + pets (client):
---   * Egg window: walk up to an egg in the Hatchery and press E. Shows its 4-7 pets (rarity, money
---     boost, chance) and Hatch x1 / x3.
---   * Hatch show: the 3D show in HatchShow (egg shakes, cracks, the pet springs out with its effects).
---   * PETS button: your pets. Click a pet to equip / unequip, Equip Best, delete (click twice).
+-- Pets (client):
+--   * PETS button: your pets. Modes: 🐾 Equip (tap = equip / unequip), 🔒 Lock (locked pets can't be
+--     deleted, fused or traded), 🗑 Delete (tap pets to pick them, then Delete). Equip Best, Pet
+--     Index, Trade, and storage / slot upgrades (money).
 --   * Golden pets: a "⭐ n/5" tag shows how many copies you have; with 5 it turns gold: press it
 --     twice to fuse 5 copies into one Golden pet (2.5x the bonus), with its own reveal show.
 --   * Pets follow every player (drawn on each client, so they move smoothly) with their effects
 --     (PetFx): they hop behind you when you walk (they stay behind while you fly).
---   * (The boards above the eggs: HatcheryClient.)
+--   * (The egg window + hatching: EggClient. The boards above the eggs: HatcheryClient.)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local ContentProvider = game:GetService("ContentProvider")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
-local HatchEgg = remotes:WaitForChild("HatchEgg")
 local PetAction = remotes:WaitForChild("PetAction")
 
 local player = Players.LocalPlayer
@@ -30,246 +26,18 @@ local GREEN, BLUE, GREY, RED = Color3.fromRGB(80, 200, 90), Color3.fromRGB(70, 1
 local PINK = Color3.fromRGB(255, 120, 190)
 local modules = script.Parent:WaitForChild("ClientModules")
 local PetFx = require(modules:WaitForChild("PetFx"))
-local HatchShow = require(modules:WaitForChild("HatchShow"))
 
 -- rarity colour for UI (Secret is black in the game: draw it a deep purple-black with white text)
 local function rarityColor(rarity)
 	return Config.Rarities[rarity].color
 end
 
--- Models ---------------------------------------------------------------------------------------
-local petFolder = ReplicatedStorage:WaitForChild("PetModels", 10)
-local eggFolder = ReplicatedStorage:WaitForChild("EggModels", 10)
-
-local function prep(m)
-	for _, p in ipairs(m:GetDescendants()) do
-		if p:IsA("BasePart") then
-			p.Anchored = true
-			p.CanCollide = false
-			p.CanQuery = false
-			p.CanTouch = false
-		end
-	end
-	return m
-end
-
--- Golden pets: the same mesh + texture re-drawn with a gold tint (SpecialMesh.VertexColor keeps
--- every detail of the texture, just golden).
-local GOLD = Color3.fromRGB(255, 190, 40)
-local function makeGolden(m)
-	for _, mp in ipairs(m:GetDescendants()) do
-		if mp:IsA("MeshPart") then
-			local okSize, meshSize = pcall(function()
-				return mp.MeshSize
-			end)
-			local p = Instance.new("Part")
-			p.Name = mp.Name
-			p.Size = mp.Size
-			p.CFrame = mp.CFrame
-			p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch = true, false, false, false
-			local sm = Instance.new("SpecialMesh")
-			sm.MeshType = Enum.MeshType.FileMesh
-			sm.MeshId = mp.MeshId
-			sm.TextureId = mp.TextureID
-			sm.Scale = (okSize and meshSize.Magnitude > 0) and (mp.Size / meshSize) or Vector3.one
-			sm.VertexColor = Config.GOLDEN_TINT
-			sm.Parent = p
-			p.Parent = mp.Parent
-			if m.PrimaryPart == mp then
-				m.PrimaryPart = p
-			end
-			mp:Destroy()
-		elseif mp:IsA("BasePart") then
-			mp.Color = GOLD -- (the plain fallback model)
-		end
-	end
-	return m
-end
-
-local function petModel(kind, golden)
-	local t = petFolder and petFolder:FindFirstChild(kind)
-	local m
-	if t then
-		m = prep(t:Clone())
-	else
-		local pet = Config.Pets[kind]
-		m = Instance.new("Model")
-		make("Part", { Parent = m, Shape = Enum.PartType.Ball, Size = Vector3.new(2.6, 2.6, 2.6), CFrame = CFrame.new(0, 1.3, 0), Color = pet and Config.Rarities[pet.rarity].color or GREY, Material = Enum.Material.SmoothPlastic })
-		m.WorldPivot = CFrame.new()
-		prep(m)
-	end
-	if golden then
-		makeGolden(m)
-	end
-	return m
-end
-
-local function eggModel(egg)
-	local t = eggFolder and eggFolder:FindFirstChild(egg.id)
-	if t then
-		return prep(t:Clone())
-	end
-	local m = Instance.new("Model")
-	local p = make("Part", { Parent = m, Size = Vector3.new(3.6, 4.6, 3.6), CFrame = CFrame.new(0, 2.3, 0), Color = egg.color, Material = Enum.Material.SmoothPlastic })
-	make("SpecialMesh", { Parent = p, MeshType = Enum.MeshType.Sphere })
-	m.WorldPivot = CFrame.new()
-	return prep(m)
-end
-
--- A ViewportFrame showing `model` from the front (models face -Z, pivot at their feet).
-local viewports = {} -- re-parented once the meshes have downloaded
-local preloadDone = false -- after that, new viewports aren't tracked (no leak)
-local function viewport(parent, model, props)
-	local vp = make("ViewportFrame", props)
-	vp.Parent = parent
-	vp.BackgroundTransparency = props.BackgroundTransparency or 1
-	vp.Ambient = Color3.fromRGB(190, 190, 200)
-	vp.LightColor = Color3.new(1, 1, 1)
-	vp.LightDirection = Vector3.new(-0.5, -1, 0.8)
-	model.Parent = vp
-	local cf, size = model:GetBoundingBox()
-	local cam = Instance.new("Camera")
-	cam.FieldOfView = 32
-	local d = size.Magnitude * 1.75
-	cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(d * 0.28, d * 0.18, -d), cf.Position)
-	cam.Parent = vp
-	vp.CurrentCamera = cam
-	if not preloadDone then
-		table.insert(viewports, { vp = vp, model = model })
-	end
-	return vp
-end
-
-task.spawn(function()
-	local list = {}
-	for _, f in ipairs({ petFolder, eggFolder }) do
-		if f then
-			for _, m in ipairs(f:GetChildren()) do
-				table.insert(list, m)
-			end
-		end
-	end
-	pcall(function()
-		ContentProvider:PreloadAsync(list)
-	end)
-	for _, v in ipairs(viewports) do
-		if v.model.Parent == v.vp then
-			v.model.Parent = nil
-			v.model.Parent = v.vp
-		end
-	end
-	preloadDone = true
-	table.clear(viewports)
-end)
-
-local function windowTitle(w)
-	return UIKit.windowTitle(w)
-end
-
--- Egg window --------------------------------------------------------------------------------------
-local eggWindow, eggList = UIKit.window("Egg", GREEN, UDim2.fromOffset(700, 372))
-local eggTitle = windowTitle(eggWindow)
-local currentEgg = nil -- the egg def while its window is open
-local eggPrompt = nil -- the prompt's part (window closes when you walk away)
-local hatching = false
-
--- the cards wrap into centered rows; `cards` is narrowed to force 3+3 / 4+3 for the big eggs
--- (both have a layout, so the window's opening animation still pops the cards one by one)
-local cardsRow = make("Frame", { Parent = eggList, LayoutOrder = 1, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
-	make("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center }),
-})
-local cards = make("Frame", { Parent = cardsRow, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
-	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Wraps = true, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
-})
-
--- one card per pet of the egg: picture, name, rarity, money multiplier, chance
-local function eggCard(egg, rank, kind, chance)
-	local pet = Config.Pets[kind]
-	local color = rarityColor(pet.rarity)
-	local card = make("Frame", { Parent = cards, LayoutOrder = rank, Size = UDim2.fromOffset(118, 178), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(16), UIKit.stroke(pet.top and 5 or 3.5, color) })
-	make("UIGradient", { Parent = card, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), UIKit.lighter(color, pet.rarity == "Secret" and 0.35 or 0.7)) })
-	if Config.Rarities[pet.rarity].order >= Config.Rarities.Legendary.order then
-		UIKit.rays(card, { Position = UDim2.fromOffset(59, 50), Size = UDim2.fromOffset(118, 118), Color = pet.rarity == "Secret" and Color3.fromRGB(200, 120, 255) or color, Transparency = 0.2, ZIndex = 12 })
-	end
-	local holder = make("Frame", { Parent = card, Position = UDim2.fromOffset(6, 4), Size = UDim2.fromOffset(106, 90), BackgroundTransparency = 1, ZIndex = 13 })
-	viewport(holder, petModel(kind), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })
-	label({ Parent = card, Position = UDim2.fromOffset(4, 94), Size = UDim2.new(1, -8, 0, 24), Text = pet.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
-	local r = label({ Parent = card, Position = UDim2.fromOffset(4, 118), Size = UDim2.new(1, -8, 0, 18), Text = pet.rarity, TextColor3 = pet.rarity == "Secret" and Color3.new(1, 1, 1) or color, StrokeThickness = pet.rarity == "Secret" and 2.5 or 1.5, ZIndex = 13 })
-	if pet.rarity == "Secret" then
-		r.TextColor3 = Color3.fromRGB(40, 20, 60)
-		r:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(200, 120, 255)
-	end
-	label({ Parent = card, Position = UDim2.fromOffset(4, 137), Size = UDim2.new(1, -8, 0, 20), Text = multText(pet.mult) .. " 💰", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 13 })
-	local lucky = Config.hasPass(player, "LuckyEggs")
-	local pct = chance >= 1 and string.format("%.4g%%", chance) or string.format("%.2g%%", chance)
-	label({ Parent = card, Position = UDim2.fromOffset(4, 157), Size = UDim2.new(1, -8, 0, 17), Text = (lucky and "🍀 " or "") .. pct, TextColor3 = lucky and Color3.fromRGB(40, 160, 70) or INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
-end
-
--- the hatch buttons sit pinned under the scrolling cards, so they never scroll out of sight (phones)
-local hatchRow = UIKit.row(eggWindow, 0, 84)
-hatchRow.AnchorPoint = Vector2.new(0.5, 1)
-hatchRow.Position = UDim2.new(0.5, 0, 1, -14)
-hatchRow.Size = UDim2.new(1, -44, 0, 84)
-eggList.Size = UDim2.new(1, -32, 1, -168)
-local lockLabel = label({ Parent = hatchRow, Position = UDim2.fromOffset(16, 10), Size = UDim2.new(1, -32, 1, -20), Text = "", TextColor3 = RED, StrokeThickness = 0, ZIndex = 12, Visible = false })
-local hatch1 = UIKit.button({ Parent = hatchRow, Text = "", Color = GREEN, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.5, 0), Size = UDim2.new(0.5, -21, 0, 62), ZIndex = 12 })
-local hatch3 = UIKit.button({ Parent = hatchRow, Text = "", Color = BLUE, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0), Size = UDim2.new(0.5, -21, 0, 62), ZIndex = 12 })
-
-local function refreshEggWindow()
-	local egg = currentEgg
-	if not egg then
-		return
-	end
-	local unlocked = (player:GetAttribute("UnlockedStage") or 1) >= egg.stage
-	local candy = egg.currency == "Candy"
-	local have = player:GetAttribute(egg.currency or "Money") or 0
-	local function price(n)
-		return candy and ("🍬 " .. abbreviate(n)) or ("$" .. abbreviate(n))
-	end
-	lockLabel.Visible = not unlocked
-	lockLabel.Text = "🔒 Unlock Stage " .. egg.stage .. " to hatch this egg!"
-	hatch1.Instance.Visible = unlocked
-	hatch3.Instance.Visible = unlocked
-	hatch1.setText("Hatch 1  " .. price(egg.price))
-	hatch3.setText("Hatch 3  " .. price(egg.price * 3))
-	hatch1.setColor(have >= egg.price and GREEN or RED)
-	hatch3.setColor(have >= egg.price * 3 and BLUE or RED)
-	eggTitle.Text = egg.name .. (candy and ("   (you have 🍬 " .. abbreviate(have) .. ")") or "")
-end
-
-local function openEgg(egg, promptPart)
-	currentEgg = egg
-	eggPrompt = promptPart
-	eggTitle.Text = egg.name
-	local template = eggFolder and eggFolder:FindFirstChild(egg.id)
-	UIKit.setWindowIcon(eggWindow, template and template:IsA("Model") and template or nil)
-	for _, c in ipairs(cards:GetChildren()) do
-		if c:IsA("Frame") then
-			c:Destroy()
-		end
-	end
-	local luck = Config.activeEvent() == "Luck" or (player:GetAttribute("BoostLuckUntil") or 0) > workspace:GetServerTimeNow()
-	local chances = Config.eggChances(egg, Config.hasPass(player, "LuckyEggs"), luck)
-	for rank, kind in ipairs(egg.pets) do
-		eggCard(egg, rank, kind, chances[rank])
-	end
-	-- 6-7 pets: two rows (3+3 / 4+3) in a taller window, so the hatch buttons stay in view
-	local n = #egg.pets
-	cards.Size = n == 6 and UDim2.fromOffset(380, 0) or n == 7 and UDim2.fromOffset(504, 0) or UDim2.new(1, 0, 0, 0)
-	local design = Vector2.new(700, n > 5 and 556 or 372)
-	local reopen = false
-	if eggWindow:GetAttribute("DesignSize") ~= design then
-		eggWindow:SetAttribute("DesignSize", design)
-		if eggWindow.Visible then
-			UIKit.close(eggWindow) -- (opens again below at the new size)
-			reopen = true
-		end
-	end
-	refreshEggWindow()
-	if reopen or not eggWindow.Visible then
-		UIKit.toggle(eggWindow)
-	end
-end
+-- Models (shared helpers: PetView) -------------------------------------------------------------
+local PetView = require(modules:WaitForChild("PetView"))
+local petFolder = PetView.petFolder
+local petModel, viewport = PetView.petModel, PetView.viewport
+local GOLD = PetView.GOLD
+local hatching = false -- (a golden reveal is running)
 
 -- Hatch show --------------------------------------------------------------------------------------
 local gui = UIKit.gui()
@@ -312,85 +80,36 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 end)
 
-local function playHatch(egg, results)
-	hatching = true
-	-- NEW! = you had no pet of that kind before this hatch
-	local fresh = {}
-	for _, r in ipairs(results) do
-		fresh[r.uid] = true
-	end
-	local before = {}
-	for _, p in ipairs(Config.parsePets(player:GetAttribute("Pets"))) do
-		if not fresh[p.uid] then
-			before[p.kind] = true
-		end
-	end
-	local eggWasOpen = eggWindow.Visible
-	eggWindow.Visible = false -- the show gets the whole screen
-	HatchShow.play(egg, results, {
-		petModel = petModel,
-		eggModel = eggModel,
-		isNew = function(kind)
-			return not before[kind]
-		end,
-	})
-	eggWindow.Visible = eggWasOpen and currentEgg == egg
-	hatching = false
-	refreshEggWindow()
-end
-
-local function doHatch(count)
-	local egg = currentEgg
-	if not egg or hatching then
-		return
-	end
-	hatching = true
-	local ok, results = HatchEgg:InvokeServer(egg.id, count)
-	if ok then
-		playHatch(egg, results)
-	else
-		hatching = false
-		UIKit.result(false, results)
-	end
-end
-hatch1.Instance.Activated:Connect(function()
-	doHatch(1)
-end)
-hatch3.Instance.Activated:Connect(function()
-	doHatch(3)
-end)
-
--- Egg prompts + walking away -------------------------------------------------------------------
-ProximityPromptService.PromptTriggered:Connect(function(prompt)
-	local id = prompt:GetAttribute("Egg")
-	local egg = id and Config.getEgg(id)
-	if egg then
-		openEgg(egg, prompt.Parent)
-	end
-end)
-
-RunService.Heartbeat:Connect(function()
-	if not eggPrompt or hatching then
-		return
-	end
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not eggWindow.Visible then
-		eggPrompt = nil
-		currentEgg = nil
-	elseif root and eggPrompt.Parent and (root.Position - eggPrompt.Position).Magnitude > 22 then
-		UIKit.close(eggWindow)
-		eggPrompt = nil
-		currentEgg = nil
-	end
-end)
-
 -- Pets window ---------------------------------------------------------------------------------------
-local petsWindow, petsList = UIKit.window("Pets", PINK, UDim2.fromOffset(680, 500), "Paw")
+local petsWindow, petsList = UIKit.window("Pets", PINK, UDim2.fromOffset(700, 520), "Paw")
 local topRow = UIKit.row(petsList, 0, 66)
-local summary = label({ Parent = topRow, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -370, 0, 28), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-local summary2 = label({ Parent = topRow, Position = UDim2.fromOffset(14, 36), Size = UDim2.new(1, -370, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 12 })
-local equipBest = UIKit.button({ Parent = topRow, Text = "Equip Best", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(180, 50), ZIndex = 12 })
-local indexBtn = UIKit.button({ Parent = topRow, Text = "📖 Index", Color = Color3.fromRGB(110, 140, 240), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -200, 0.5, 0), Size = UDim2.fromOffset(140, 50), ZIndex = 12 })
+local summary = label({ Parent = topRow, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -470, 0, 28), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+local summary2 = label({ Parent = topRow, Position = UDim2.fromOffset(14, 36), Size = UDim2.new(1, -470, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 12 })
+local equipBest = UIKit.button({ Parent = topRow, Text = "Equip Best", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(160, 50), ZIndex = 12 })
+local indexBtn = UIKit.button({ Parent = topRow, Text = "📖 Index", Color = Color3.fromRGB(110, 140, 240), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -180, 0.5, 0), Size = UDim2.fromOffset(130, 50), ZIndex = 12 })
+local tradeBtn = UIKit.button({ Parent = topRow, Text = "🔁 Trade", Color = Color3.fromRGB(255, 160, 50), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -320, 0.5, 0), Size = UDim2.fromOffset(130, 50), ZIndex = 12 })
+-- (TradeClient listens for this)
+local openTrade = script.Parent:FindFirstChild("OpenTradeList") or Instance.new("BindableEvent")
+openTrade.Name = "OpenTradeList"
+openTrade.Parent = script.Parent
+tradeBtn.Instance.Activated:Connect(function()
+	openTrade:Fire()
+end)
+
+-- tools: what a tap on a pet does (🐾 equip / 🔒 lock / 🗑 pick to delete) + upgrades (money)
+local toolsRow = UIKit.row(petsList, 1, 58)
+local mode = "equip"
+local selected = {} -- [uid] = true (delete mode)
+local modeButtons = {}
+for i, m in ipairs({ { "equip", "🐾 Equip" }, { "lock", "🔒 Lock" }, { "delete", "🗑 Delete" } }) do
+	local b = make("TextButton", { Parent = toolsRow, Position = UDim2.fromOffset(10 + (i - 1) * 92, 9), Size = UDim2.fromOffset(86, 40), BackgroundColor3 = Color3.fromRGB(150, 155, 175), Text = "", AutoButtonColor = false, ZIndex = 12 }, { UIKit.corner(12), UIKit.stroke(2.5) })
+	label({ Parent = b, Size = UDim2.fromScale(1, 1), Text = m[2], ZIndex = 13, StrokeThickness = 2 })
+	modeButtons[m[1]] = b
+end
+local storageBtn = UIKit.button({ Parent = toolsRow, Text = "", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -164, 0.5, 0), Size = UDim2.fromOffset(150, 44), ZIndex = 12 })
+local slotBtn = UIKit.button({ Parent = toolsRow, Text = "", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(150, 44), ZIndex = 12 })
+local deleteBtn = UIKit.button({ Parent = toolsRow, Text = "", Color = RED, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(200, 44), ZIndex = 12 })
+local clearBtn = UIKit.button({ Parent = toolsRow, Text = "Clear", Color = Color3.fromRGB(150, 155, 175), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -216, 0.5, 0), Size = UDim2.fromOffset(110, 44), ZIndex = 12 })
 
 -- Pet Index: every pet by egg (event eggs too); ones you've never had are black silhouettes. A full egg set
 -- gives +10% money forever (server: PetServer / GameServer).
@@ -461,14 +180,14 @@ equipBest.Instance.Activated:Connect(function()
 	UIKit.result(PetAction:InvokeServer("equipBest"))
 end)
 -- empty state: a puppy on rays, "No pets yet!" and where to get one
-local emptyLabel = UIKit.row(petsList, 1, 210)
+local emptyLabel = UIKit.row(petsList, 2, 210)
 emptyLabel.Name = "NoPets"
 local emptyIcon = make("Frame", { Parent = emptyLabel, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 6), Size = UDim2.fromOffset(120, 110), BackgroundTransparency = 1, ZIndex = 13 })
 UIKit.rays(emptyLabel, { Position = UDim2.new(0.5, 0, 0, 62), Size = UDim2.fromOffset(170, 170), Color = Color3.fromRGB(255, 160, 210), ZIndex = 12 })
 UIKit.icon3D(emptyIcon, petFolder and petFolder:FindFirstChild("Puppy") or "Paw", { ZIndex = 13 })
 label({ Parent = emptyLabel, Position = UDim2.fromOffset(14, 120), Size = UDim2.new(1, -28, 0, 40), Text = "No pets yet!", TextColor3 = UIKit.darker(PINK, 0.15), StrokeThickness = 0, ZIndex = 13 })
 label({ Parent = emptyLabel, Position = UDim2.fromOffset(14, 162), Size = UDim2.new(1, -28, 0, 30), Text = "🥚 Hatch eggs in the Hatchery behind the spawn", TextColor3 = INK_SOFT, StrokeThickness = 0, ZIndex = 13 })
-local grid = make("Frame", { Parent = petsList, LayoutOrder = 2, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
+local grid = make("Frame", { Parent = petsList, LayoutOrder = 3, Size = UDim2.new(1, -12, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 11 }, {
 	make("UIGridLayout", { CellSize = UDim2.fromOffset(100, 126), CellPadding = UDim2.fromOffset(8, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
 
@@ -529,6 +248,7 @@ local function playGolden(kind, uid)
 end
 
 local cards = {} -- [uid] = card info
+local refreshTools -- (below)
 local function makeCard(p)
 	local pet = Config.Pets[p.kind]
 	local color = p.golden and GOLD or rarityColor(pet.rarity)
@@ -539,14 +259,17 @@ local function makeCard(p)
 	local holder = make("Frame", { Parent = card, Position = UDim2.fromOffset(6, 4), Size = UDim2.fromOffset(88, 78), BackgroundTransparency = 1, ZIndex = 13 })
 	viewport(holder, petModel(p.kind, p.golden), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })
 	label({ Parent = card, Position = UDim2.fromOffset(3, 82), Size = UDim2.new(1, -6, 0, 20), Text = (p.golden and "⭐ Golden " or "") .. pet.name, TextColor3 = p.golden and Color3.fromRGB(210, 140, 0) or UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
-	label({ Parent = card, Position = UDim2.fromOffset(3, 102), Size = UDim2.new(1, -6, 0, 20), Text = multText(Config.petMult(p.kind, p.golden)) .. " 💰", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 13 })
+	local multLabel = label({ Parent = card, Position = UDim2.fromOffset(3, 102), Size = UDim2.new(1, -6, 0, 20), Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 13 })
 	-- golden tag: "⭐ 3/5" while collecting copies, a gold button once you have 5
 	local fuse = make("TextButton", { Parent = card, Name = "Fuse", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 3), Size = UDim2.fromOffset(44, 22), BackgroundColor3 = Color3.fromRGB(235, 235, 245), Text = "", AutoButtonColor = false, Visible = false, ZIndex = 16 }, { UIKit.corner(11), UIKit.stroke(2) })
 	local fuseText = label({ Parent = fuse, Size = UDim2.fromScale(1, 1), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 17 })
 	local check = label({ Parent = card, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(16, 16), Size = UDim2.fromOffset(28, 28), BackgroundTransparency = 0, BackgroundColor3 = GREEN, Text = "✔", ZIndex = 15, Visible = false }, nil)
 	make("UICorner", { Parent = check, CornerRadius = UDim.new(1, 0) })
-	local del = make("TextButton", { Parent = card, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -3, 0, 3), Size = UDim2.fromOffset(26, 26), BackgroundColor3 = Color3.fromRGB(255, 235, 235), Text = "🗑", TextScaled = true, Font = UIKit.FONT, ZIndex = 15 }, { UIKit.corner(8) })
-	local info = { card = card, check = check, del = del, kind = p.kind, uid = p.uid, golden = p.golden, armed = 0, fuse = fuse, fuseText = fuseText, fuseArmed = 0, copies = 0 }
+	local lockTag = make("TextLabel", { Parent = card, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -3, 0, 3), Size = UDim2.fromOffset(26, 26), BackgroundColor3 = Color3.fromRGB(255, 225, 120), Text = "🔒", TextScaled = true, Font = UIKit.FONT, Visible = false, ZIndex = 15 }, { UIKit.corner(8) })
+	-- delete mode: picked pets get a red cover with a ✖
+	local pick = make("Frame", { Parent = card, Size = UDim2.fromScale(1, 1), BackgroundColor3 = RED, BackgroundTransparency = 0.45, Visible = false, ZIndex = 18 }, { UIKit.corner(14) })
+	label({ Parent = pick, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.4), Size = UDim2.fromOffset(44, 44), Text = "✖", ZIndex = 19 })
+	local info = { card = card, check = check, lockTag = lockTag, pick = pick, multLabel = multLabel, kind = p.kind, uid = p.uid, golden = p.golden, fuse = fuse, fuseText = fuseText, fuseArmed = 0, copies = 0 }
 	fuse.Activated:Connect(function()
 		if info.copies < Config.GOLDEN_COST then
 			UIKit.toast("Collect " .. (Config.GOLDEN_COST - info.copies) .. " more " .. pet.name .. " to make a GOLDEN " .. pet.name .. "! ⭐", Color3.fromRGB(255, 220, 120))
@@ -556,7 +279,7 @@ local function makeCard(p)
 			info.fuseArmed = os.clock()
 			fuseText.Text = "SURE?"
 			UIKit.bounce(fuse)
-			UIKit.toast("Press again: " .. Config.GOLDEN_COST .. " " .. pet.name .. " → 1 GOLDEN " .. pet.name .. " (" .. multText(Config.petMult(p.kind, true)) .. ")", Color3.fromRGB(255, 215, 80))
+			UIKit.toast("Press again: " .. Config.GOLDEN_COST .. " " .. pet.name .. " → 1 GOLDEN " .. pet.name .. " (" .. multText(Config.petMult(p.kind, true, Config.playerTier(player))) .. ")", Color3.fromRGB(255, 215, 80))
 			task.delay(2.5, function()
 				if fuse.Parent and os.clock() - info.fuseArmed >= 2.4 and info.copies >= Config.GOLDEN_COST then
 					fuseText.Text = "⭐ GOLD"
@@ -565,7 +288,7 @@ local function makeCard(p)
 			return
 		end
 		if hatching then
-			return -- (a hatch / golden show is already running or a request is on its way)
+			return -- (a golden show is already running or a request is on its way)
 		end
 		hatching = true
 		info.fuseArmed = 0
@@ -580,33 +303,116 @@ local function makeCard(p)
 	card.Activated:Connect(function()
 		UIKit.sound("Click", 0.4)
 		UIKit.bounce(card)
-		local ok, msg = PetAction:InvokeServer(info.equipped and "unequip" or "equip", p.uid)
-		if not ok then
-			UIKit.result(false, msg)
+		if mode == "delete" then
+			if info.locked then
+				UIKit.toast("🔒 Locked pets can't be deleted. Unlock it in 🔒 Lock mode.", Color3.fromRGB(255, 200, 150))
+				return
+			end
+			selected[p.uid] = not selected[p.uid] or nil
+			pick.Visible = selected[p.uid] == true
+			refreshTools()
+			return
 		end
-	end)
-	del.Activated:Connect(function()
-		if os.clock() - info.armed > 2 then
-			info.armed = os.clock()
-			del.Text = "?"
-			del.BackgroundColor3 = RED
-			task.delay(2, function()
-				if del.Parent then
-					del.Text = "🗑"
-					del.BackgroundColor3 = Color3.fromRGB(255, 235, 235)
-				end
-			end)
-			UIKit.toast("Click 🗑 again to delete " .. Config.Pets[p.kind].name, Color3.fromRGB(255, 200, 150))
-		else
-			UIKit.result(PetAction:InvokeServer("delete", p.uid))
+		local ok, msg = PetAction:InvokeServer(mode == "lock" and "lock" or (info.equipped and "unequip" or "equip"), p.uid)
+		if not ok or mode == "lock" then
+			UIKit.result(ok, msg)
 		end
 	end)
 	return info
 end
 
+local deleteArmed = 0
+function refreshTools()
+	for key, b in pairs(modeButtons) do
+		b.BackgroundColor3 = key == mode and (key == "delete" and RED or key == "lock" and Color3.fromRGB(240, 170, 40) or GREEN) or Color3.fromRGB(150, 155, 175)
+	end
+	local n = 0
+	for uid in pairs(selected) do
+		if cards[uid] then
+			n += 1
+		else
+			selected[uid] = nil
+		end
+	end
+	local deleting = mode == "delete"
+	deleteBtn.Instance.Visible = deleting
+	clearBtn.Instance.Visible = deleting
+	storageBtn.Instance.Visible = not deleting
+	slotBtn.Instance.Visible = not deleting
+	if os.clock() - deleteArmed > 2.5 then
+		deleteBtn.setText(n == 0 and "Tap pets to pick" or ("🗑 Delete " .. n))
+	end
+	deleteBtn.setColor(n > 0 and RED or Color3.fromRGB(150, 155, 175))
+	local money = player:GetAttribute("Money") or 0
+	local sLevel = player:GetAttribute("StorageLevel") or 0
+	local sPrice = Config.STORAGE.prices[sLevel + 1]
+	storageBtn.setText(sPrice and ("📦 +" .. Config.STORAGE.step .. "  $" .. abbreviate(sPrice)) or "📦 Storage MAX")
+	storageBtn.setColor(sPrice and money >= sPrice and GREEN or Color3.fromRGB(150, 155, 175))
+	local slLevel = player:GetAttribute("SlotLevel") or 0
+	local slPrice = Config.SLOT_PRICES[slLevel + 1]
+	slotBtn.setText(slPrice and ("🐾 +1 Slot  $" .. abbreviate(slPrice)) or "🐾 Slots MAX")
+	slotBtn.setColor(slPrice and money >= slPrice and GREEN or Color3.fromRGB(150, 155, 175))
+end
+
+local function setMode(m)
+	mode = m
+	if m ~= "delete" then
+		table.clear(selected)
+		for _, c in pairs(cards) do
+			c.pick.Visible = false
+		end
+	end
+	refreshTools()
+	local tips = { equip = "Tap a pet to equip / unequip it.", lock = "🔒 Tap pets to lock / unlock them. Locked pets can't be deleted or traded.", delete = "🗑 Tap pets to pick them, then press Delete." }
+	UIKit.toast(tips[m], Color3.fromRGB(255, 200, 230))
+end
+for key, b in pairs(modeButtons) do
+	b.Activated:Connect(function()
+		UIKit.sound("Click", 0.4)
+		setMode(key)
+	end)
+end
+clearBtn.Instance.Activated:Connect(function()
+	table.clear(selected)
+	for _, c in pairs(cards) do
+		c.pick.Visible = false
+	end
+	refreshTools()
+end)
+deleteBtn.Instance.Activated:Connect(function()
+	local list = {}
+	for uid in pairs(selected) do
+		table.insert(list, uid)
+	end
+	if #list == 0 then
+		return
+	end
+	if os.clock() - deleteArmed > 2.5 then
+		deleteArmed = os.clock()
+		deleteBtn.setText("Sure? Delete " .. #list)
+		UIKit.bounce(deleteBtn.Instance)
+		task.delay(2.6, refreshTools)
+		return
+	end
+	deleteArmed = 0
+	local ok, msg = PetAction:InvokeServer("deleteMany", list)
+	UIKit.result(ok, msg)
+	if ok then
+		table.clear(selected)
+	end
+	refreshTools()
+end)
+storageBtn.Instance.Activated:Connect(function()
+	UIKit.result(PetAction:InvokeServer("upgradeStorage"))
+end)
+slotBtn.Instance.Activated:Connect(function()
+	UIKit.result(PetAction:InvokeServer("upgradeSlots"))
+end)
+
 local function refreshPets()
 	local pets = Config.parsePets(player:GetAttribute("Pets"))
 	local equipped = Config.parseEquipped(player:GetAttribute("EquippedPets"))
+	local tier = Config.playerTier(player)
 	local seen = {}
 	for _, p in ipairs(pets) do
 		seen[p.uid] = true
@@ -626,16 +432,16 @@ local function refreshPets()
 		if ea ~= eb then
 			return ea > eb
 		end
-		local ma, mb = Config.petMult(a.kind, a.golden), Config.petMult(b.kind, b.golden)
+		local ma, mb = Config.petMult(a.kind, a.golden, tier), Config.petMult(b.kind, b.golden, tier)
 		if ma ~= mb then
 			return ma > mb
 		end
 		return a.uid > b.uid
 	end)
-	-- copies of each pet (not golden) for the golden tags
+	-- copies of each pet (not golden, not locked) for the golden tags
 	local copies = {}
 	for _, p in ipairs(pets) do
-		if not p.golden then
+		if not p.golden and not p.locked then
 			copies[p.kind] = (copies[p.kind] or 0) + 1
 		end
 	end
@@ -660,21 +466,27 @@ local function refreshPets()
 		local c = cards[p.uid]
 		c.card.LayoutOrder = i
 		c.equipped = equipped[p.uid] == true
+		c.locked = p.locked
 		c.check.Visible = c.equipped
+		c.lockTag.Visible = p.locked
+		c.pick.Visible = selected[p.uid] == true and not p.locked
+		if p.locked then
+			selected[p.uid] = nil
+		end
+		c.multLabel.Text = multText(Config.petMult(p.kind, p.golden, tier)) .. (Config.Pets[p.kind].scales and " 📈" or " 💰")
 		if c.equipped then
 			nEquipped += 1
 		end
 	end
 	emptyLabel.Visible = #pets == 0
-	summary.Text = string.format("Pets %d / %d    Equipped %d / %d", #pets, Config.MAX_PETS, nEquipped, Config.petSlotsFor(player))
-	summary2.Text = "Money boost: " .. multText(player:GetAttribute("PetMultiplier") or 1) .. " 💰"
+	summary.Text = string.format("🐾 %d / %d pets", #pets, Config.maxPetsFor(player))
+	summary2.Text = string.format("Equipped %d/%d  •  ", nEquipped, Config.petSlotsFor(player)) .. multText(player:GetAttribute("PetMultiplier") or 1) .. " 💰"
+	refreshTools()
 end
-for _, attr in ipairs({ "Pets", "EquippedPets", "PetMultiplier", "Rebirths", "Pass_VIP", "Pass_PetSlots" }) do
+for _, attr in ipairs({ "Pets", "EquippedPets", "PetMultiplier", "Rebirths", "UnlockedStage", "StorageLevel", "SlotLevel", "Pass_VIP", "Pass_PetSlots", "Pass_PetStorage" }) do
 	player:GetAttributeChangedSignal(attr):Connect(refreshPets)
 end
-for _, attr in ipairs({ "Money", "UnlockedStage", "Candy" }) do
-	player:GetAttributeChangedSignal(attr):Connect(refreshEggWindow)
-end
+player:GetAttributeChangedSignal("Money"):Connect(refreshTools)
 refreshPets()
 
 -- PETS button in the bottom bar
@@ -689,9 +501,11 @@ followFolder.Name = "PetFollowers"
 followFolder.Parent = workspace
 
 -- spots around you, in your own space (+Z = behind you)
-local WALK_SLOTS = { Vector3.new(-3.6, 0, 4), Vector3.new(3.6, 0, 4), Vector3.new(0, 0, 6.5), Vector3.new(-6, 0, 7.5), Vector3.new(6, 0, 7.5), Vector3.new(0, 0, 10) }
+local WALK_SLOTS = { Vector3.new(-3.6, 0, 4), Vector3.new(3.6, 0, 4), Vector3.new(0, 0, 6.5), Vector3.new(-6, 0, 7.5), Vector3.new(6, 0, 7.5), Vector3.new(0, 0, 10),
+	Vector3.new(-9, 0, 10.5), Vector3.new(9, 0, 10.5), Vector3.new(-4, 0, 12.5), Vector3.new(4, 0, 12.5), Vector3.new(-8, 0, 14.5), Vector3.new(8, 0, 14.5) }
 -- in flight the pets fly beside the rocket (never between it and the camera)
-local FLY_SLOTS = { Vector3.new(-5.5, 0.5, 0.5), Vector3.new(5.5, 0.5, 0.5), Vector3.new(-9.5, 2, 1.5), Vector3.new(9.5, 2, 1.5), Vector3.new(-13.5, 3.5, 3), Vector3.new(13.5, 3.5, 3) }
+local FLY_SLOTS = { Vector3.new(-5.5, 0.5, 0.5), Vector3.new(5.5, 0.5, 0.5), Vector3.new(-9.5, 2, 1.5), Vector3.new(9.5, 2, 1.5), Vector3.new(-13.5, 3.5, 3), Vector3.new(13.5, 3.5, 3),
+	Vector3.new(-7.5, -2.5, 2.5), Vector3.new(7.5, -2.5, 2.5), Vector3.new(-11.5, -1, 4), Vector3.new(11.5, -1, 4), Vector3.new(-15.5, 0.5, 5.5), Vector3.new(15.5, 0.5, 5.5) }
 local followers = {} -- [player] = { kinds = string, pets = { { model, pos } } }
 
 local function rebuildFollowers(plr)

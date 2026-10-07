@@ -4,6 +4,7 @@
 -- are copied over once.
 local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local ProfileStore = require(ServerScriptService.Vendor.ProfileStore)
@@ -53,12 +54,26 @@ PlayerData.DEFAULTS = {
 	MissionBonus = false, -- the all-3 bonus spin was given today
 	QuestTiers = "", -- "flights:2,best:1" = goals claimed per quest chain
 	Codes = "", -- redeemed codes
+	StorageLevel = 0, -- pet storage upgrades bought (Config.STORAGE)
+	SlotLevel = 0, -- equip slot upgrades bought (Config.SLOT_PRICES)
+	AutoDelete = "", -- pet kinds deleted right when hatched: "Kind,Kind"
+	FastHatch = false, -- short hatch show
+	TradesOff = false, -- don't get trade requests
+	SuperLuckUntil = 0, -- server time when a Super Luck potion ends
+	Snowflakes = 0, -- Winter event currency (kept between events)
 	MusicOn = true,
 	SoundOn = true,
 	Migrated = false,
 }
 
-local store = ProfileStore.New("RocketSim_PS1", PlayerData.DEFAULTS)
+-- Studio play tests save to their own copy ("_Studio"), so test money / owner commands never touch
+-- anyone's real save (with "Studio Access to API Services" on, Studio uses the live DataStores).
+PlayerData.STUDIO = RunService:IsStudio()
+local function storeName(name)
+	return PlayerData.STUDIO and (name .. "_Studio") or name
+end
+PlayerData.storeName = storeName
+local store = ProfileStore.New(storeName("RocketSim_PS1"), PlayerData.DEFAULTS)
 local profiles = {} -- [player] = profile
 local lastSave = {} -- [player] = os.clock() of the last forced save
 local pendingSave = {} -- [player] = true while a delayed save (saveSoon) is waiting
@@ -71,7 +86,7 @@ local function migrateOld(player, data)
 	end
 	data.Migrated = true
 	local ok, old = pcall(function()
-		return DataStoreService:GetDataStore("RocketSim_v1"):GetAsync("u_" .. player.UserId)
+		return DataStoreService:GetDataStore(storeName("RocketSim_v1")):GetAsync("u_" .. player.UserId)
 	end)
 	if ok and type(old) == "table" then
 		for k, default in pairs(PlayerData.DEFAULTS) do

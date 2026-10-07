@@ -267,3 +267,35 @@ income. Changes:
   entrance; a new Pumpkin King (crown, scepter, cape, flames).
 - Egg window: 6-7 pet eggs show two centred rows; the hatch buttons stay pinned under the cards
   (they scrolled out of sight on phones). Hatch show text shrinks on phones; the joystick hides.
+
+## Pet tools, trading, limited eggs, Robux items, Winter (2026-10-07)
+Owner picked from the "what's missing" list (all but the big hatch announcements: rare hatches are
+now one plain chat line, "X has just hatched a Legendary Y", no sound / banner).
+- Saving: Studio play tests use their own DataStores ("_Studio": profiles + leaderboards), so test
+  money never touches real saves once Studio API access is on.
+- Pets window: modes 🐾 Equip / 🔒 Lock / 🗑 Delete (pick many, Delete N, confirm). Locked pets can't
+  be deleted, fused or traded. Storage +20 x5 ($25K .. $2B, from 60 to 160; pass +100) and equip
+  slots +1 x2 ($50M, $20B), paid with money.
+- Egg window: tap a pet (below Legendary) to auto-delete it when hatched (still counts for the
+  Index); ⚡ Fast hatch (short show); 🔁 Auto (Auto Hatch pass) keeps hatching; Hatch 8 (pass;
+  two rows of 4 in the show); the luck you have now. Phones: two rows for 6-7 pets, buttons pinned.
+- Luck: one factor (Config.luckFactor) - Lucky Eggs pass x3, event / spin boost x2 or Super Luck
+  x3, Lucky Hour x2 (every 3 h for 30 min, same on every server, pill counts down), capped at x12;
+  chances always add up to 100.
+- Trading (TradeServer / TradeClient): PETS -> Trade, invite, both offer up to 8 pets, Ready, 3 s
+  countdown, everything checked again, then both inventories change at once and both saves are
+  written. Any change un-readies both; leaving / flying cancels; requests can be turned off.
+- Scaling pets: limited / Royal / Winter pets have no fixed bonus - it follows your best unlocked
+  egg (tier), so they stay good forever.
+- Limited egg (weekly, same everywhere): Crystal Cave, Candy Kingdom, Ocean Deep in turn; costs 2x
+  your best egg. Marble showcase on the lawn north of the spawn plaza; board shows your price and
+  the time left.
+- Royal Treasure Egg (Robux, developer products RoyalEgg1 R$49 / RoyalEgg3 R$129): Epic+ pets only
+  (Royal Corgi, Crown Lion, Treasure Dragon, Diamond Phoenix); golden stand with a red carpet by the
+  main path. Hidden where paid random items aren't allowed (PolicyService). Never auto-deleted.
+- New passes / products (ids 0 until created): Auto Hatch, Hatch 8, +100 Pet Storage, Super Luck.
+- Winter (Dec 1 - Jan 5): snowflakes from pickups and missions, Frosty Gift Egg (Snowman Pup,
+  Gingerbread Cat, Reindeer, Frost Yeti) on the event spot with pines in lights, presents, candy
+  canes and a snowman, snow over the plaza, ❄ pill. Owner command /event winter|halloween|none|auto.
+- Phones / low graphics: animated eggs come alive closer (46 studs instead of 70).
+

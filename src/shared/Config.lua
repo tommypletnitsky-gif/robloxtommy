@@ -251,7 +251,13 @@ end
 -- stage. Pet models live in ReplicatedStorage.PetModels / EggModels (place-only, generated meshes).
 -- A pet's `mult` is its money multiplier; equipped pets add up: total = 1 + sum(mult - 1).
 Config.MAX_EQUIPPED = 3 -- pet slots before rebirths (Config.petSlots adds one per rebirth)
-Config.MAX_PETS = 60
+Config.MAX_PETS = 60 -- pet storage before upgrades (Config.maxPetsFor adds them)
+-- Storage upgrades (PETS window, paid with money): +step pets each. The Pet Storage pass adds more.
+Config.STORAGE = { step = 20, prices = { 25000, 400000, 6000000, 100000000, 2000000000 } }
+-- Equip slot upgrades (paid with money): +1 slot each.
+Config.SLOT_PRICES = { 50000000, 20000000000 }
+-- Auto-delete: only pets below this rarity can be auto-deleted (rare ones are always kept).
+Config.AUTO_DELETE_BELOW = "Legendary"
 Config.Rarities = {
 	Common = { order = 1, color = Color3.fromRGB(170, 175, 190) },
 	Uncommon = { order = 2, color = Color3.fromRGB(90, 210, 110) },
@@ -325,17 +331,95 @@ Config.EventEggs = {
 		stand = Vector3.new(-150, 0, 40), pets = { "PumpkinPup", "GhostKitty", "BatDragon", "PumpkinKing" } },
 }
 
+-- Scaling pets: the pets of the eggs below have no fixed bonus - it grows with the best egg you've
+-- unlocked (your "tier"): multiplier = 1 + (your tier's egg base) x power, so they stay good forever.
+-- Their egg sets list power per pet (worst -> best).
+local SET4 = { rarity = { "Common", "Rare", "Epic", "Legendary" }, chance = { 60, 28, 10, 2 } }
+local function scaledSet(powers, base)
+	local s = table.clone(base or SET4)
+	s.power = powers
+	return s
+end
+-- Winter 2026: snowflakes from pickups, the Frosty Gift Egg on the Spooky Egg's spot.
+table.insert(Config.EventEggs, { id = "Frosty", name = "Frosty Gift Egg", stage = 1, price = 150, currency = "Snowflakes", event = "Winter", scales = true,
+	setDef = scaledSet({ 0.85, 1, 1.15, 2.8 }), color = Color3.fromRGB(120, 200, 255), accent = Color3.fromRGB(255, 80, 90),
+	stand = Vector3.new(-150, 0, 40), pets = { "SnowmanPup", "GingerbreadCat", "Reindeer", "FrostYeti" } })
+
+-- Limited eggs: one at a time, a new one every week (same on every server), bought with money at
+-- priceMult x the price of your best unlocked egg; scaling pets. They come back in turn.
+Config.LIMITED_EPOCH = 1791158400 -- Monday 2026-10-05 00:00 UTC
+Config.LIMITED_WEEK = 7 * 86400
+Config.LimitedEggs = {
+	{ id = "Crystal", name = "Crystal Cave Egg", stage = 1, limited = true, scales = true, priceMult = 2, setDef = scaledSet({ 1.2, 1.4, 1.6, 4 }),
+		color = Color3.fromRGB(150, 110, 255), accent = Color3.fromRGB(120, 255, 240), pets = { "GemMole", "CrystalBat", "AmethystFox", "DiamondGolem" } },
+	{ id = "Candy", name = "Candy Kingdom Egg", stage = 1, limited = true, scales = true, priceMult = 2, setDef = scaledSet({ 1.2, 1.4, 1.6, 4 }),
+		color = Color3.fromRGB(255, 150, 200), accent = Color3.fromRGB(120, 230, 255), pets = { "GummyBear", "LollipopLamb", "CupcakeKitty", "CandyDragon" } },
+	{ id = "Ocean", name = "Ocean Deep Egg", stage = 1, limited = true, scales = true, priceMult = 2, setDef = scaledSet({ 1.2, 1.4, 1.6, 4 }),
+		color = Color3.fromRGB(40, 120, 200), accent = Color3.fromRGB(120, 255, 220), pets = { "BubblePuffer", "SeahorseKnight", "OctoPup", "Megalodon" } },
+}
+-- the special eggs' stands, on the lawn north of the spawn plaza (SpecialEggsServer)
+Config.LIMITED_STAND = Vector3.new(-134, 0, 52)
+Config.ROYAL_STAND = Vector3.new(-129, 0, 26) -- (right by the main path from the spawn)
+for _, e in ipairs(Config.LimitedEggs) do
+	e.stand = Config.LIMITED_STAND
+end
+-- the limited egg on sale now, and when it changes (os time)
+function Config.limitedEgg(now)
+	now = now or workspace:GetServerTimeNow()
+	local week = math.floor((now - Config.LIMITED_EPOCH) / Config.LIMITED_WEEK)
+	local egg = Config.LimitedEggs[week % #Config.LimitedEggs + 1]
+	return egg, Config.LIMITED_EPOCH + (week + 1) * Config.LIMITED_WEEK
+end
+
+-- Robux egg (developer products RoyalEgg1 / RoyalEgg3): rare pets only, scaling. Where paid random
+-- items aren't allowed (PolicyService), the egg can't be bought.
+Config.ExclusiveEggs = {
+	{ id = "Royal", name = "Royal Treasure Egg", stage = 1, robux = true, scales = true,
+		setDef = scaledSet({ 2, 3, 5, 12 }, { rarity = { "Epic", "Legendary", "Mythic", "Secret" }, chance = { 60, 30, 9, 1 } }),
+		color = Color3.fromRGB(255, 200, 60), accent = Color3.fromRGB(255, 90, 200), pets = { "RoyalCorgi", "CrownLion", "TreasureDragon", "DiamondPhoenix" } },
+}
+Config.ExclusiveEggs[1].stand = Config.ROYAL_STAND
+
 -- Halloween 2026: candy from pickups, the Spooky Egg, lobby pumpkins. Ends by itself.
 Config.Halloween = { ends = 1793577600 } -- 2026-11-02 00:00 UTC
 Config.Candy = { Coin = 1, Gem = 3, Ring = 2, Golden = 50, Mission = 10 }
+-- (the owner's /event command can force one event on for a server: workspace attribute ForceEvent
+-- = "Halloween" | "Winter" | "None")
+local function forcedEvent()
+	return workspace:GetAttribute("ForceEvent")
+end
 function Config.halloweenActive()
+	local f = forcedEvent()
+	if f then
+		return f == "Halloween"
+	end
 	return workspace:GetServerTimeNow() < Config.Halloween.ends
+end
+Config.Winter = { starts = 1796083200, ends = 1799107200 } -- 2026-12-01 .. 2027-01-05 UTC
+Config.Snowflakes = Config.Candy -- (same amounts per pickup)
+function Config.winterActive()
+	local f = forcedEvent()
+	if f then
+		return f == "Winter"
+	end
+	local now = workspace:GetServerTimeNow()
+	return now >= Config.Winter.starts and now < Config.Winter.ends
 end
 function Config.eventActive(event)
 	if event == "Halloween" then
 		return Config.halloweenActive()
+	elseif event == "Winter" then
+		return Config.winterActive()
 	end
 	return false
+end
+-- the season currency being handed out now ("Candy" / "Snowflakes"), or nil
+function Config.seasonCurrency()
+	if Config.halloweenActive() then
+		return "Candy"
+	elseif Config.winterActive() then
+		return "Snowflakes"
+	end
 end
 
 Config.PET_NAMES = {
@@ -355,6 +439,11 @@ Config.PET_NAMES = {
 	StarPuppy = "Star Puppy", CometFox = "Comet Fox", NebulaJelly = "Nebula Jelly", NebulaDragon = "Nebula Dragon", CosmicKitsune = "Cosmic Kitsune", CrystalMammoth = "Crystal Mammoth", StarbornChimera = "Starborn Chimera",
 	VoidKitten = "Void Kitten", QuasarBunny = "Quasar Bunny", GalaxyUnicorn = "Galaxy Unicorn", SingularitySerpent = "Singularity Serpent", DarkMatterPanther = "Dark Matter Panther", VoidDragon = "Void Dragon", GalaxyEmperor = "Galaxy Emperor",
 	PumpkinPup = "Pumpkin Pup", GhostKitty = "Ghost Kitty", BatDragon = "Bat Dragon", PumpkinKing = "Pumpkin King",
+	SnowmanPup = "Snowman Pup", GingerbreadCat = "Gingerbread Cat", Reindeer = "Reindeer", FrostYeti = "Frost Yeti",
+	GemMole = "Gem Mole", CrystalBat = "Crystal Bat", AmethystFox = "Amethyst Fox", DiamondGolem = "Diamond Golem",
+	GummyBear = "Gummy Bear", LollipopLamb = "Lollipop Lamb", CupcakeKitty = "Cupcake Kitty", CandyDragon = "Candy Dragon",
+	BubblePuffer = "Bubble Puffer", SeahorseKnight = "Seahorse Knight", OctoPup = "Octo Pup", Megalodon = "Megalodon",
+	RoyalCorgi = "Royal Corgi", CrownLion = "Crown Lion", TreasureDragon = "Treasure Dragon", DiamondPhoenix = "Diamond Phoenix",
 }
 
 -- Pet effects (drawn by the client's PetFx module wherever the pet shows up). Each entry is a list
@@ -423,13 +512,31 @@ Config.PET_FX = {
 	GhostKitty = { { "sparkle", C3(220, 225, 255) } },
 	BatDragon = { { "void", C3(150, 80, 220) }, { "embers", C3(255, 150, 40) } },
 	PumpkinKing = { { "flame", C3(255, 140, 30) }, { "embers", C3(255, 150, 40) }, { "glow", C3(255, 140, 40) }, { "aura", C3(170, 90, 255) } },
+	GingerbreadCat = { { "sparkle", C3(255, 230, 200) } },
+	Reindeer = { { "glow", C3(255, 90, 90) }, { "sparkle", C3(255, 240, 200) } },
+	FrostYeti = { { "frost", C3(200, 240, 255) }, { "glow", C3(150, 220, 255) }, { "aura", C3(170, 230, 255) } },
+	CrystalBat = { { "sparkle", C3(170, 255, 240) } },
+	AmethystFox = { { "sparkle", C3(200, 140, 255) }, { "glow", C3(180, 110, 255) } },
+	DiamondGolem = { { "sparkle", C3(220, 250, 255) }, { "glow", C3(150, 240, 255) }, { "aura", C3(180, 140, 255) } },
+	LollipopLamb = { { "sparkle", C3(255, 190, 230) } },
+	CupcakeKitty = { { "sparkle", C3(255, 220, 240) }, { "glow", C3(255, 150, 210) } },
+	CandyDragon = { { "sparkle", C3(255, 170, 220) }, { "glow", C3(255, 120, 200) }, { "aura", C3(120, 230, 255) } },
+	SeahorseKnight = { { "sparkle", C3(170, 240, 255) } },
+	OctoPup = { { "sparkle", C3(150, 255, 230) }, { "glow", C3(120, 230, 255) } },
+	Megalodon = { { "glow", C3(80, 180, 255) }, { "sparkle", C3(170, 240, 255) }, { "aura", C3(60, 160, 255) } },
+	RoyalCorgi = { { "sparkle", C3(255, 225, 120) }, { "glow", C3(255, 210, 90) } },
+	CrownLion = { { "sparkle", C3(255, 225, 120) }, { "glow", C3(255, 200, 80) }, { "aura", C3(255, 200, 70) } },
+	TreasureDragon = { { "flame", C3(255, 190, 60) }, { "sparkle", C3(255, 225, 120) }, { "glow", C3(255, 200, 80) }, { "aura", C3(255, 200, 70) } },
+	DiamondPhoenix = { { "flame", C3(170, 230, 255) }, { "sparkle", C3(230, 250, 255) }, { "glow", C3(160, 230, 255) }, { "aura", C3(255, 120, 220) } },
 }
 
 -- every egg (regular + event), for building pets and the Pet Index
 function Config.allEggs()
 	local list = table.clone(Config.Eggs)
-	for _, e in ipairs(Config.EventEggs) do
-		table.insert(list, e)
+	for _, group in ipairs({ Config.EventEggs, Config.LimitedEggs, Config.ExclusiveEggs }) do
+		for _, e in ipairs(group) do
+			table.insert(list, e)
+		end
 	end
 	return list
 end
@@ -438,7 +545,7 @@ end
 -- top = the egg's best pet (announced to everyone when hatched).
 Config.Pets = {}
 for _, egg in ipairs(Config.allEggs()) do
-	local set = Config.EGG_SETS[#egg.pets]
+	local set = egg.setDef or Config.EGG_SETS[#egg.pets]
 	egg.set = set
 	for rank, kind in ipairs(egg.pets) do
 		local rarity = set.rarity[rank]
@@ -450,7 +557,8 @@ for _, egg in ipairs(Config.allEggs()) do
 			rank = rank,
 			chance = set.chance[rank],
 			power = set.power[rank],
-			mult = math.floor((1 + egg.base * set.power[rank]) * 100 + 0.5) / 100,
+			mult = math.floor((1 + (egg.base or Config.Eggs[1].base) * set.power[rank]) * 100 + 0.5) / 100,
+			scales = egg.scales and set.power[rank] or nil, -- (scaling pet: see Config.petMult)
 			height = Config.PET_HEIGHT[rarity],
 			top = rank == #egg.pets,
 		}
@@ -489,29 +597,63 @@ Config.GOLDEN_COST = 5
 Config.GOLDEN_POWER = 2.5
 Config.GOLDEN_TINT = Vector3.new(2, 1.8, 0.45)
 
--- A pet's money multiplier (golden or not).
-function Config.petMult(kind, golden)
+-- Your tier: the best regular egg you've unlocked (1..15). Scaling pets grow with it.
+function Config.tierOf(stage)
+	local t = 1
+	for i, e in ipairs(Config.Eggs) do
+		if (stage or 1) >= e.stage then
+			t = i
+		end
+	end
+	return t
+end
+function Config.playerTier(player)
+	return Config.tierOf(player and player:GetAttribute("UnlockedStage") or 1)
+end
+
+-- A pet's money multiplier (golden or not); scaling pets use `tier` (default 1).
+function Config.petMult(kind, golden, tier)
 	local p = Config.Pets[kind]
 	if not p then
 		return 1
 	end
-	if golden then
-		return math.floor((1 + (p.mult - 1) * Config.GOLDEN_POWER) * 100 + 0.5) / 100
+	local m = p.mult
+	if p.scales then
+		local egg = Config.Eggs[math.clamp(tier or 1, 1, #Config.Eggs)]
+		m = math.floor((1 + egg.base * p.scales) * 100 + 0.5) / 100
 	end
-	return p.mult
+	if golden then
+		return math.floor((1 + (m - 1) * Config.GOLDEN_POWER) * 100 + 0.5) / 100
+	end
+	return m
 end
 
--- Saved pet list format (player attribute "Pets"): "uid:Kind;uid:Kind:G" (G = golden).
--- Equipped: "uid,uid".
+-- What an egg costs this player (limited eggs follow your tier).
+function Config.eggPrice(egg, player)
+	if egg.priceMult then
+		return math.floor(Config.Eggs[Config.playerTier(player)].price * egg.priceMult)
+	end
+	return egg.price or 0
+end
+
+-- Saved pet list format (player attribute "Pets"): "uid:Kind;uid:Kind:G:L" (G = golden,
+-- L = locked: can't be deleted, fused or traded). Equipped: "uid,uid".
 function Config.parsePets(s)
 	local list = {}
 	for entry in string.gmatch(s or "", "[^;]+") do
-		local uid, kind, flag = entry:match("^(%d+):(%w+):?(%a?)$")
+		local uid, kind, flags = entry:match("^(%d+):(%w+)(.*)$")
 		if uid and Config.Pets[kind] then
-			table.insert(list, { uid = tonumber(uid), kind = kind, golden = flag == "G" })
+			table.insert(list, { uid = tonumber(uid), kind = kind, golden = string.find(flags, ":G", 1, true) ~= nil, locked = string.find(flags, ":L", 1, true) ~= nil })
 		end
 	end
 	return list
+end
+function Config.serializePets(list)
+	local parts = {}
+	for _, p in ipairs(list) do
+		table.insert(parts, p.uid .. ":" .. p.kind .. (p.golden and ":G" or "") .. (p.locked and ":L" or ""))
+	end
+	return table.concat(parts, ";")
 end
 
 function Config.parseEquipped(s)
@@ -523,12 +665,12 @@ function Config.parseEquipped(s)
 end
 
 -- Total money multiplier from a list of equipped pets ("Kind" or "Kind:G" for golden).
-function Config.petMultiplier(kinds)
+function Config.petMultiplier(kinds, tier)
 	local m = 1
 	for _, entry in ipairs(kinds) do
 		local kind, flag = string.match(entry, "^(%w+):?(%a?)$")
 		if kind and Config.Pets[kind] then
-			m += Config.petMult(kind, flag == "G") - 1
+			m += Config.petMult(kind, flag == "G", tier) - 1
 		end
 	end
 	return m
@@ -631,6 +773,19 @@ Config.Events = {
 	Luck = { name = "LUCKY EGGS x2", desc = "Epic + Legendary pets are 2x more likely!", color = Color3.fromRGB(60, 190, 110), icon = "Clover" },
 	Fuel = { name = "FUEL FRENZY", desc = "+25% fuel on every rocket!", color = Color3.fromRGB(255, 150, 40), icon = "FuelCan" },
 }
+-- Lucky Hour: the same time on every server, every `every` seconds for `length` seconds - eggs
+-- are `mult` x luckier (stacks with everything else). Players can plan around it.
+Config.LUCKY_HOUR = { every = 3 * 3600, length = 1800, mult = 2 }
+-- returns active, seconds left (if active) or seconds until the next one
+function Config.luckyHour(now)
+	now = now or workspace:GetServerTimeNow()
+	local t = now % Config.LUCKY_HOUR.every
+	if t < Config.LUCKY_HOUR.length then
+		return true, Config.LUCKY_HOUR.length - t
+	end
+	return false, Config.LUCKY_HOUR.every - t
+end
+
 -- the event running right now (nil if none)
 function Config.activeEvent()
 	local key = workspace:GetAttribute("Event")
@@ -660,7 +815,26 @@ Config.Gamepasses = {
 	{ key = "LuckyEggs", id = 2005683456, name = "Lucky Eggs", icon = "Clover", robux = 99, color = Color3.fromRGB(60, 190, 110), desc = "Epic and rarer pets are 3x more likely when you hatch." },
 	{ key = "PetSlots", id = 2006871467, name = "+3 Pet Slots", icon = "Paw", robux = 129, color = Color3.fromRGB(110, 140, 240), desc = "Equip 3 more pets at once." },
 	{ key = "MegaFuel", id = 2005743470, name = "Mega Fuel", icon = "FuelCan", robux = 49, color = Color3.fromRGB(255, 150, 40), desc = "+50% fuel on every rocket: fly much farther!" },
+	{ key = "AutoHatch", id = 0, name = "Auto Hatch", icon = "Wheel", robux = 149, color = Color3.fromRGB(255, 120, 190), desc = "Eggs keep hatching by themselves until you stop (or run out of money)." },
+	{ key = "Hatch8", id = 0, name = "Hatch 8", icon = "Gift", robux = 199, color = Color3.fromRGB(170, 90, 255), desc = "Hatch 8 eggs at once!" },
+	{ key = "PetStorage", id = 0, name = "+100 Pet Storage", icon = "Paw", robux = 99, color = Color3.fromRGB(70, 180, 220), desc = "Keep 100 more pets." },
 }
+-- Developer products (bought again and again). id = 0 shows "coming soon".
+Config.Products = {
+	{ key = "SuperLuck", id = 0, robux = 39, name = "Super Luck", icon = "Clover", color = Color3.fromRGB(60, 190, 110), desc = "30 minutes of x3 luck on every egg." },
+	{ key = "RoyalEgg1", id = 0, robux = 49, egg = "Royal", count = 1, name = "Royal Egg", icon = "Crown", color = Color3.fromRGB(255, 190, 40), desc = "Hatch 1 Royal Treasure Egg." },
+	{ key = "RoyalEgg3", id = 0, robux = 129, egg = "Royal", count = 3, name = "3 Royal Eggs", icon = "Crown", color = Color3.fromRGB(255, 160, 40), desc = "Hatch 3 Royal Treasure Eggs." },
+}
+Config.SUPER_LUCK = 3 -- x luck from a Super Luck potion
+Config.SUPER_LUCK_TIME = 1800
+Config.PET_STORAGE_PASS = 100
+function Config.getProduct(key)
+	for _, p in ipairs(Config.Products) do
+		if p.key == key then
+			return p
+		end
+	end
+end
 -- The game's creator owns every pass for free (Roblox rule). Off = the owner plays like a normal
 -- player (to judge the balance); use the chat command /pass all to test pass effects.
 Config.OWNER_GETS_PASSES = false
@@ -673,22 +847,61 @@ Config.PASS = {
 	PetSlots = 3,
 	MegaFuel = 1.5, -- fuel x
 }
--- hatch chances (%) per rarity; Lucky Eggs pass: Epic + Legendary x3, the Lucky Eggs server
--- event another x2; the extra chance is taken from Common
--- Chance (%) of each pet in `egg` (same order as egg.pets). Lucky Eggs pass / luck events
--- multiply Epic-and-better chances; the Common pays for it.
-function Config.eggChances(egg, lucky, luckEvent)
+-- How much luckier this player's hatches are right now (x Epic-and-better chances):
+--   Lucky Eggs pass x3; x2 from the Lucky Eggs server event or a Lucky Spin boost; x3 from a Super
+--   Luck potion (the bigger of those two); Lucky Hour x2 on top. Capped at LUCK_CAP.
+Config.LUCK_CAP = 12
+function Config.luckFactor(player)
+	local now = workspace:GetServerTimeNow()
+	local f = 1
+	if player and Config.hasPass(player, "LuckyEggs") then
+		f *= Config.PASS.LuckyEggs
+	end
+	local boost = 1
+	if Config.activeEvent() == "Luck" or (player and (player:GetAttribute("BoostLuckUntil") or 0) > now) then
+		boost = Config.EVENT_LUCK
+	end
+	if player and (player:GetAttribute("SuperLuckUntil") or 0) > now then
+		boost = math.max(boost, Config.SUPER_LUCK)
+	end
+	f *= boost
+	if Config.luckyHour(now) then
+		f *= Config.LUCKY_HOUR.mult
+	end
+	return math.min(f, Config.LUCK_CAP)
+end
+
+-- Chance (%) of each pet in `egg` (same order as egg.pets) with luck factor `luck`: Epic-and-better
+-- chances x luck, the extra is taken from the commonest pets first (always adds up to 100).
+function Config.eggChances(egg, luck)
 	local chance = table.clone(egg.set.chance)
-	local factor = (lucky and Config.PASS.LuckyEggs or 1) * (luckEvent and Config.EVENT_LUCK or 1)
-	if factor > 1 then
-		local extra = 0
+	luck = luck or 1
+	if luck > 1 then
+		local boosted, extra = 0, 0
 		for rank, rarity in ipairs(egg.set.rarity) do
 			if Config.Rarities[rarity].order >= Config.Rarities.Epic.order then
-				extra += chance[rank] * (factor - 1)
-				chance[rank] *= factor
+				extra += chance[rank] * (luck - 1)
+				chance[rank] *= luck
+				boosted += chance[rank]
 			end
 		end
-		chance[1] = math.max(0, chance[1] - extra)
+		if boosted > 100 then -- (huge luck: only boosted pets left, in their own proportions)
+			for rank, rarity in ipairs(egg.set.rarity) do
+				local isBoosted = Config.Rarities[rarity].order >= Config.Rarities.Epic.order
+				chance[rank] = isBoosted and chance[rank] * 100 / boosted or 0
+			end
+			return chance
+		end
+		for rank, rarity in ipairs(egg.set.rarity) do
+			if extra <= 0 then
+				break
+			end
+			if Config.Rarities[rarity].order < Config.Rarities.Epic.order then
+				local take = math.min(chance[rank], extra)
+				chance[rank] -= take
+				extra -= take
+			end
+		end
 	end
 	return chance
 end
@@ -704,6 +917,14 @@ function Config.petSlotsFor(player)
 	end
 	if Config.hasPass(player, "PetSlots") then
 		n += Config.PASS.PetSlots
+	end
+	return n + (player:GetAttribute("SlotLevel") or 0)
+end
+-- how many pets you can keep
+function Config.maxPetsFor(player)
+	local n = Config.MAX_PETS + Config.STORAGE.step * (player:GetAttribute("StorageLevel") or 0)
+	if Config.hasPass(player, "PetStorage") then
+		n += Config.PET_STORAGE_PASS
 	end
 	return n
 end

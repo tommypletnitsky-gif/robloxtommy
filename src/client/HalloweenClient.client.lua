@@ -69,6 +69,6 @@ task.spawn(function()
 	lastCandy = player:GetAttribute("Candy") or 0
 	while true do
 		refresh()
-		task.wait(20)
+		task.wait(5)
 	end
 end)

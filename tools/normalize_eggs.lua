@@ -37,8 +37,17 @@ local YAW = {
 	PumpkinKing = 180,
 	Spooky = 180,
 	BlackHole = -90, -- (its galaxy crack faces the walk)
+	CandyDragon = 180,
+	TreasureDragon = 180,
 }
-local EVENT_HEIGHT = 5.2 -- event eggs (made from egg_<Id> only when one has been generated)
+-- the special eggs' pets (limited / Royal / Winter) came out of the generator already facing -Z
+for _, kind in ipairs({ "GemMole", "CrystalBat", "AmethystFox", "DiamondGolem", "GummyBear", "LollipopLamb", "CupcakeKitty", "CandyDragon",
+	"BubblePuffer", "SeahorseKnight", "OctoPup", "Megalodon", "RoyalCorgi", "CrownLion", "TreasureDragon", "DiamondPhoenix",
+	"SnowmanPup", "GingerbreadCat", "Reindeer", "FrostYeti" }) do
+	YAW[kind] = YAW[kind] or 0
+end
+local EVENT_HEIGHT = 5.2 -- event / limited eggs (made from egg_<Id> only when one has been generated)
+local SPECIAL_HEIGHT = { Royal = 5.8 }
 local BOTTOM_PROPS = { Pyramid = true, IceCrystals = true, SpaceCrystals = true, LunarLander = true, MarsRover = true, LavaRocks = true }
 
 local function clean(m)
@@ -298,12 +307,18 @@ for i, egg in ipairs(Config.Eggs) do
 		table.insert(report, "egg " .. egg.id .. " MISSING")
 	end
 end
-for _, egg in ipairs(Config.EventEggs) do
+local specials = {}
+for _, group in ipairs({ Config.EventEggs, Config.LimitedEggs, Config.ExclusiveEggs }) do
+	for _, egg in ipairs(group) do
+		table.insert(specials, egg)
+	end
+end
+for _, egg in ipairs(specials) do
 	local src = gen and gen:FindFirstChild("egg_" .. egg.id)
 	if src then
 		local m = clean(src:Clone())
 		m.Name = egg.id
-		fit(m, EVENT_HEIGHT, YAW[egg.id])
+		fit(m, SPECIAL_HEIGHT[egg.id] or EVENT_HEIGHT, YAW[egg.id])
 		if egg.id == "Spooky" then
 			lanternGlow(m)
 			clean(m)

@@ -1,7 +1,9 @@
 -- The hatch show (Eggs v2): a real 3D scene, so the egg's orbiting props, particles, beams and the
 -- pet's flames / sparkles all show (the old show drew models in 2D viewports, which can't).
 --   HatchShow.play(egg, results, { petModel = fn(kind) -> Model, eggModel = fn(egg) -> Model,
---                                  isNew = fn(kind) -> bool })
+--                                  isNew = fn(kind) -> bool, fast = bool, tier = number })
+-- results: { kind, golden?, deleted? } (deleted = auto-deleted: shown, then marked). 1, 3 or 8 eggs
+-- (8 stand in two rows, a bit smaller). fast = a short show (no wait for a tap).
 -- The stage is built far away from the world (nothing else in view): a backdrop with spinning rays
 -- in the egg's colour, 1 or 3 eggs that drop in, shake harder and harder (the orbiters speed up,
 -- an Epic-or-better result makes the egg glow in its rarity colour first), crack into flying shell
@@ -82,8 +84,8 @@ local function textScale()
 end
 
 -- name / rarity / multiplier under a pet (screen labels following its spot)
-local function caption(pet, golden)
-	local k = textScale()
+local function caption(pet, golden, tier, deleted, small)
+	local k = textScale() * (small and 0.72 or 1)
 	local f = Instance.new("Frame")
 	f.AnchorPoint = Vector2.new(0.5, 0)
 	f.Size = UDim2.fromOffset(300 * k, 86 * k)
@@ -92,8 +94,8 @@ local function caption(pet, golden)
 	f.Parent = screen
 	local color = Config.Rarities[pet.rarity].color
 	UIKit.label({ Parent = f, Size = UDim2.fromScale(1, 0.465), Text = (golden and "⭐ Golden " or "") .. pet.name, ZIndex = 9, StrokeThickness = 3.5 * k })
-	local r = UIKit.label({ Parent = f, Position = UDim2.fromScale(0, 0.465), Size = UDim2.fromScale(1, 0.326), Text = string.upper(pet.rarity) .. "  •  " .. Config.multText(Config.petMult(pet.id, golden)) .. " 💰", TextColor3 = pet.rarity == "Secret" and C(255, 255, 255) or color, ZIndex = 9, StrokeThickness = 3 * k })
-	if pet.rarity == "Secret" then
+	local r = UIKit.label({ Parent = f, Position = UDim2.fromScale(0, 0.465), Size = UDim2.fromScale(1, 0.326), Text = deleted and "🗑 AUTO-DELETED" or (string.upper(pet.rarity) .. "  •  " .. Config.multText(Config.petMult(pet.id, golden, tier)) .. " 💰"), TextColor3 = deleted and C(190, 190, 200) or pet.rarity == "Secret" and C(255, 255, 255) or color, ZIndex = 9, StrokeThickness = 3 * k })
+	if pet.rarity == "Secret" and not deleted then
 		local g = Instance.new("UIGradient")
 		g.Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, C(255, 90, 90)),
@@ -120,8 +122,21 @@ function HatchShow.play(egg, results, fns)
 	folder.Name = "HatchStage"
 	folder.Parent = workspace
 	local n = #results
-	local gap = n > 1 and 7.5 or 0
-	local dist = n > 1 and 19 or 12.5
+	local fast = fns.fast == true
+	-- where each egg stands: one row (1-3) or two rows of 4 (8), and how far the camera is
+	local spots, dist, aimY, scale = {}, 12.5, 1.8, 1
+	if n > 3 then
+		dist, aimY, scale = 25, 2.3, 0.7
+		for i = 1, n do
+			local col, row = (i - 1) % 4, (i - 1) // 4
+			spots[i] = Vector3.new((col - 1.5) * 6.4, row == 0 and 4.6 or -1, row == 0 and -1.5 or 0)
+		end
+	else
+		dist = n > 1 and 19 or 12.5
+		for i = 1, n do
+			spots[i] = Vector3.new((i - (n + 1) / 2) * 7.5, 0, 0)
+		end
+	end
 
 	-- best rarity in this hatch (the tease + the sound)
 	local best = "Common"
@@ -157,7 +172,7 @@ function HatchShow.play(egg, results, fns)
 	end
 	local savedType, savedCF, savedFov = camera.CameraType, camera.CFrame, camera.FieldOfView
 	camera.CameraType = Enum.CameraType.Scriptable
-	local camCF = CFrame.lookAt(STAGE + Vector3.new(0, 2.2, dist), STAGE + Vector3.new(0, 1.8, 0))
+	local camCF = CFrame.lookAt(STAGE + Vector3.new(0, aimY + 0.4, dist), STAGE + Vector3.new(0, aimY, 0))
 	camera.CFrame = camCF
 	camera.FieldOfView = 50
 
@@ -194,6 +209,9 @@ function HatchShow.play(egg, results, fns)
 	local petModels = {}
 	for i, r in ipairs(results) do
 		local m = prep(fns.petModel(r.kind, r.golden))
+		if scale ~= 1 then
+			m:ScaleTo(m:GetScale() * scale)
+		end
 		m:PivotTo(CFrame.new(STAGE + Vector3.new(i * 6, 0, -40)))
 		m.Parent = folder
 		petModels[i] = m
@@ -205,9 +223,13 @@ function HatchShow.play(egg, results, fns)
 	-- the eggs: drop in from above
 	local slots = {}
 	for i, r in ipairs(results) do
-		local x = (i - (n + 1) / 2) * gap
-		local home = CFrame.lookAt(STAGE + Vector3.new(x, 0, 0), STAGE + Vector3.new(x, 0, 10))
+		local at = STAGE + spots[i]
+		local x = spots[i].X
+		local home = CFrame.lookAt(at, at + Vector3.new(0, 0, 10))
 		local e = prep(fns.eggModel(egg))
+		if scale ~= 1 then
+			e:ScaleTo(e:GetScale() * scale)
+		end
 		e:PivotTo(home * CFrame.new(0, 9, 0))
 		e.Parent = folder
 		local rig = EggLooks.attach(e, egg.id, { hatch = true, parent = folder, home = home })
@@ -225,7 +247,7 @@ function HatchShow.play(egg, results, fns)
 
 	-- the build-up
 	local t0 = os.clock()
-	local DROP, DUR = 0.45, 2.6
+	local DROP, DUR = fast and 0.25 or 0.45, fast and 0.9 or 2.6
 	local last = os.clock()
 	local shakeT = 0
 	while true do
@@ -302,7 +324,7 @@ function HatchShow.play(egg, results, fns)
 		-- the pet springs out
 		local m = petModels[i]
 		local _, psize = m:GetBoundingBox()
-		local pcf = CFrame.lookAt(s.home.Position, s.home.Position + Vector3.new(0, 0, 10)) * CFrame.new(0, math.max(0, 2.6 - psize.Y * 0.35), 0)
+		local pcf = CFrame.lookAt(s.home.Position, s.home.Position + Vector3.new(0, 0, 10)) * CFrame.new(0, math.max(0, 2.6 * scale - psize.Y * 0.35), 0)
 		m:PivotTo(pcf)
 		m.Parent = folder
 		PetFx.apply(m, s.result.kind, { strength = 1.6 })
@@ -313,7 +335,7 @@ function HatchShow.play(egg, results, fns)
 		glow.Brightness = 2
 		glow.Range = 12
 		glow.Parent = burst
-		local cap = caption(pet, s.result.golden)
+		local cap = caption(pet, s.result.golden, fns.tier, s.result.deleted, n > 3)
 		local new = fns.isNew and fns.isNew(s.result.kind) and not tagged[s.result.kind]
 		if new then
 			tagged[s.result.kind] = true
@@ -338,7 +360,7 @@ function HatchShow.play(egg, results, fns)
 			closed = true
 		end
 	end)
-	local tEnd = os.clock() + 4.5
+	local tEnd = os.clock() + (fast and 1.5 or 4.5)
 	local shown = false
 	while not closed and os.clock() < tEnd do
 		local now = os.clock()
@@ -361,7 +383,7 @@ function HatchShow.play(egg, results, fns)
 				p.grown = a >= 1
 			end
 			p.m:PivotTo(p.pcf * CFrame.new(0, math.sin(now * 2) * 0.15, 0) * CFrame.Angles(0, math.sin(now * 1.2) * 0.45, 0))
-			local sp, on = camera:WorldToViewportPoint(p.pcf.Position + Vector3.new(0, -1.1, 0))
+			local sp, on = camera:WorldToViewportPoint(p.pcf.Position + Vector3.new(0, -1.1 * scale, 0))
 			p.cap.Visible = on
 			p.cap.Position = UDim2.fromOffset(sp.X, sp.Y + 6)
 		end

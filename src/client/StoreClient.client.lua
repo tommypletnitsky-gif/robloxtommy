@@ -30,7 +30,7 @@ for i, pass in ipairs(Config.Gamepasses) do
 	local card = UIKit.card(grid, { LayoutOrder = i, ZIndex = 11, Tint = UIKit.lighter(pass.color, 0.7), Border = pass.color })
 	local iconBox = make("Frame", { Parent = card, Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(100, 100), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(24), UIKit.stroke(3.5), UIKit.gloss(pass.color) })
 	make("Frame", { Parent = iconBox, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.7, Position = UDim2.new(0.1, 0, 0.07, 0), Size = UDim2.new(0.8, 0, 0.28, 0), ZIndex = 12 }, { UIKit.corner(14) })
-	if ReplicatedStorage:FindFirstChild("UIIcons") and ReplicatedStorage.UIIcons:FindFirstChild(pass.icon) then
+	if UIKit.IMAGES[pass.icon] or (ReplicatedStorage:FindFirstChild("UIIcons") and ReplicatedStorage.UIIcons:FindFirstChild(pass.icon)) then
 		UIKit.icon3D(iconBox, pass.icon, { ZIndex = 13 })
 	end
 	label({ Parent = card, Position = UDim2.fromOffset(124, 12), Size = UDim2.new(1, -136, 0, 32), TextXAlignment = Enum.TextXAlignment.Left, Text = pass.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
@@ -48,16 +48,38 @@ for i, pass in ipairs(Config.Gamepasses) do
 	cards[pass.key] = { pass = pass, button = button, price = pass.robux }
 end
 
+-- Super Luck potion (developer product, can be bought again: the time adds up)
+local luck = Config.getProduct("SuperLuck")
+local luckRow = UIKit.row(list, 2, 74)
+local cloverBox = make("Frame", { Parent = luckRow, Position = UDim2.fromOffset(6, 4), Size = UDim2.fromOffset(66, 66), BackgroundTransparency = 1, ZIndex = 12 })
+UIKit.icon3D(cloverBox, "Clover", { ZIndex = 13 })
+local luckText = label({ Parent = luckRow, Position = UDim2.fromOffset(80, 8), Size = UDim2.new(1, -250, 1, -16), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
+local luckBtn = UIKit.button({ Parent = luckRow, Text = luck.id ~= 0 and ("R$ " .. luck.robux) or ("R$ " .. luck.robux .. " • SOON"), Color = luck.id ~= 0 and GREEN or GREY, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(150, 54), ZIndex = 12 })
+luckBtn.Instance.Activated:Connect(function()
+	if luck.id == 0 then
+		UIKit.toast("Super Luck is coming soon!", Color3.fromRGB(255, 230, 120))
+	else
+		MarketplaceService:PromptProductPurchase(player, luck.id)
+	end
+end)
+task.spawn(function()
+	while true do
+		local left = (player:GetAttribute("SuperLuckUntil") or 0) - workspace:GetServerTimeNow()
+		luckText.Text = "🍀 Super Luck: x" .. Config.SUPER_LUCK .. " luck on every egg for " .. (Config.SUPER_LUCK_TIME // 60) .. " min" .. (left > 0 and string.format("   (%d:%02d left)", left // 60, left % 60) or "")
+		task.wait(1)
+	end
+end)
+
 -- Support the game: Robux donations (developer products, Config.Donations). Top supporters show
 -- on the leaderboard in the lobby.
 local TEAL = Color3.fromRGB(40, 190, 200)
-local supportHead = UIKit.row(list, 2, 70)
+local supportHead = UIKit.row(list, 3, 70)
 local heartBox = make("Frame", { Parent = supportHead, Position = UDim2.fromOffset(6, 2), Size = UDim2.fromOffset(66, 66), BackgroundTransparency = 1, ZIndex = 12 })
 if ReplicatedStorage:FindFirstChild("UIIcons") and ReplicatedStorage.UIIcons:FindFirstChild("Heart") then
 	UIKit.icon3D(heartBox, "Heart", { ZIndex = 13 })
 end
 label({ Parent = supportHead, Position = UDim2.fromOffset(80, 8), Size = UDim2.new(1, -96, 1, -16), TextXAlignment = Enum.TextXAlignment.Left, Text = "Support the game! Top supporters are shown on the board in the lobby.", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
-local donateRow = make("Frame", { Parent = list, LayoutOrder = 3, Size = UDim2.new(1, -12, 0, 66), BackgroundTransparency = 1, ZIndex = 11 }, {
+local donateRow = make("Frame", { Parent = list, LayoutOrder = 4, Size = UDim2.new(1, -12, 0, 66), BackgroundTransparency = 1, ZIndex = 11 }, {
 	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
 })
 for i, d in ipairs(Config.Donations) do
@@ -72,7 +94,7 @@ for i, d in ipairs(Config.Donations) do
 end
 
 -- Invite friends: every friend in your server gives +money (Config.FRIEND_BOOST, GameServer).
-local friendRow = UIKit.row(list, 4, 70)
+local friendRow = UIKit.row(list, 5, 70)
 label({ Parent = friendRow, Position = UDim2.fromOffset(6, 2), Size = UDim2.fromOffset(66, 66), Text = "👥", StrokeThickness = 0, ZIndex = 12 })
 local each = math.round(Config.FRIEND_BOOST * 100)
 label({ Parent = friendRow, Position = UDim2.fromOffset(80, 8), Size = UDim2.new(1, -236, 1, -16), TextXAlignment = Enum.TextXAlignment.Left, Text = "Play with friends: +" .. each .. "% money each (up to +" .. each * Config.FRIEND_BOOST_MAX .. "%)", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })

@@ -119,9 +119,10 @@ ClaimMission.OnServerInvoke = function(player, id)
 	local reward = Config.missionReward(entry.stage or player:GetAttribute("UnlockedStage") or 1)
 	addMoney(player, reward)
 	local msg = "Mission complete! +$" .. Config.abbreviate(reward)
-	if Config.halloweenActive() then
-		player:SetAttribute("Candy", (player:GetAttribute("Candy") or 0) + Config.Candy.Mission)
-		msg ..= " +" .. Config.Candy.Mission .. " 🍬"
+	local currency = Config.seasonCurrency()
+	if currency then
+		player:SetAttribute(currency, (player:GetAttribute(currency) or 0) + Config.Candy.Mission)
+		msg ..= " +" .. Config.Candy.Mission .. (currency == "Candy" and " 🍬" or " ❄")
 	end
 	local all = true
 	for _, e in ipairs(Config.parseMissions(player:GetAttribute("Missions"))) do

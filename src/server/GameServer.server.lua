@@ -563,10 +563,12 @@ CollectRemote.OnServerEvent:Connect(function(player, id)
 		return
 	end
 	f.collected[id] = true
-	-- Halloween: every coin / gem / ring / golden coin also gives candy
-	local candy = Config.halloweenActive() and Config.Candy[p.kind]
+	-- seasonal events: every coin / gem / ring / golden coin also gives the event currency
+	-- (Halloween candy, Winter snowflakes)
+	local currency = Config.seasonCurrency()
+	local candy = currency and Config.Candy[p.kind]
 	if candy then
-		player:SetAttribute("Candy", (player:GetAttribute("Candy") or 0) + candy)
+		player:SetAttribute(currency, (player:GetAttribute(currency) or 0) + candy)
 	end
 	if p.kind == "Coin" or p.kind == "Gem" then
 		addCombo(f, p)

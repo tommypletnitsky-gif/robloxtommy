@@ -13,6 +13,17 @@ local EggLooks = require(modules:WaitForChild("EggLooks"))
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local NEAR, FAR = 70, 85 -- rigs start within NEAR studs of the camera, stop beyond FAR
+-- phones / low graphics: fewer eggs come alive at once (each rig is ~20-60 parts + particles + a light)
+do
+	local UserInputService = game:GetService("UserInputService")
+	local okQ, quality = pcall(function()
+		return UserSettings():GetService("UserGameSettings").SavedQualityLevel.Value
+	end)
+	local phone = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	if phone or (okQ and quality > 0 and quality <= 3) then
+		NEAR, FAR = 46, 56
+	end
+end
 
 local eggs = {} -- [egg model] = { home, id, rig, phase }
 
@@ -104,7 +115,18 @@ local function refreshBoards()
 		local egg = Config.getEgg(stand:GetAttribute("Egg") or "")
 		local board = stand:FindFirstChild("Board")
 		local lock = board and board:FindFirstChild("Lock", true)
-		if egg and lock then
+		if egg and lock and stand:GetAttribute("Limited") then
+			-- the limited egg: your price (it follows your best egg) and the time left
+			local _, ends = Config.limitedEgg()
+			local left = math.max(0, ends - workspace:GetServerTimeNow())
+			local d, h, m = left // 86400, (left % 86400) // 3600, (left % 3600) // 60
+			lock.Text = "⏳ " .. (d > 0 and string.format("%dd %02dh left", d, h) or string.format("%dh %02dm left", h, m))
+			lock.TextColor3 = Color3.fromRGB(255, 200, 120)
+			local price = board:FindFirstChild("Price", true)
+			if price then
+				price.Text = "$" .. Config.abbreviate(Config.eggPrice(egg, player))
+			end
+		elseif egg and lock then
 			if stage >= egg.stage then
 				lock.Text = "Press E to hatch!"
 				lock.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -116,6 +138,12 @@ local function refreshBoards()
 	end
 end
 player:GetAttributeChangedSignal("UnlockedStage"):Connect(refreshBoards)
+task.spawn(function()
+	while true do
+		task.wait(20) -- (the limited egg's timer)
+		refreshBoards()
+	end
+end)
 task.spawn(function()
 	local hatchery = workspace:WaitForChild("World"):WaitForChild("Hub"):WaitForChild("Hatchery", 30)
 	refreshBoards()

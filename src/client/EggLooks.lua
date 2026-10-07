@@ -152,6 +152,57 @@ MAKE.bat = function(parent, k)
 	return m
 end
 
+-- special eggs' orbiters
+MAKE.amethyst = function(parent, k)
+	return newPart(parent, { Size = Vector3.new(0.38, 1.1, 0.38) * k, Color = C(190, 120, 255), Material = Enum.Material.Neon, Transparency = 0.15 })
+end
+MAKE.lollipop = function(parent, k)
+	local m = Instance.new("Model")
+	local stick = newPart(m, { Name = "Stick", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.9, 0.1, 0.1) * k, CFrame = CFrame.new(0, -0.45 * k, 0) * CFrame.Angles(0, 0, math.pi / 2), Color = C(255, 255, 255) })
+	m.PrimaryPart = stick
+	local col = ({ C(255, 90, 160), C(120, 220, 255), C(255, 210, 80) })[math.random(1, 3)]
+	newPart(m, { Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.14, 0.75, 0.75) * k, CFrame = CFrame.new(0, 0.05 * k, 0) * CFrame.Angles(0, math.pi / 2, 0), Color = col })
+	newPart(m, { Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.16, 0.42, 0.42) * k, CFrame = CFrame.new(0, 0.05 * k, 0) * CFrame.Angles(0, math.pi / 2, 0), Color = C(255, 255, 255) })
+	m.WorldPivot = CFrame.new()
+	m.Parent = parent
+	return m
+end
+MAKE.candyBall = function(parent, k)
+	local col = ({ C(255, 120, 190), C(130, 230, 160), C(255, 220, 90), C(150, 170, 255) })[math.random(1, 4)]
+	return newPart(parent, { Shape = Enum.PartType.Ball, Size = Vector3.one * 0.42 * k, Color = col, Reflectance = 0.1 })
+end
+MAKE.fish = function(parent, k)
+	local m = Instance.new("Model")
+	local col = ({ C(255, 150, 60), C(255, 220, 80), C(90, 200, 255) })[math.random(1, 3)]
+	local body = newPart(m, { Name = "Body", Shape = Enum.PartType.Ball, Size = Vector3.new(0.45, 0.45, 0.45) * k, Color = col })
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Scale = Vector3.new(0.7, 1, 1.6)
+	mesh.Parent = body
+	m.PrimaryPart = body
+	for _, s in ipairs({ -1, 1 }) do
+		local w = newPart(m, { Name = "Tail", Size = Vector3.new(0.05, 0.32, 0.3) * k, CFrame = CFrame.new(0, s * 0.08 * k, 0.42 * k) * CFrame.Angles(s * 0.6, 0, 0), Color = col })
+		w:SetAttribute("Side", s)
+	end
+	m.WorldPivot = CFrame.new()
+	m.Parent = parent
+	return m
+end
+MAKE.coin = function(parent, k)
+	return newPart(parent, { Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.12, 0.6, 0.6) * k, Color = C(255, 205, 60), Material = Enum.Material.Metal, Reflectance = 0.2 })
+end
+MAKE.snowflake = function(parent, k)
+	local m = Instance.new("Model")
+	local center = newPart(m, { Name = "Center", Shape = Enum.PartType.Ball, Size = Vector3.one * 0.16 * k, Color = C(230, 248, 255), Material = Enum.Material.Neon })
+	m.PrimaryPart = center
+	for i = 0, 2 do
+		newPart(m, { Size = Vector3.new(0.07, 0.8, 0.04) * k, CFrame = CFrame.Angles(0, 0, i * math.pi / 3), Color = C(220, 245, 255), Material = Enum.Material.Neon })
+	end
+	m.WorldPivot = CFrame.new()
+	m.Parent = parent
+	return m
+end
+
 -- The looks. Orbit: { make, n, r (x egg width), y (x egg height, 0 = middle), speed, tilt, spin,
 -- bob, beam = { color, width, electric }, trail = color, flap = true }.
 -- fx: { preset, color, at = "base" | "middle" | "top", strength }.
@@ -245,6 +296,33 @@ local LOOKS = {
 		fx = { { "void", C(190, 100, 255), "middle", 1.4 } },
 		light = { C(180, 90, 255), 2.4, 3.4, pulse = 1.8 },
 	},
+	-- Limited eggs, the Royal egg, Winter
+	Crystal = {
+		orbit = { { make = "amethyst", n = 4, r = 1.2, y = 0.15, speed = 0.8, spin = 1.2, bob = 0.25 }, { make = "crystal", n = 3, r = 0.95, y = 0.55, speed = -1.1, spin = 1.5, bob = 0.2 } },
+		fx = { { "sparkle", C(200, 160, 255), "middle", 1.2 } },
+		light = { C(170, 110, 255), 1.4, 2.6, pulse = 1 },
+	},
+	Candy = {
+		orbit = { { make = "lollipop", n = 3, r = 1.3, y = 0.35, speed = 0.8, spin = 1.6, bob = 0.3 }, { make = "candyBall", n = 5, r = 1.0, y = -0.15, speed = -1.2, bob = 0.15 } },
+		fx = { { "sparkle", C(255, 170, 220), "middle", 1.1 } },
+		light = { C(255, 140, 200), 1.2, 2.4 },
+	},
+	Ocean = {
+		orbit = { { make = "fish", n = 4, r = 1.35, y = 0.1, speed = 1.2, bob = 0.3, flap = true } },
+		fx = { { "bubbles", C(210, 245, 255), "base", 1 } },
+		light = { C(90, 220, 255), 1.3, 2.6, pulse = 0.8 },
+	},
+	Royal = {
+		rings = { { r = 1.0, width = 0.32, color = C(255, 205, 70), tilt = 0.25, speed = 1.2, alpha = 0.05 } },
+		orbit = { { make = "coin", n = 6, r = 1.35, y = 0.15, speed = 1.0, spin = 4, bob = 0.2 } },
+		fx = { { "sparkle", C(255, 225, 120), "middle", 1.6 } },
+		light = { C(255, 210, 110), 2, 3, pulse = 1.2 },
+	},
+	Frosty = {
+		orbit = { { make = "snowflake", n = 5, r = 1.3, y = 0.3, speed = 0.7, spin = 2, bob = 0.3 } },
+		fx = { { "snow", C(255, 255, 255), "top", 1 } },
+		light = { C(170, 225, 255), 1.2, 2.4 },
+	},
 	-- Halloween: bats circling, ghost wisps drifting up, purple fog, a flickering candle glow
 	Spooky = {
 		orbit = { { make = "bat", n = 3, r = 1.3, y = 0.6, speed = 1.3, bob = 0.35, flap = true } },
@@ -269,6 +347,12 @@ local EXTRA = {
 	end,
 	duststorm = function(p, c, k, s)
 		emitter(p, { Name = "DustStorm", Texture = SMOKE, Color = seq(c), Size = NumberSequence.new(0.8 * k, 2 * k), Transparency = NumberSequence.new(0.55, 1), Lifetime = NumberRange.new(1.2, 2), Speed = NumberRange.new(1.5, 3), SpreadAngle = Vector2.new(180, 20), Rate = 6 * s, LightEmission = 0, LightInfluence = 1, RotSpeed = NumberRange.new(-60, 60) })
+	end,
+	bubbles = function(p, c, k, s)
+		emitter(p, { Name = "Bubbles", Color = seq(c), Size = NumberSequence.new(0.18 * k, 0.32 * k), Transparency = NumberSequence.new(0.3, 0.8), Lifetime = NumberRange.new(1.4, 2.2), Speed = NumberRange.new(1.2, 2.2), SpreadAngle = Vector2.new(20, 20), Rate = 6 * s, LightEmission = 0.4 })
+	end,
+	snow = function(p, c, k, s)
+		emitter(p, { Name = "Snow", Color = seq(c), Size = NumberSequence.new(0.14 * k), Transparency = NumberSequence.new(0.1, 0.6), Lifetime = NumberRange.new(1.6, 2.4), Speed = NumberRange.new(1, 1.8), SpreadAngle = Vector2.new(60, 60), Rate = 10 * s, LightEmission = 0.5, EmissionDirection = Enum.NormalId.Bottom })
 	end,
 	ghosts = function(p, c, k, s)
 		emitter(p, { Name = "Ghosts", Texture = SMOKE, Color = seq(c), Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2 * k), NumberSequenceKeypoint.new(0.4, 0.9 * k), NumberSequenceKeypoint.new(1, 0.3 * k) }), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.3, 0.45), NumberSequenceKeypoint.new(1, 1) }), Lifetime = NumberRange.new(1.6, 2.4), Speed = NumberRange.new(1, 1.8), SpreadAngle = Vector2.new(35, 35), Rate = 2.5 * s, LightEmission = 0.5, RotSpeed = NumberRange.new(-30, 30) })

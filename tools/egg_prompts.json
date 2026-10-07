@@ -18,7 +18,12 @@
     ["GasGiant", "egg with swirling orange cream and brown bands like jupiter and a great red spot, a tilted golden ring around it like saturn", [8, 6.6, 8]],
     ["Nebula", "glowing translucent purple egg with swirling pink and blue nebula clouds and tiny stars inside", [5.2, 6.6, 5.2]],
     ["BlackHole", "pitch black void egg with glowing purple cracks and a swirling purple galaxy pattern", [5.2, 6.6, 5.2]],
-    ["Spooky", "haunted Halloween egg shaped like a jack-o-lantern, dark purple and black egg shell with a carved glowing orange spooky grin and two triangle eyes glowing from inside, a curly green vine stem and a small leaf on top, a few thin cracks", [4.6, 4.6, 4.6]]
+    ["Spooky", "haunted Halloween egg shaped like a jack-o-lantern, dark purple and black egg shell with a carved glowing orange spooky grin and two triangle eyes glowing from inside, a curly green vine stem and a small leaf on top, a few thin cracks", [4.6, 4.6, 4.6]],
+    ["Crystal", "magical crystal geode egg, deep purple amethyst shell cracked open with glowing teal and purple crystal clusters growing out of it, sparkling gems", [5.2, 5.2, 5.2]],
+    ["Candy", "candy egg made of swirled pink and white candy with rainbow sprinkles, a lollipop and gummy bears stuck on it, chocolate drizzle on top, glossy sweets", [5.2, 5.2, 5.2]],
+    ["Ocean", "ocean egg, deep blue shell with wavy sea foam stripes, seashells, a starfish and pink coral pieces stuck on it, small pearls", [5.2, 5.2, 5.2]],
+    ["Royal", "royal treasure egg, shiny gold shell with a red velvet band, encrusted with large rubies, sapphires and diamonds, a small golden crown on top", [5.2, 5.2, 5.2]],
+    ["Frosty", "christmas gift egg wrapped like a present, light blue shell with a red ribbon and a big red bow on top, white snowflake patterns, frosty snow on top", [5.2, 5.2, 5.2]]
   ],
   "pets": [
     ["Fennec", "cute chibi fennec fox pet sitting, huge ears, sandy orange fur, tiny gold necklace", [3, 3, 3]],
@@ -81,7 +86,27 @@
     ["DarkMatterPanther", "majestic chibi black panther with glowing purple galaxy spots", [4.3, 4.3, 4.3]],
     ["VoidDragon", "epic chibi black void dragon with purple flames on its wings and horns", [5, 5, 5]],
     ["GalaxyEmperor", "epic chibi three-headed golden cosmic dragon emperor with galaxy patterned wings and a crown on the middle head, three dragon heads", [5.8, 5.8, 5.8]],
-    ["PumpkinKing", "chibi Pumpkin King, a cute creature with a jack-o-lantern head with a glowing orange carved smile and eyes, a tall golden crown with purple gems, a flowing purple royal cape with orange trim, little black boots, holding a small golden scepter with a glowing orange orb", [4.3, 4.3, 4.3]]
+    ["PumpkinKing", "chibi Pumpkin King, a cute creature with a jack-o-lantern head with a glowing orange carved smile and eyes, a tall golden crown with purple gems, a flowing purple royal cape with orange trim, little black boots, holding a small golden scepter with a glowing orange orb", [4.3, 4.3, 4.3]],
+    ["GemMole", "cute chibi mole pet with a big pink gem on its head and a tiny mining helmet lamp, brown fur, small shovel paws", [3, 3, 3]],
+    ["CrystalBat", "cute chibi bat pet with translucent teal crystal wings, purple fur, a glowing gem on its chest", [3.4, 3.4, 3.4]],
+    ["AmethystFox", "cute chibi fox pet made of purple amethyst crystal, a glowing crystal tail, sparkly facets", [3.8, 3.8, 3.8]],
+    ["DiamondGolem", "chibi diamond golem pet made of shining clear diamond crystals, a glowing blue core in its chest, crystal crown spikes on its head", [4.3, 4.3, 4.3]],
+    ["GummyBear", "cute chibi gummy bear pet, translucent red gummy candy body", [3, 3, 3]],
+    ["LollipopLamb", "cute chibi lamb pet with swirly lollipop wool in pink and white, little candy cane horns", [3.4, 3.4, 3.4]],
+    ["CupcakeKitty", "cute chibi cat pet sitting in a cupcake wrapper, pink frosting on its head with rainbow sprinkles and a cherry on top", [3.8, 3.8, 3.8]],
+    ["CandyDragon", "chibi dragon pet made of glossy pink and light blue hard candy, swirly lollipop wings, red and white candy cane horns, rainbow sprinkles on its back", [4.3, 4.3, 4.3]],
+    ["BubblePuffer", "cute chibi pufferfish pet, round yellow body with small soft spikes, little fins", [3, 3, 3]],
+    ["SeahorseKnight", "cute chibi seahorse pet wearing a tiny golden knight helmet and holding a small golden trident, teal and coral colors", [3.4, 3.4, 3.4]],
+    ["OctoPup", "cute chibi octopus puppy pet, a puppy head with floppy ears on a purple octopus body with curly tentacles", [3.8, 3.8, 3.8]],
+    ["Megalodon", "chibi megalodon shark pet, big jaws with small friendly teeth, dark blue body with glowing teal stripes, big fins", [4.3, 4.3, 4.3]],
+    ["RoyalCorgi", "cute chibi corgi pet wearing a tiny golden crown and a red royal cape with white fur trim", [3.8, 3.8, 3.8]],
+    ["CrownLion", "chibi lion pet with a fluffy golden mane and a jeweled golden crown, red royal cape, small golden armor", [4.3, 4.3, 4.3]],
+    ["TreasureDragon", "chibi dragon pet with shiny bright golden yellow scales, ruby red gemstone on its forehead, golden wings, sitting on a pile of gold coins and colorful jewels", [5, 5, 5]],
+    ["DiamondPhoenix", "majestic chibi phoenix pet made of sparkling diamond crystal feathers, glowing pink and cyan flames, wings spread wide", [5.8, 5.8, 5.8]],
+    ["SnowmanPup", "cute chibi snowman puppy pet made of round snowballs, puppy ears, a carrot nose and a red knitted scarf", [3, 3, 3]],
+    ["GingerbreadCat", "cute chibi gingerbread cat pet with white icing details, candy buttons and a little bow tie", [3.4, 3.4, 3.4]],
+    ["Reindeer", "cute chibi reindeer pet with a glowing red nose, antlers decorated with tiny colorful christmas lights, brown fur", [3.8, 3.8, 3.8]],
+    ["FrostYeti", "chibi yeti pet with fluffy white fur, icy blue horns, wearing a red santa hat, small frost crystals on its shoulders", [4.3, 4.3, 4.3]]
   ],
   "props": [
     ["Bone", "single cartoon bone, ivory white, smooth stylized game asset", [2, 0.7, 0.7]],

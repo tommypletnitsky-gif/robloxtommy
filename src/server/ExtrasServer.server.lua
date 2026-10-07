@@ -90,10 +90,37 @@ local function donationFor(productId)
 	end
 end
 
+local function productFor(productId)
+	for _, p in ipairs(Config.Products) do
+		if p.id ~= 0 and p.id == productId then
+			return p
+		end
+	end
+end
+
+-- What a developer product gives (Config.Products). Returns true when it's done.
+local function grantProduct(player, product)
+	if product.key == "SuperLuck" then
+		local now = workspace:GetServerTimeNow()
+		player:SetAttribute("SuperLuckUntil", math.max(now, player:GetAttribute("SuperLuckUntil") or 0) + Config.SUPER_LUCK_TIME)
+		Notify:FireClient(player, "🍀 Super Luck: x" .. Config.SUPER_LUCK .. " luck for " .. (Config.SUPER_LUCK_TIME // 60) .. " minutes!", Color3.fromRGB(120, 255, 140))
+		return true
+	elseif product.egg then
+		local results = game:GetService("ServerStorage").HatchFor:Invoke(player, product.egg, product.count)
+		if not results then
+			return false
+		end
+		remote("RemoteEvent", "PaidHatch"):FireClient(player, product.egg, results)
+		return true
+	end
+	return false
+end
+
 MarketplaceService.ProcessReceipt = function(receipt)
 	local player = Players:GetPlayerByUserId(receipt.PlayerId)
 	local donation = donationFor(receipt.ProductId)
-	if not donation then
+	local product = not donation and productFor(receipt.ProductId)
+	if not donation and not product then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 	if not player or not player:GetAttribute("DataLoaded") then
@@ -110,6 +137,14 @@ MarketplaceService.ProcessReceipt = function(receipt)
 	while #done > 30 do
 		table.remove(done, 1)
 	end
+	if product then
+		if not grantProduct(player, product) then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		player:SetAttribute("Receipts", table.concat(done, ","))
+		PlayerData.save(player) -- (the receipt id is saved with what it gave)
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
 	player:SetAttribute("Receipts", table.concat(done, ","))
 	player:SetAttribute("Donated", (player:GetAttribute("Donated") or 0) + donation.robux)
 	if not PlayerData.save(player) then
@@ -122,6 +157,7 @@ end
 -- Owner test commands (type in chat) -----------------------------------------------------
 --   /money 20000   add money        /stage 5   unlock up to stage 5
 --   /reset         wipe your progress back to the start
+--   /event winter  preview an event in this server (winter | halloween | none | auto)
 local RunService = game:GetService("RunService")
 local function isOwner(player)
 	return RunService:IsStudio() or player.UserId == game.CreatorId
@@ -133,7 +169,13 @@ local function onChat(player, msg)
 	end
 	local cmd, arg = string.match(string.lower(msg), "^/(%a+)%s*(%-?%d*)")
 	local n = tonumber(arg)
-	if cmd == "money" then
+	local ev = string.match(string.lower(msg), "^/event%s+(%a+)")
+	if ev then
+		-- preview an event in this server: /event winter | halloween | none | auto (= by the dates)
+		local names = { winter = "Winter", halloween = "Halloween", none = "None" }
+		workspace:SetAttribute("ForceEvent", names[ev])
+		Notify:FireClient(player, "Event: " .. (names[ev] or "by date") .. " (takes a few seconds)", Color3.fromRGB(130, 255, 130))
+	elseif cmd == "money" then
 		addMoney(player, n or 20000)
 		Notify:FireClient(player, "Added $" .. Config.abbreviate(n or 20000), Color3.fromRGB(130, 255, 130))
 	elseif cmd == "stage" then
@@ -182,7 +224,7 @@ local boards = {
 }
 for _, b in ipairs(boards) do
 	pcall(function()
-		b.ordered = DataStoreService:GetOrderedDataStore(b.store)
+		b.ordered = DataStoreService:GetOrderedDataStore(PlayerData.storeName(b.store)) -- (Studio: its own boards)
 	end)
 end
 

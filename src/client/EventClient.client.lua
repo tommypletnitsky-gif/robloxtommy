@@ -1,6 +1,8 @@
 -- Top-of-screen bar for things that happen to the whole server (EventServer):
 --   server event pill (x2 Money / Lucky Eggs / Fuel Frenzy + time left), friend / group boost pill,
 --   race pill with a JOIN button, live race standings while you race, and the race results.
+--   Lucky Hour pill (Config.luckyHour: same time on every server): counts down from 30 min before,
+--   then shows the time left while eggs are luckier.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -36,6 +38,7 @@ local boostPill, boostText = pill(2, SKY, 200)
 local racePill, raceText = pill(3, GOLD, 330)
 raceText.Size = UDim2.new(1, -140, 1, -14)
 raceText.TextXAlignment = Enum.TextXAlignment.Left
+local luckPill, luckText = pill(4, Color3.fromRGB(60, 190, 110), 300)
 local joinBtn = UIKit.button({ Parent = racePill, Text = "JOIN!", Color = GREEN, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -6, 0.5, 0), Size = UDim2.fromOffset(118, 40), Radius = 20, ZIndex = 3 })
 joinBtn.Instance.Activated:Connect(function()
 	local ok, msg = RaceJoin:InvokeServer()
@@ -98,6 +101,14 @@ task.spawn(function()
 			end
 		else
 			eventPill.Visible = false
+		end
+		-- Lucky Hour
+		local lucky, left = Config.luckyHour(now)
+		luckPill.Visible = lucky or left < 1800
+		if lucky then
+			luckText.Text = "🍀 LUCKY HOUR x" .. Config.LUCKY_HOUR.mult .. "  " .. clock(left)
+		elseif luckPill.Visible then
+			luckText.Text = "🍀 Lucky Hour in " .. clock(left)
 		end
 		-- friends / group
 		local friends = math.min(player:GetAttribute("Friends") or 0, Config.FRIEND_BOOST_MAX)
