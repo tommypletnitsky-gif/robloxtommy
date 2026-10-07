@@ -260,20 +260,21 @@ Config.Rarities = {
 -- chance (%) of each rarity inside every egg
 Config.RARITY_CHANCE = { Common = 60, Rare = 30, Epic = 8.5, Legendary = 1.5 }
 -- multiplier = 1 + egg.bonus * RARITY_POWER[rarity]
-Config.RARITY_POWER = { Common = 1, Rare = 1.6, Epic = 2.8, Legendary = 6 }
+-- (owner rule: each egg's Common >= the previous egg's Epic, so bonus grows >= x2.2 per egg)
+Config.RARITY_POWER = { Common = 1, Rare = 1.5, Epic = 2.2, Legendary = 5 }
 
 Config.Eggs = {
 	{ id = "Meadow", name = "Meadow Egg", stage = 1, price = 2500, bonus = 0.06, color = Color3.fromRGB(140, 220, 110),
 		pets = { Common = "Puppy", Rare = "Kitty", Epic = "Bunny", Legendary = "RocketCorgi" } },
-	{ id = "Jungle", name = "Jungle Egg", stage = 5, price = 60000, bonus = 0.15, color = Color3.fromRGB(60, 170, 90),
+	{ id = "Jungle", name = "Jungle Egg", stage = 5, price = 60000, bonus = 0.135, color = Color3.fromRGB(60, 170, 90),
 		pets = { Common = "Monkey", Rare = "Parrot", Epic = "TigerCub", Legendary = "GoldenJaguar" } },
-	{ id = "Frost", name = "Frost Egg", stage = 8, price = 350000, bonus = 0.27, color = Color3.fromRGB(150, 215, 255),
+	{ id = "Frost", name = "Frost Egg", stage = 8, price = 350000, bonus = 0.3, color = Color3.fromRGB(150, 215, 255),
 		pets = { Common = "Penguin", Rare = "PolarBear", Epic = "SnowFox", Legendary = "IceDragon" } },
-	{ id = "Cloud", name = "Cloud Egg", stage = 13, price = 5000000, bonus = 0.48, color = Color3.fromRGB(255, 200, 235),
+	{ id = "Cloud", name = "Cloud Egg", stage = 13, price = 5000000, bonus = 0.66, color = Color3.fromRGB(255, 200, 235),
 		pets = { Common = "CloudSheep", Rare = "Owl", Epic = "Pegasus", Legendary = "ThunderBird" } },
-	{ id = "Moon", name = "Moon Egg", stage = 22, price = 600000000, bonus = 1.1, color = Color3.fromRGB(200, 205, 220),
+	{ id = "Moon", name = "Moon Egg", stage = 22, price = 600000000, bonus = 1.46, color = Color3.fromRGB(200, 205, 220),
 		pets = { Common = "MoonBunny", Rare = "Alien", Epic = "RoboDog", Legendary = "UFOCat" } },
-	{ id = "Galaxy", name = "Galaxy Egg", stage = 27, price = 9000000000, bonus = 2.5, color = Color3.fromRGB(140, 80, 230),
+	{ id = "Galaxy", name = "Galaxy Egg", stage = 27, price = 9000000000, bonus = 3.22, color = Color3.fromRGB(140, 80, 230),
 		pets = { Common = "StarPuppy", Rare = "CometFox", Epic = "NebulaDragon", Legendary = "GalaxyUnicorn" } },
 }
 
