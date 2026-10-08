@@ -44,6 +44,8 @@
   {"file": "src/server/SpecialEggsServer.server.lua", "path": "ServerScriptService.SpecialEggsServer", "class": "Script"},
   {"file": "src/server/WinterServer.server.lua", "path": "ServerScriptService.WinterServer", "class": "Script"},
   {"file": "src/client/WinterClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.WinterClient", "class": "LocalScript"},
+  {"file": "src/server/StarterChestServer.server.lua", "path": "ServerScriptService.StarterChestServer", "class": "Script"},
+  {"file": "src/client/StarterChestClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.StarterChestClient", "class": "LocalScript"},
   {"file": "src/client/WorldLookClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.WorldLookClient", "class": "LocalScript"},
   {"file": "src/server/SpinServer.server.lua", "path": "ServerScriptService.SpinServer", "class": "Script"},
   {"file": "src/client/SpinClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.SpinClient", "class": "LocalScript"},

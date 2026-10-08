@@ -225,6 +225,11 @@ end
 
 -- Codes (typed in Settings). Each works once per player. reward = money in Stage-1 dollars,
 -- multiplied by how much your unlocked stage pays.
+-- Starter chest by the spawn: once per player, ever (StarterChestServer)
+Config.STARTER_CHEST = 5000
+Config.STARTER_CHEST_POS = Vector3.new(-138, 0, -15)
+Config.STARTER_CHEST_FACE = Vector3.new(-150, 0, 0) -- (it faces the spawn)
+
 Config.Codes = {
 	ROCKET = 500,
 	BLASTOFF = 1000,

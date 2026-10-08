@@ -54,6 +54,7 @@ PlayerData.DEFAULTS = {
 	MissionBonus = false, -- the all-3 bonus spin was given today
 	QuestTiers = "", -- "flights:2,best:1" = goals claimed per quest chain
 	Codes = "", -- redeemed codes
+	StarterChest = false, -- the free starter chest by the spawn was opened
 	StorageLevel = 0, -- pet storage upgrades bought (Config.STORAGE)
 	SlotLevel = 0, -- equip slot upgrades bought (Config.SLOT_PRICES)
 	AutoDelete = "", -- pet kinds deleted right when hatched: "Kind,Kind"
