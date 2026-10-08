@@ -382,7 +382,7 @@ Config.ExclusiveEggs[1].stand = Config.ROYAL_STAND
 -- Halloween 2026: candy from pickups, the Spooky Egg, lobby pumpkins. Ends by itself.
 Config.Halloween = { ends = 1793577600 } -- 2026-11-02 00:00 UTC
 Config.Candy = { Coin = 1, Gem = 3, Ring = 2, Golden = 50, Mission = 10 }
--- (the owner's /event command can force one event on for a server: workspace attribute ForceEvent
+-- (the owner's /season command can force one event on for a server: workspace attribute ForceEvent
 -- = "Halloween" | "Winter" | "None")
 local function forcedEvent()
 	return workspace:GetAttribute("ForceEvent")

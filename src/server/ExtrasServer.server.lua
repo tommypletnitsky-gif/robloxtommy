@@ -157,7 +157,7 @@ end
 -- Owner test commands (type in chat) -----------------------------------------------------
 --   /money 20000   add money        /stage 5   unlock up to stage 5
 --   /reset         wipe your progress back to the start
---   /event winter  preview an event in this server (winter | halloween | none | auto)
+--   /season winter preview a season event in this server (winter | halloween | none | auto)
 local RunService = game:GetService("RunService")
 local function isOwner(player)
 	return RunService:IsStudio() or player.UserId == game.CreatorId
@@ -169,9 +169,9 @@ local function onChat(player, msg)
 	end
 	local cmd, arg = string.match(string.lower(msg), "^/(%a+)%s*(%-?%d*)")
 	local n = tonumber(arg)
-	local ev = string.match(string.lower(msg), "^/event%s+(%a+)")
+	local ev = string.match(string.lower(msg), "^/season%s+(%a+)")
 	if ev then
-		-- preview an event in this server: /event winter | halloween | none | auto (= by the dates)
+		-- preview a season event in this server: /season winter | halloween | none | auto (= by the dates)
 		local names = { winter = "Winter", halloween = "Halloween", none = "None" }
 		workspace:SetAttribute("ForceEvent", names[ev])
 		Notify:FireClient(player, "Event: " .. (names[ev] or "by date") .. " (takes a few seconds)", Color3.fromRGB(130, 255, 130))
