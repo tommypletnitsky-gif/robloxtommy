@@ -25,7 +25,7 @@ end
 -- Window ------------------------------------------------------------------------------------------
 -- NOW → NEXT hero tiles (the next one glowing gold on rays), the stage you need with a bar,
 -- KEEP vs STARTS OVER side by side, then the big button.
-local window, list = UIKit.window("Rebirth", PURPLE, UDim2.fromOffset(640, 520), "Trophy")
+local window, list = UIKit.window("Rebirth", PURPLE, UDim2.fromOffset(640, 560), "Trophy")
 local RED = Color3.fromRGB(235, 85, 85)
 
 local hero = make("Frame", { Parent = list, LayoutOrder = 1, Size = UDim2.new(1, -12, 0, 136), BackgroundTransparency = 1, ZIndex = 11 })
@@ -46,7 +46,7 @@ local needRow = UIKit.row(list, 2, 70)
 local needText = label({ Parent = needRow, Position = UDim2.fromOffset(14, 6), Size = UDim2.new(1, -28, 0, 26), Text = "", TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 12 })
 local _, setNeed = UIKit.bar(needRow, { Position = UDim2.fromOffset(14, 38), Size = UDim2.new(1, -28, 0, 22), Color = PURPLE, ShowText = true, ZIndex = 12 })
 
-local sides = make("Frame", { Parent = list, LayoutOrder = 3, Size = UDim2.new(1, -12, 0, 114), BackgroundTransparency = 1, ZIndex = 11 })
+local sides = make("Frame", { Parent = list, LayoutOrder = 3, Size = UDim2.new(1, -12, 0, 150), BackgroundTransparency = 1, ZIndex = 11 })
 local function sideCard(x, color, title)
 	local c = UIKit.card(sides, { Size = UDim2.new(0.5, -6, 1, 0), ZIndex = 11, Border = color, Tint = UIKit.lighter(color, 0.82) })
 	c.Position = UDim2.new(x, x > 0 and 6 or 0, 0, 0)
@@ -58,7 +58,7 @@ local function sideCard(x, color, title)
 end
 local keepText = sideCard(0, GREEN, "✅ YOU KEEP")
 local loseText = sideCard(0.5, RED, "🔄 STARTS OVER")
-loseText.Text = "💰 Money   🗺️ Stages\n🚀 Rockets   ⬆️ Upgrades"
+loseText.Text = "💰 Money   🗺️ Stages\n🐾 Pets   🚀 Rockets\n⬆️ Upgrades   ✨ Trails"
 
 local buttonRow = make("Frame", { Parent = list, LayoutOrder = 5, Size = UDim2.new(1, -12, 0, 72), BackgroundTransparency = 1, ZIndex = 11 })
 local rebirthBtn = UIKit.button({ Parent = buttonRow, Text = "", Color = GREEN, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(0.7, 0, 0, 64), Radius = 24, ZIndex = 12 })
@@ -91,7 +91,7 @@ local function refresh()
 	needText.Text = ready and "✅ You can rebirth!" or ("🔒 Unlock Stage " .. need .. " to rebirth")
 	setNeed(math.clamp(stage / need, 0.03, 1), "Stage " .. math.min(stage, need) .. " / " .. need)
 	local slotsNow, slotsNext = Config.petSlots(n), Config.petSlots(n + 1)
-	keepText.Text = "🐾 Pets   ✨ Trails"
+	keepText.Text = "🛒 Robux buys\n👑 Royal Egg pets"
 		.. (slotsNext > slotsNow and ("\n➕ Pet slots " .. slotsNow .. " → " .. slotsNext) or "\n📖 Pet Index")
 	UIKit.claimable(rebirthBtn, ready and os.clock() - armedAt >= 3)
 	if not ready then

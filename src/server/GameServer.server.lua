@@ -778,8 +778,10 @@ BuyUpgrade.OnServerInvoke = function(player, key)
 end
 
 -- Rebirth ---------------------------------------------------------------------------------
--- Unlock far enough, then start over for a permanent money bonus and one more pet slot.
--- Resets money, stages, best distance, rockets and upgrades; keeps pets, trails and rewards.
+-- Unlock far enough, then start brand new for a permanent money bonus (+ a pet slot).
+-- Resets money, stages, best distance, rockets, upgrades, trails and pets (incl. pet storage / slot
+-- upgrades). Keeps what was bought with Robux (passes, potions, Royal Treasure Egg pets), the
+-- rebirth trails, the Pet Index, stats, quests and event currency.
 RebirthRemote.OnServerInvoke = function(player)
 	if not player:GetAttribute("DataLoaded") then
 		return false, "Loading your save..."
@@ -800,6 +802,35 @@ RebirthRemote.OnServerInvoke = function(player)
 	for key in pairs(Config.Upgrades) do
 		player:SetAttribute(key .. "Level", 0)
 	end
+	-- trails: only the free rebirth trails stay
+	local trails = { "None" }
+	for _, t in ipairs(Config.Trails) do
+		if t.rebirth and string.find("," .. (player:GetAttribute("OwnedTrails") or "") .. ",", "," .. t.id .. ",", 1, true) then
+			table.insert(trails, t.id)
+		end
+	end
+	player:SetAttribute("OwnedTrails", table.concat(trails, ","))
+	if not Config.getTrail(player:GetAttribute("Trail") or "None").rebirth then
+		player:SetAttribute("Trail", "None")
+	end
+	-- pets: only Robux (Royal Treasure Egg) pets stay, still equipped if they were
+	local kept, keptUids = {}, {}
+	for _, p in ipairs(Config.parsePets(player:GetAttribute("Pets"))) do
+		if Config.isPaidPet(p.kind) then
+			table.insert(kept, p)
+			keptUids[p.uid] = true
+		end
+	end
+	player:SetAttribute("Pets", Config.serializePets(kept))
+	local equipped = {}
+	for uid in string.gmatch(player:GetAttribute("EquippedPets") or "", "%d+") do
+		if keptUids[tonumber(uid)] then
+			table.insert(equipped, uid)
+		end
+	end
+	player:SetAttribute("EquippedPets", table.concat(equipped, ","))
+	player:SetAttribute("StorageLevel", 0)
+	player:SetAttribute("SlotLevel", 0)
 	player:SetAttribute("Rebirths", rebirths + 1)
 	PlayerData.save(player)
 	for _, other in ipairs(Players:GetPlayers()) do -- (the rebirther gets their own celebration)

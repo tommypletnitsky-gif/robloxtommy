@@ -594,6 +594,13 @@ function Config.getEgg(id)
 	end
 end
 
+-- a pet from a Robux egg (Royal Treasure Egg): kept on rebirth, trade rules apply
+function Config.isPaidPet(kind)
+	local pet = Config.Pets[kind]
+	local egg = pet and Config.getEgg(pet.egg)
+	return egg ~= nil and egg.robux == true
+end
+
 -- Golden pets: GOLDEN_COST copies of a pet fuse into one Golden pet whose money bonus is
 -- GOLDEN_POWER times bigger. Drawn with its own texture tinted GOLDEN_TINT.
 Config.GOLDEN_COST = 5
