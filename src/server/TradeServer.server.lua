@@ -81,7 +81,7 @@ local function send(s)
 			for _, uid in ipairs(s.offers[owner]) do
 				local pet = byUid[uid]
 				if pet then
-					table.insert(list, { uid = uid, kind = pet.kind, golden = pet.golden })
+					table.insert(list, { uid = uid, kind = pet.kind, golden = pet.golden, rainbow = pet.rainbow })
 				end
 			end
 			return list
@@ -163,7 +163,7 @@ local function execute(s)
 		end
 		local nextId = to:GetAttribute("NextPetId") or 1
 		for _, p in ipairs(moving) do
-			table.insert(toList, { uid = nextId, kind = p.kind, golden = p.golden })
+			table.insert(toList, { uid = nextId, kind = p.kind, golden = p.golden, rainbow = p.rainbow })
 			nextId += 1
 		end
 		to:SetAttribute("NextPetId", nextId)

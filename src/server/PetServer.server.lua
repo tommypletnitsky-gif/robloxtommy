@@ -53,7 +53,7 @@ end
 
 local function getEquipped(player, pets)
 	-- only uids the player still owns, at most the slots they have
-	local owned = {} -- [uid] = pet record { uid, kind, golden, locked }
+	local owned = {} -- [uid] = pet record { uid, kind, golden, rainbow, locked }
 	for _, p in ipairs(pets or getPets(player)) do
 		owned[p.uid] = p
 	end
@@ -79,7 +79,7 @@ end
 local function bestFirstFor(player)
 	local tier = Config.playerTier(player)
 	return function(a, b)
-		local ma, mb = Config.petMult(a.kind, a.golden, tier), Config.petMult(b.kind, b.golden, tier)
+		local ma, mb = Config.petMult(a.kind, a.golden, tier, a.rainbow), Config.petMult(b.kind, b.golden, tier, b.rainbow)
 		if ma ~= mb then
 			return ma > mb
 		end
@@ -118,12 +118,10 @@ local function refresh(player)
 	local kinds = {}
 	for _, uid in ipairs(equipped) do
 		local p = owned[uid]
-		table.insert(kinds, p.kind .. (p.golden and ":G" or "")) -- (":G": everyone draws it golden)
+		-- (":G" / ":R": everyone draws it golden / rainbow)
+		table.insert(kinds, p.kind .. (p.golden and ":G" or "") .. (p.rainbow and ":R" or ""))
 	end
 	local mult = Config.petMultiplier(kinds, Config.playerTier(player))
-	if Config.hasPass(player, "RainbowPets") then
-		mult = 1 + (mult - 1) * Config.PASS.RainbowBoost
-	end
 	player:SetAttribute("PetMultiplier", mult)
 	player:SetAttribute("PetKinds", table.concat(kinds, ","))
 	local all = {}
@@ -176,10 +174,13 @@ local function grant(player, egg, count, overflow)
 	local pets = getPets(player)
 	local auto = egg.robux and {} or autoDeleteSet(player) -- (paid pets are never auto-deleted)
 	local rolled, keep = {}, 0
+	local rainbowPass = Config.hasPass(player, "RainbowPets")
 	for _ = 1, count do
 		local kind = rollPet(egg, player)
-		local deleted = auto[kind] and canAutoDelete(kind) or nil
-		table.insert(rolled, { kind = kind, deleted = deleted })
+		-- Rainbow Pets pass: a chance for any hatch to come out Rainbow (never auto-deleted)
+		local rainbow = rainbowPass and rng:NextNumber() < Config.RAINBOW_CHANCE or nil
+		local deleted = not rainbow and auto[kind] and canAutoDelete(kind) or nil
+		table.insert(rolled, { kind = kind, rainbow = rainbow, deleted = deleted })
 		if not deleted then
 			keep += 1
 		end
@@ -194,12 +195,12 @@ local function grant(player, egg, count, overflow)
 		table.insert(kinds, r.kind)
 		if not r.deleted then
 			r.uid = nextId
-			table.insert(pets, { uid = nextId, kind = r.kind })
+			table.insert(pets, { uid = nextId, kind = r.kind, rainbow = r.rainbow })
 			nextId += 1
 		end
 		-- rare pets (Legendary and up): one plain line in everyone's chat, nothing else (owner)
 		if Config.Rarities[pet.rarity].order >= Config.Rarities.Legendary.order then
-			HatchNews:FireAllClients(player.DisplayName .. " has just hatched a " .. pet.rarity .. " " .. pet.name)
+			HatchNews:FireAllClients(player.DisplayName .. " has just hatched a " .. pet.rarity .. " " .. (r.rainbow and "Rainbow " or "") .. pet.name)
 		end
 	end
 	player:SetAttribute("NextPetId", nextId)
@@ -428,7 +429,7 @@ PetAction.OnServerInvoke = function(player, action, arg)
 	if typeof(uid) ~= "number" or not owned[uid] then
 		return false, "You don't have that pet."
 	end
-	local name = (owned[uid].golden and "Golden " or "") .. Config.Pets[owned[uid].kind].name
+	local name = Config.petLabel(owned[uid])
 	local at = table.find(equipped, uid)
 	if action == "equip" then
 		if at then
@@ -456,15 +457,15 @@ PetAction.OnServerInvoke = function(player, action, arg)
 		if trading then
 			return false, "Finish your trade first!"
 		end
-		-- fuse GOLDEN_COST copies of this pet (unequipped ones first; locked ones are never used,
-		-- except the one you pressed) into one Golden pet
+		-- fuse GOLDEN_COST copies of this pet (same kind and same Rainbow-or-not; unequipped ones first;
+		-- locked ones are never used, except the one you pressed) into one Golden pet
 		local base = owned[uid]
 		if base.golden then
 			return false, name .. " is already golden!"
 		end
 		local same = {}
 		for _, p in ipairs(pets) do
-			if p.kind == base.kind and not p.golden and (not p.locked or p.uid == uid) then
+			if p.kind == base.kind and not p.golden and (p.rainbow == true) == (base.rainbow == true) and (not p.locked or p.uid == uid) then
 				table.insert(same, p)
 			end
 		end
@@ -495,7 +496,7 @@ PetAction.OnServerInvoke = function(player, action, arg)
 		end
 		local newUid = player:GetAttribute("NextPetId") or 1
 		player:SetAttribute("NextPetId", newUid + 1)
-		table.insert(kept, { uid = newUid, kind = base.kind, golden = true, locked = base.locked })
+		table.insert(kept, { uid = newUid, kind = base.kind, golden = true, rainbow = base.rainbow, locked = base.locked })
 		local newEquipped = {}
 		for _, e in ipairs(equipped) do
 			if not used[e] then
@@ -551,7 +552,8 @@ GivePet.OnInvoke = function(player)
 	local egg = Config.Eggs[Config.playerTier(player)]
 	local kind = rollPet(egg, player)
 	local uid = player:GetAttribute("NextPetId") or 1
-	table.insert(pets, { uid = uid, kind = kind })
+	local rainbow = Config.hasPass(player, "RainbowPets") and rng:NextNumber() < Config.RAINBOW_CHANCE or nil
+	table.insert(pets, { uid = uid, kind = kind, rainbow = rainbow })
 	player:SetAttribute("NextPetId", uid + 1)
 	setPets(player, pets)
 	local equipped = getEquipped(player, pets)

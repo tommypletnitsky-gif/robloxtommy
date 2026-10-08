@@ -2,7 +2,7 @@
 -- pet's flames / sparkles all show (the old show drew models in 2D viewports, which can't).
 --   HatchShow.play(egg, results, { petModel = fn(kind) -> Model, eggModel = fn(egg) -> Model,
 --                                  isNew = fn(kind) -> bool, fast = bool, tier = number })
--- results: { kind, golden?, deleted? } (deleted = auto-deleted: shown, then marked). 1, 3 or 8 eggs
+-- results: { kind, golden?, rainbow?, deleted? } (deleted = auto-deleted: shown, then marked). 1, 3 or 8 eggs
 -- (8 stand in two rows, a bit smaller). fast = a short show (no wait for a tap).
 -- The stage is built far away from the world (nothing else in view): a backdrop with spinning rays
 -- in the egg's colour, 1 or 3 eggs that drop in, shake harder and harder (the orbiters speed up,
@@ -84,7 +84,7 @@ local function textScale()
 end
 
 -- name / rarity / multiplier under a pet (screen labels following its spot)
-local function caption(pet, golden, tier, deleted, small)
+local function caption(pet, golden, tier, deleted, small, rainbow)
 	local k = textScale() * (small and 0.72 or 1)
 	local f = Instance.new("Frame")
 	f.AnchorPoint = Vector2.new(0.5, 0)
@@ -93,8 +93,18 @@ local function caption(pet, golden, tier, deleted, small)
 	f.ZIndex = 8
 	f.Parent = screen
 	local color = Config.Rarities[pet.rarity].color
-	UIKit.label({ Parent = f, Size = UDim2.fromScale(1, 0.465), Text = (golden and "⭐ Golden " or "") .. pet.name, ZIndex = 9, StrokeThickness = 3.5 * k })
-	local r = UIKit.label({ Parent = f, Position = UDim2.fromScale(0, 0.465), Size = UDim2.fromScale(1, 0.326), Text = deleted and "🗑 AUTO-DELETED" or (string.upper(pet.rarity) .. "  •  " .. Config.multText(Config.petMult(pet.id, golden, tier)) .. " 💰"), TextColor3 = deleted and C(190, 190, 200) or pet.rarity == "Secret" and C(255, 255, 255) or color, ZIndex = 9, StrokeThickness = 3 * k })
+	local nameLabel = UIKit.label({ Parent = f, Size = UDim2.fromScale(1, 0.465), Text = (golden and "⭐ Golden " or "") .. (rainbow and "🌈 RAINBOW " or "") .. pet.name, ZIndex = 9, StrokeThickness = 3.5 * k })
+	if rainbow then
+		local g = Instance.new("UIGradient")
+		g.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, C(255, 90, 90)),
+			ColorSequenceKeypoint.new(0.33, C(255, 230, 80)),
+			ColorSequenceKeypoint.new(0.66, C(90, 220, 255)),
+			ColorSequenceKeypoint.new(1, C(220, 110, 255)),
+		})
+		g.Parent = nameLabel
+	end
+	local r = UIKit.label({ Parent = f, Position = UDim2.fromScale(0, 0.465), Size = UDim2.fromScale(1, 0.326), Text = deleted and "🗑 AUTO-DELETED" or (string.upper(pet.rarity) .. "  •  " .. Config.multText(Config.petMult(pet.id, golden, tier, rainbow)) .. " 💰"), TextColor3 = deleted and C(190, 190, 200) or pet.rarity == "Secret" and C(255, 255, 255) or color, ZIndex = 9, StrokeThickness = 3 * k })
 	if pet.rarity == "Secret" and not deleted then
 		local g = Instance.new("UIGradient")
 		g.Color = ColorSequence.new({
@@ -208,7 +218,7 @@ function HatchShow.play(egg, results, fns)
 	-- downloaded and drawn once already (a pet seen for the first time would pop out invisible)
 	local petModels = {}
 	for i, r in ipairs(results) do
-		local m = prep(fns.petModel(r.kind, r.golden))
+		local m = prep(fns.petModel(r.kind, r.golden, r.rainbow))
 		if scale ~= 1 then
 			m:ScaleTo(m:GetScale() * scale)
 		end
@@ -335,7 +345,7 @@ function HatchShow.play(egg, results, fns)
 		glow.Brightness = 2
 		glow.Range = 12
 		glow.Parent = burst
-		local cap = caption(pet, s.result.golden, fns.tier, s.result.deleted, n > 3)
+		local cap = caption(pet, s.result.golden, fns.tier, s.result.deleted, n > 3, s.result.rainbow)
 		local new = fns.isNew and fns.isNew(s.result.kind) and not tagged[s.result.kind]
 		if new then
 			tagged[s.result.kind] = true

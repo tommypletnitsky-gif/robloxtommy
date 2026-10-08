@@ -192,7 +192,7 @@ local grid = make("Frame", { Parent = petsList, LayoutOrder = 3, Size = UDim2.ne
 })
 
 -- Golden reveal: the new Golden pet springs in over spinning gold rays.
-local function playGolden(kind, uid)
+local function playGolden(kind, uid, rainbow)
 	hatching = true
 	for _, c in ipairs(slotsHolder:GetChildren()) do
 		if c:IsA("Frame") then
@@ -214,15 +214,16 @@ local function playGolden(kind, uid)
 	flash.BackgroundTransparency = 0
 	TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
 	UIKit.sound("Boom", 0.35, 1.5)
-	local m = petModel(kind, true)
+	local m = petModel(kind, true, rainbow)
 	viewport(s.holder, m, { Size = UDim2.fromScale(1, 1), ZIndex = 52 })
 	local pop = make("UIScale", { Parent = s.holder, Scale = 0.2 })
 	UIKit.spr.target(pop, 0.45, 4, { Scale = 1 })
 	s.rays.ImageColor3 = GOLD
 	s.rays.ImageTransparency = 0.05
-	s.roll.Text = "⭐ GOLDEN " .. string.upper(pet.name) .. "!"
+	s.roll.Text = "⭐ GOLDEN " .. (rainbow and "RAINBOW " or "") .. string.upper(pet.name) .. "!"
 	s.roll.TextColor3 = Color3.fromRGB(255, 220, 80)
-	s.sub.Text = multText(pet.mult) .. "  →  " .. multText(Config.petMult(kind, true)) .. " 💰"
+	local tier = Config.playerTier(player)
+	s.sub.Text = multText(Config.petMult(kind, false, tier, rainbow)) .. "  →  " .. multText(Config.petMult(kind, true, tier, rainbow)) .. " 💰"
 	s.sub.TextColor3 = Color3.fromRGB(140, 255, 140)
 	UIKit.bounce(s.roll)
 	table.insert(spinning, { rays = s.rays, model = m, spin = true })
@@ -251,14 +252,17 @@ local cards = {} -- [uid] = card info
 local refreshTools -- (below)
 local function makeCard(p)
 	local pet = Config.Pets[p.kind]
-	local color = p.golden and GOLD or rarityColor(pet.rarity)
+	local color = (p.golden and GOLD) or (p.rainbow and Color3.fromRGB(255, 120, 220)) or rarityColor(pet.rarity)
 	local card = make("TextButton", { Parent = grid, Text = "", AutoButtonColor = false, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, { UIKit.corner(14) })
-	local stroke = UIKit.stroke(3.5, color)
+	local stroke = UIKit.stroke(p.rainbow and 4.5 or 3.5, color)
 	stroke.Parent = card
+	if p.rainbow then
+		PetView.rainbowStroke(stroke)
+	end
 	make("UIGradient", { Parent = card, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), UIKit.lighter(color, 0.72)) })
 	local holder = make("Frame", { Parent = card, Position = UDim2.fromOffset(6, 4), Size = UDim2.fromOffset(88, 78), BackgroundTransparency = 1, ZIndex = 13 })
-	viewport(holder, petModel(p.kind, p.golden), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })
-	label({ Parent = card, Position = UDim2.fromOffset(3, 82), Size = UDim2.new(1, -6, 0, 20), Text = (p.golden and "⭐ Golden " or "") .. pet.name, TextColor3 = p.golden and Color3.fromRGB(210, 140, 0) or UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
+	viewport(holder, petModel(p.kind, p.golden, p.rainbow), { Size = UDim2.fromScale(1, 1), ZIndex = 13 })
+	label({ Parent = card, Position = UDim2.fromOffset(3, 82), Size = UDim2.new(1, -6, 0, 20), Text = Config.petLabel(p), TextColor3 = p.golden and Color3.fromRGB(210, 140, 0) or p.rainbow and Color3.fromRGB(200, 60, 200) or UIKit.INK, StrokeThickness = 0, ZIndex = 13 })
 	local multLabel = label({ Parent = card, Position = UDim2.fromOffset(3, 102), Size = UDim2.new(1, -6, 0, 20), Text = "", TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 13 })
 	-- golden tag: "⭐ 3/5" while collecting copies, a gold button once you have 5
 	local fuse = make("TextButton", { Parent = card, Name = "Fuse", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 3), Size = UDim2.fromOffset(44, 22), BackgroundColor3 = Color3.fromRGB(235, 235, 245), Text = "", AutoButtonColor = false, Visible = false, ZIndex = 16 }, { UIKit.corner(11), UIKit.stroke(2) })
@@ -269,7 +273,7 @@ local function makeCard(p)
 	-- delete mode: picked pets get a red cover with a ✖
 	local pick = make("Frame", { Parent = card, Size = UDim2.fromScale(1, 1), BackgroundColor3 = RED, BackgroundTransparency = 0.45, Visible = false, ZIndex = 18 }, { UIKit.corner(14) })
 	label({ Parent = pick, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.4), Size = UDim2.fromOffset(44, 44), Text = "✖", ZIndex = 19 })
-	local info = { card = card, check = check, lockTag = lockTag, pick = pick, multLabel = multLabel, kind = p.kind, uid = p.uid, golden = p.golden, fuse = fuse, fuseText = fuseText, fuseArmed = 0, copies = 0 }
+	local info = { card = card, check = check, lockTag = lockTag, pick = pick, multLabel = multLabel, kind = p.kind, uid = p.uid, golden = p.golden, rainbow = p.rainbow, fuse = fuse, fuseText = fuseText, fuseArmed = 0, copies = 0 }
 	fuse.Activated:Connect(function()
 		if info.copies < Config.GOLDEN_COST then
 			UIKit.toast("Collect " .. (Config.GOLDEN_COST - info.copies) .. " more " .. pet.name .. " to make a GOLDEN " .. pet.name .. "! ⭐", Color3.fromRGB(255, 220, 120))
@@ -279,7 +283,7 @@ local function makeCard(p)
 			info.fuseArmed = os.clock()
 			fuseText.Text = "SURE?"
 			UIKit.bounce(fuse)
-			UIKit.toast("Press again: " .. Config.GOLDEN_COST .. " " .. pet.name .. " → 1 GOLDEN " .. pet.name .. " (" .. multText(Config.petMult(p.kind, true, Config.playerTier(player))) .. ")", Color3.fromRGB(255, 215, 80))
+			UIKit.toast("Press again: " .. Config.GOLDEN_COST .. " " .. pet.name .. " → 1 GOLDEN " .. pet.name .. " (" .. multText(Config.petMult(p.kind, true, Config.playerTier(player), p.rainbow)) .. ")", Color3.fromRGB(255, 215, 80))
 			task.delay(2.5, function()
 				if fuse.Parent and os.clock() - info.fuseArmed >= 2.4 and info.copies >= Config.GOLDEN_COST then
 					fuseText.Text = "⭐ GOLD"
@@ -294,7 +298,7 @@ local function makeCard(p)
 		info.fuseArmed = 0
 		local ok, result = PetAction:InvokeServer("golden", p.uid)
 		if ok then
-			task.spawn(playGolden, p.kind, result)
+			task.spawn(playGolden, p.kind, result, p.rainbow)
 		else
 			hatching = false
 			UIKit.result(false, result)
@@ -432,21 +436,22 @@ local function refreshPets()
 		if ea ~= eb then
 			return ea > eb
 		end
-		local ma, mb = Config.petMult(a.kind, a.golden, tier), Config.petMult(b.kind, b.golden, tier)
+		local ma, mb = Config.petMult(a.kind, a.golden, tier, a.rainbow), Config.petMult(b.kind, b.golden, tier, b.rainbow)
 		if ma ~= mb then
 			return ma > mb
 		end
 		return a.uid > b.uid
 	end)
-	-- copies of each pet (not golden, not locked) for the golden tags
+	-- copies of each pet (not golden, not locked; Rainbow ones counted apart) for the golden tags
 	local copies = {}
 	for _, p in ipairs(pets) do
 		if not p.golden and not p.locked then
-			copies[p.kind] = (copies[p.kind] or 0) + 1
+			local key = p.kind .. (p.rainbow and ":R" or "")
+			copies[key] = (copies[key] or 0) + 1
 		end
 	end
 	for _, c in pairs(cards) do
-		local n = c.golden and 0 or (copies[c.kind] or 0)
+		local n = c.golden and 0 or (copies[c.kind .. (c.rainbow and ":R" or "")] or 0)
 		c.copies = n
 		c.fuse.Visible = n >= 2
 		if n >= Config.GOLDEN_COST then
@@ -473,7 +478,7 @@ local function refreshPets()
 		if p.locked then
 			selected[p.uid] = nil
 		end
-		c.multLabel.Text = multText(Config.petMult(p.kind, p.golden, tier)) .. (Config.Pets[p.kind].scales and " 📈" or " 💰")
+		c.multLabel.Text = multText(Config.petMult(p.kind, p.golden, tier, p.rainbow)) .. (Config.Pets[p.kind].scales and " 📈" or " 💰")
 		if c.equipped then
 			nEquipped += 1
 		end
@@ -519,10 +524,9 @@ local function rebuildFollowers(plr)
 	f = { kinds = kindsStr, pets = {} }
 	followers[plr] = f
 	for entry in string.gmatch(kindsStr, "[^,]+") do
-		local kind, flag = string.match(entry, "^(%w+):?(%a?)$")
+		local kind, golden, rainbow = Config.parseKindEntry(entry)
 		if kind and Config.Pets[kind] then
-			local golden = flag == "G"
-			local m = petModel(kind, golden)
+			local m = petModel(kind, golden, rainbow)
 			PetFx.apply(m, kind)
 			local _, size = m:GetBoundingBox()
 			f.spread = math.max(f.spread or 1, math.clamp(math.max(size.X, size.Z) / 3, 1, 1.9))
@@ -545,8 +549,8 @@ local function rebuildFollowers(plr)
 					d.CastShadow = true
 				end
 			end
-			if Config.hasPass(plr, "RainbowPets") then
-				-- Rainbow Pets pass: rainbow sparkles around the pet
+			if rainbow then
+				-- Rainbow pets: rainbow sparkles around the pet (its colours cycle too: PetView)
 				local main = m:FindFirstChildWhichIsA("BasePart", true)
 				local e = Instance.new("ParticleEmitter")
 				e.Name = "Rainbow"
@@ -573,9 +577,6 @@ local function rebuildFollowers(plr)
 end
 
 local function watchPlayer(plr)
-	plr:GetAttributeChangedSignal("Pass_RainbowPets"):Connect(function()
-		rebuildFollowers(plr)
-	end)
 	plr:GetAttributeChangedSignal("PetKinds"):Connect(function()
 		rebuildFollowers(plr)
 	end)

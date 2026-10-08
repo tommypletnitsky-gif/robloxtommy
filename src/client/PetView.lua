@@ -1,5 +1,6 @@
 -- Drawing pets and eggs in the UI (shared by PetClient, EggClient and TradeClient):
---   PetView.petModel(kind, golden) / PetView.eggModel(egg) -> a fresh anchored Model
+--   PetView.petModel(kind, golden, rainbow) / PetView.eggModel(egg) -> a fresh anchored Model
+--   PetView.rainbowStroke(uiStroke) -> rainbow card border
 --   PetView.viewport(parent, model, props) -> a ViewportFrame showing the model from the front
 --   PetView.rarityColor(rarity), PetView.GOLD
 -- All pet / egg meshes are preloaded once; viewports made before that are refreshed when it's done.
@@ -36,9 +37,13 @@ local function prep(m)
 end
 PetView.prep = prep
 
--- Golden pets: the same mesh + texture re-drawn with a gold tint (SpecialMesh.VertexColor keeps
--- every detail of the texture, just golden).
-local function makeGolden(m)
+-- Golden / Rainbow pets: the same mesh + texture re-drawn as a SpecialMesh, whose VertexColor tints
+-- it while keeping every detail of the texture. Golden = a fixed gold tint; Rainbow = a tint that
+-- cycles through the rainbow (all rainbow meshes are updated together, in the world and in
+-- viewports). Golden Rainbow = the rainbow cycle, brighter.
+local RunService = game:GetService("RunService")
+local rainbowMeshes = setmetatable({}, { __mode = "k" }) -- [SpecialMesh or BasePart] = brightness
+local function tinted(m, golden, rainbow)
 	for _, mp in ipairs(m:GetDescendants()) do
 		if mp:IsA("MeshPart") then
 			local okSize, meshSize = pcall(function()
@@ -54,21 +59,42 @@ local function makeGolden(m)
 			sm.MeshId = mp.MeshId
 			sm.TextureId = mp.TextureID
 			sm.Scale = (okSize and meshSize.Magnitude > 0) and (mp.Size / meshSize) or Vector3.one
-			sm.VertexColor = Config.GOLDEN_TINT
+			sm.VertexColor = golden and not rainbow and Config.GOLDEN_TINT or Vector3.one
 			sm.Parent = p
 			p.Parent = mp.Parent
+			if rainbow then
+				rainbowMeshes[sm] = golden and 1.9 or 1.45
+			end
 			if m.PrimaryPart == mp then
 				m.PrimaryPart = p
 			end
 			mp:Destroy()
 		elseif mp:IsA("BasePart") then
-			mp.Color = PetView.GOLD -- (the plain fallback model)
+			-- (the plain fallback model)
+			mp.Color = golden and PetView.GOLD or mp.Color
+			if rainbow then
+				rainbowMeshes[mp] = 1
+			end
 		end
 	end
 	return m
 end
+-- one loop for every rainbow pet on screen: a smooth hue cycle
+RunService.RenderStepped:Connect(function()
+	local hue = (os.clock() * 0.18) % 1
+	local c = Color3.fromHSV(hue, 0.6, 1)
+	for obj, bright in pairs(rainbowMeshes) do
+		if obj.Parent == nil then
+			rainbowMeshes[obj] = nil
+		elseif obj:IsA("SpecialMesh") then
+			obj.VertexColor = Vector3.new(c.R, c.G, c.B) * bright
+		else
+			obj.Color = c
+		end
+	end
+end)
 
-function PetView.petModel(kind, golden)
+function PetView.petModel(kind, golden, rainbow)
 	local t = petFolder and petFolder:FindFirstChild(kind)
 	local m
 	if t then
@@ -80,10 +106,25 @@ function PetView.petModel(kind, golden)
 		m.WorldPivot = CFrame.new()
 		prep(m)
 	end
-	if golden then
-		makeGolden(m)
+	if golden or rainbow then
+		tinted(m, golden, rainbow)
 	end
 	return m
+end
+
+-- a rainbow border for UI cards of Rainbow pets (a UIStroke gets a rainbow UIGradient)
+function PetView.rainbowStroke(stroke)
+	stroke.Color = Color3.new(1, 1, 1)
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 80)),
+		ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 210, 60)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 230, 110)),
+		ColorSequenceKeypoint.new(0.75, Color3.fromRGB(70, 160, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 90, 255)),
+	})
+	g.Parent = stroke
+	return g
 end
 
 function PetView.eggModel(egg)

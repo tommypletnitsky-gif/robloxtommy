@@ -119,7 +119,7 @@ local function pill(text, x)
 end
 local fastBtn, fastText = pill("⚡ Fast: OFF", 14)
 local autoBtn, autoText = pill("🔁 Auto: OFF", 172)
-local luckLabel = label({ Parent = hatchRow, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 7), Size = UDim2.fromOffset(250, 30), TextXAlignment = Enum.TextXAlignment.Right, Text = "", TextColor3 = Color3.fromRGB(40, 160, 70), StrokeThickness = 0, ZIndex = 12 })
+local luckLabel = label({ Parent = hatchRow, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 7), Size = UDim2.fromOffset(318, 30), TextXAlignment = Enum.TextXAlignment.Right, Text = "", TextColor3 = Color3.fromRGB(40, 160, 70), StrokeThickness = 0, ZIndex = 12 })
 local lockLabel = label({ Parent = hatchRow, Position = UDim2.fromOffset(16, 44), Size = UDim2.new(1, -32, 0, 58), Text = "", TextColor3 = RED, StrokeThickness = 0, ZIndex = 12, Visible = false })
 local function hatchButton(color, i)
 	return UIKit.button({ Parent = hatchRow, Text = "", Color = color, Position = UDim2.new((i - 1) / 3, i == 1 and 14 or 5, 0, 44), Size = UDim2.new(1 / 3, i == 2 and -10 or -19, 0, 60), ZIndex = 12 })
@@ -173,7 +173,14 @@ local function refreshEggWindow()
 	autoBtn.Visible = not egg.robux
 	local luck = Config.luckFactor(player)
 	local lucky = Config.luckyHour()
-	luckLabel.Text = luck > 1 and ("🍀 Luck x" .. (math.floor(luck * 10 + 0.5) / 10) .. (lucky and "  (Lucky Hour!)" or "")) or ""
+	local parts = {}
+	if Config.hasPass(player, "RainbowPets") then
+		table.insert(parts, "🌈 " .. math.floor(Config.RAINBOW_CHANCE * 100) .. "% Rainbow")
+	end
+	if luck > 1 then
+		table.insert(parts, "🍀 Luck x" .. (math.floor(luck * 10 + 0.5) / 10) .. (lucky and " (Lucky Hour!)" or ""))
+	end
+	luckLabel.Text = table.concat(parts, "  •  ")
 	eggTitle.Text = titleFor(egg)
 	if egg.robux then
 		local p1, p3 = Config.getProduct("RoyalEgg1"), Config.getProduct("RoyalEgg3")
@@ -436,7 +443,7 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
-for _, attr in ipairs({ "Money", "UnlockedStage", "Candy", "Snowflakes", "Pass_Hatch8", "Pass_AutoHatch", "Pass_LuckyEggs", "FastHatch" }) do
+for _, attr in ipairs({ "Money", "UnlockedStage", "Candy", "Snowflakes", "Pass_Hatch8", "Pass_AutoHatch", "Pass_LuckyEggs", "Pass_RainbowPets", "FastHatch" }) do
 	player:GetAttributeChangedSignal(attr):Connect(refreshEggWindow)
 end
 player:GetAttributeChangedSignal("AutoDelete"):Connect(refreshAutoDelete)

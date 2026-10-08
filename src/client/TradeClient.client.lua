@@ -30,13 +30,13 @@ local INK_SOFT = Color3.fromRGB(70, 70, 100)
 -- a small pet card (picture + bonus), optionally tappable
 local function miniCard(parent, pet, order, tier, onTap)
 	local info = Config.Pets[pet.kind]
-	local color = pet.golden and PetView.GOLD or PetView.rarityColor(info.rarity)
+	local color = (pet.golden and PetView.GOLD) or (pet.rainbow and Color3.fromRGB(255, 120, 220)) or PetView.rarityColor(info.rarity)
 	local card = make("TextButton", { Parent = parent, LayoutOrder = order, Size = UDim2.fromOffset(78, 96), Text = "", AutoButtonColor = false, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 13 }, { UIKit.corner(12), UIKit.stroke(3, color) })
 	make("UIGradient", { Parent = card, Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), UIKit.lighter(color, 0.72)) })
 	local holder = make("Frame", { Parent = card, Position = UDim2.fromOffset(4, 3), Size = UDim2.fromOffset(70, 62), BackgroundTransparency = 1, ZIndex = 14 })
-	PetView.viewport(holder, PetView.petModel(pet.kind, pet.golden), { Size = UDim2.fromScale(1, 1), ZIndex = 14 })
-	label({ Parent = card, Position = UDim2.fromOffset(2, 64), Size = UDim2.new(1, -4, 0, 15), Text = (pet.golden and "⭐ " or "") .. info.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 14 })
-	label({ Parent = card, Position = UDim2.fromOffset(2, 79), Size = UDim2.new(1, -4, 0, 14), Text = Config.multText(Config.petMult(pet.kind, pet.golden, tier)) .. (info.scales and " 📈" or ""), TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 14 })
+	PetView.viewport(holder, PetView.petModel(pet.kind, pet.golden, pet.rainbow), { Size = UDim2.fromScale(1, 1), ZIndex = 14 })
+	label({ Parent = card, Position = UDim2.fromOffset(2, 64), Size = UDim2.new(1, -4, 0, 15), Text = (pet.golden and "⭐ " or "") .. (pet.rainbow and "🌈 " or "") .. info.name, TextColor3 = UIKit.INK, StrokeThickness = 0, ZIndex = 14 })
+	label({ Parent = card, Position = UDim2.fromOffset(2, 79), Size = UDim2.new(1, -4, 0, 14), Text = Config.multText(Config.petMult(pet.kind, pet.golden, tier, pet.rainbow)) .. (info.scales and " 📈" or ""), TextColor3 = Color3.fromRGB(40, 170, 70), StrokeThickness = 0, ZIndex = 14 })
 	if onTap then
 		card.Activated:Connect(function()
 			UIKit.sound("Click", 0.4)
@@ -258,7 +258,7 @@ local function refreshMyPets()
 	local tier = Config.playerTier(player)
 	local list = Config.parsePets(player:GetAttribute("Pets"))
 	table.sort(list, function(a, b)
-		local ma, mb = Config.petMult(a.kind, a.golden, tier), Config.petMult(b.kind, b.golden, tier)
+		local ma, mb = Config.petMult(a.kind, a.golden, tier, a.rainbow), Config.petMult(b.kind, b.golden, tier, b.rainbow)
 		if ma ~= mb then
 			return ma > mb
 		end

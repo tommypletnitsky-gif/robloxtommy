@@ -594,6 +594,11 @@ end
 Config.GOLDEN_COST = 5
 Config.GOLDEN_POWER = 2.5
 Config.GOLDEN_TINT = Vector3.new(2, 1.8, 0.45)
+-- Rainbow pets: with the Rainbow Pets pass every hatched pet has RAINBOW_CHANCE to come out Rainbow
+-- (any pet, any egg): its money bonus is RAINBOW_POWER times bigger. Drawn with a colour-cycling tint.
+-- 5 Rainbow copies fuse into a Golden Rainbow (both bonuses).
+Config.RAINBOW_CHANCE = 0.3
+Config.RAINBOW_POWER = 2
 
 -- Your tier: the best regular egg you've unlocked (1..15). Scaling pets grow with it.
 function Config.tierOf(stage)
@@ -609,8 +614,8 @@ function Config.playerTier(player)
 	return Config.tierOf(player and player:GetAttribute("UnlockedStage") or 1)
 end
 
--- A pet's money multiplier (golden or not); scaling pets use `tier` (default 1).
-function Config.petMult(kind, golden, tier)
+-- A pet's money multiplier (golden / rainbow or not); scaling pets use `tier` (default 1).
+function Config.petMult(kind, golden, tier, rainbow)
 	local p = Config.Pets[kind]
 	if not p then
 		return 1
@@ -620,10 +625,18 @@ function Config.petMult(kind, golden, tier)
 		local egg = Config.Eggs[math.clamp(tier or 1, 1, #Config.Eggs)]
 		m = math.floor((1 + egg.base * p.scales) * 100 + 0.5) / 100
 	end
+	if rainbow then
+		m = math.floor((1 + (m - 1) * Config.RAINBOW_POWER) * 100 + 0.5) / 100
+	end
 	if golden then
 		return math.floor((1 + (m - 1) * Config.GOLDEN_POWER) * 100 + 0.5) / 100
 	end
 	return m
+end
+-- "⭐ Golden 🌈 Rainbow Phoenix" style name for a pet record
+function Config.petLabel(p)
+	local pet = Config.Pets[p.kind]
+	return (p.golden and "⭐ Golden " or "") .. (p.rainbow and "🌈 Rainbow " or "") .. (pet and pet.name or p.kind)
 end
 
 -- What an egg costs this player (limited eggs follow your tier).
@@ -634,14 +647,14 @@ function Config.eggPrice(egg, player)
 	return egg.price or 0
 end
 
--- Saved pet list format (player attribute "Pets"): "uid:Kind;uid:Kind:G:L" (G = golden,
--- L = locked: can't be deleted, fused or traded). Equipped: "uid,uid".
+-- Saved pet list format (player attribute "Pets"): "uid:Kind;uid:Kind:G:R:L" (G = golden,
+-- R = rainbow, L = locked: can't be deleted, fused or traded). Equipped: "uid,uid".
 function Config.parsePets(s)
 	local list = {}
 	for entry in string.gmatch(s or "", "[^;]+") do
 		local uid, kind, flags = entry:match("^(%d+):(%w+)(.*)$")
 		if uid and Config.Pets[kind] then
-			table.insert(list, { uid = tonumber(uid), kind = kind, golden = string.find(flags, ":G", 1, true) ~= nil, locked = string.find(flags, ":L", 1, true) ~= nil })
+			table.insert(list, { uid = tonumber(uid), kind = kind, golden = string.find(flags, ":G", 1, true) ~= nil, rainbow = string.find(flags, ":R", 1, true) ~= nil, locked = string.find(flags, ":L", 1, true) ~= nil })
 		end
 	end
 	return list
@@ -649,7 +662,7 @@ end
 function Config.serializePets(list)
 	local parts = {}
 	for _, p in ipairs(list) do
-		table.insert(parts, p.uid .. ":" .. p.kind .. (p.golden and ":G" or "") .. (p.locked and ":L" or ""))
+		table.insert(parts, p.uid .. ":" .. p.kind .. (p.golden and ":G" or "") .. (p.rainbow and ":R" or "") .. (p.locked and ":L" or ""))
 	end
 	return table.concat(parts, ";")
 end
@@ -662,13 +675,20 @@ function Config.parseEquipped(s)
 	return set
 end
 
--- Total money multiplier from a list of equipped pets ("Kind" or "Kind:G" for golden).
+-- Equipped-pet entry ("Kind", "Kind:G", "Kind:R", "Kind:G:R") -> kind, golden, rainbow
+function Config.parseKindEntry(entry)
+	local kind, flags = string.match(entry, "^(%w+)(.*)$")
+	flags = flags or ""
+	return kind, string.find(flags, ":G", 1, true) ~= nil, string.find(flags, ":R", 1, true) ~= nil
+end
+
+-- Total money multiplier from a list of equipped pets ("Kind", "Kind:G", "Kind:R", "Kind:G:R").
 function Config.petMultiplier(kinds, tier)
 	local m = 1
 	for _, entry in ipairs(kinds) do
-		local kind, flag = string.match(entry, "^(%w+):?(%a?)$")
+		local kind, golden, rainbow = Config.parseKindEntry(entry)
 		if kind and Config.Pets[kind] then
-			m += Config.petMult(kind, flag == "G", tier) - 1
+			m += Config.petMult(kind, golden, tier, rainbow) - 1
 		end
 	end
 	return m
@@ -809,7 +829,7 @@ end
 Config.Gamepasses = {
 	{ key = "DoubleMoney", id = 2006181522, name = "2x Money", icon = "MoneyBag", robux = 149, color = Color3.fromRGB(80, 200, 90), desc = "Earn double money from every flight, coin and gem!" },
 	{ key = "VIP", id = 2008281539, name = "VIP", icon = "Crown", robux = 199, color = Color3.fromRGB(255, 190, 40), desc = "+25% money, +1 pet slot, gold VIP tag over your head and in chat." },
-	{ key = "RainbowPets", id = 2006865453, name = "Rainbow Pets", icon = "Rainbow", robux = 179, color = Color3.fromRGB(235, 90, 200), desc = "Your pets turn rainbow: their money boost is x1.5!" },
+	{ key = "RainbowPets", id = 2006865453, name = "Rainbow Pets", icon = "Rainbow", robux = 179, color = Color3.fromRGB(235, 90, 200), desc = "Every pet you hatch has a 30% chance to be RAINBOW: x2 money boost!" },
 	{ key = "LuckyEggs", id = 2005683456, name = "Lucky Eggs", icon = "Clover", robux = 99, color = Color3.fromRGB(60, 190, 110), desc = "Epic and rarer pets are 3x more likely when you hatch." },
 	{ key = "PetSlots", id = 2006871467, name = "+3 Pet Slots", icon = "Paw", robux = 129, color = Color3.fromRGB(110, 140, 240), desc = "Equip 3 more pets at once." },
 	{ key = "MegaFuel", id = 2005743470, name = "Mega Fuel", icon = "FuelCan", robux = 49, color = Color3.fromRGB(255, 150, 40), desc = "+50% fuel on every rocket: fly much farther!" },
@@ -840,7 +860,6 @@ Config.PASS = {
 	DoubleMoney = 2, -- money x
 	VIPMoney = 1.25, -- money x
 	VIPSlots = 1,
-	RainbowBoost = 1.5, -- pet boost x
 	LuckyEggs = 3, -- Epic / Legendary chance x
 	PetSlots = 3,
 	MegaFuel = 1.5, -- fuel x
