@@ -37,6 +37,23 @@ local invites = {} -- [target] = { from = player, at = os.clock() }
 local lastRequest = {} -- [player] = os.clock()
 local sessions = {} -- [player] = session { a, b, offers = { [p] = { uid... } }, ready = { [p] = bool }, version, endsAt }
 
+-- Paid pets (from Robux eggs) can only change hands when both players' regions allow trading paid
+-- items (PolicyService.IsPaidItemTradingAllowed). Unknown policy = not allowed.
+local PolicyService = game:GetService("PolicyService")
+local paidTradeOk = {} -- [player] = bool
+local function canTradePaid(player)
+	if paidTradeOk[player] == nil then
+		local ok, info = pcall(PolicyService.GetPolicyInfoForPlayerAsync, PolicyService, player)
+		paidTradeOk[player] = ok and info.IsPaidItemTradingAllowed == true
+	end
+	return paidTradeOk[player]
+end
+local function isPaidPet(kind)
+	local pet = Config.Pets[kind]
+	local egg = pet and Config.getEgg(pet.egg)
+	return egg ~= nil and egg.robux == true
+end
+
 local function ready(player)
 	return player.Parent == Players and player:GetAttribute("DataLoaded") and PlayerData.isActive(player)
 end
@@ -114,6 +131,10 @@ local function execute(s)
 			local pet = side[2][uid]
 			if not pet or pet.locked then
 				finish(s, "Trade cancelled: a pet in it changed.")
+				return
+			end
+			if isPaidPet(pet.kind) and not (canTradePaid(a) and canTradePaid(b)) then
+				finish(s, "Trade cancelled: Robux pets can't be traded here.")
 				return
 			end
 		end
@@ -241,6 +262,9 @@ TradeAction.OnServerInvoke = function(player, action, arg)
 		if pet.locked then
 			return false, "🔒 That pet is locked."
 		end
+		if isPaidPet(pet.kind) and not (canTradePaid(player) and canTradePaid(other(s, player))) then
+			return false, "Pets from Robux eggs can't be traded in your or your partner's region."
+		end
 		if table.find(offer, arg) then
 			return true, ""
 		end
@@ -317,6 +341,7 @@ for _, p in ipairs(Players:GetPlayers()) do
 	watch(p)
 end
 Players.PlayerRemoving:Connect(function(player)
+	paidTradeOk[player] = nil
 	local s = sessions[player]
 	if s then
 		finish(s, player.DisplayName .. " left the game.")
