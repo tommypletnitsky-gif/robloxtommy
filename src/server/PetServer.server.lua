@@ -198,8 +198,8 @@ local function grant(player, egg, count, overflow)
 			table.insert(pets, { uid = nextId, kind = r.kind, rainbow = r.rainbow })
 			nextId += 1
 		end
-		-- rare pets (Legendary and up): one plain line in everyone's chat, nothing else (owner)
-		if Config.Rarities[pet.rarity].order >= Config.Rarities.Legendary.order then
+		-- Secret pets only: one plain line in everyone's chat, nothing else (owner)
+		if pet.rarity == "Secret" then
 			HatchNews:FireAllClients(player.DisplayName .. " has just hatched a " .. pet.rarity .. " " .. (r.rainbow and "Rainbow " or "") .. pet.name)
 		end
 	end

@@ -278,6 +278,11 @@ local function playHatch(egg, results, before)
 		isNew = function(kind)
 			return not before[kind]
 		end,
+		-- Auto Hatch: a STOP button on the show itself (you can't walk away while it plays)
+		onStop = state.auto and function()
+			state.auto = false
+			UIKit.toast("🔁 Auto Hatch stopped", Color3.fromRGB(255, 200, 150))
+		end or nil,
 	})
 	eggWindow.Visible = eggWasOpen and state.egg == egg
 	state.hatching = false
@@ -314,7 +319,8 @@ local function autoLoop()
 		if not doHatch(state.count) then
 			break
 		end
-		task.wait(0.15)
+		-- a short gap: the egg window shows again, so its Auto button can be switched off too
+		task.wait(0.6)
 	end
 	state.auto = false
 	refreshEggWindow()

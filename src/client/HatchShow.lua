@@ -69,6 +69,21 @@ click.BackgroundTransparency = 1
 click.Text = ""
 click.ZIndex = 5
 click.Parent = screen
+-- Auto Hatch: a big STOP button stays on screen during the show (you're frozen while it plays, so
+-- walking away can't stop it). fns.onStop is called when pressed.
+local stopBtn = UIKit.button({ Parent = screen, Text = "⏹ STOP HATCHING", Color = Color3.fromRGB(235, 70, 70), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -24, 0, 24), Size = UDim2.fromOffset(260, 64), ZIndex = 30 })
+stopBtn.Instance.Visible = false
+local stopFn = nil
+local stopRequested = false
+stopBtn.Instance.Activated:Connect(function()
+	if stopFn then
+		stopRequested = true
+		stopFn()
+		stopBtn.setText("✔ STOPPED")
+		stopBtn.setColor(Color3.fromRGB(150, 155, 175))
+	end
+end)
+
 local hint = UIKit.label({ Parent = screen, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -26), Size = UDim2.fromOffset(460, 32), Text = "Tap to continue", TextColor3 = C(235, 235, 245), ZIndex = 10, Visible = false })
 
 local function tween(obj, time, props, style, dir)
@@ -162,6 +177,14 @@ function HatchShow.play(egg, results, fns)
 	-- fade to black, build the stage, swap the camera
 	screen.Enabled = true
 	hint.Visible = false
+	stopFn = fns.onStop
+	stopRequested = false
+	stopBtn.setText("⏹ STOP HATCHING")
+	stopBtn.setColor(Color3.fromRGB(235, 70, 70))
+	stopBtn.Instance.Visible = fns.onStop ~= nil
+	local sk = textScale() -- (smaller on phones)
+	stopBtn.Instance.Size = UDim2.fromOffset(260 * sk, 64 * sk)
+	stopBtn.Instance.Position = UDim2.new(1, -24 * sk, 0, 24 * sk)
 	local hk = textScale()
 	hint.Size = UDim2.fromOffset(460 * hk, 32 * hk)
 	hint.Position = UDim2.new(0.5, 0, 1, -14 - 12 * hk)
@@ -372,7 +395,7 @@ function HatchShow.play(egg, results, fns)
 	end)
 	local tEnd = os.clock() + (fast and 1.5 or 4.5)
 	local shown = false
-	while not closed and os.clock() < tEnd do
+	while not closed and not stopRequested and os.clock() < tEnd do
 		local now = os.clock()
 		local dt = now - last
 		last = now
@@ -424,6 +447,8 @@ function HatchShow.play(egg, results, fns)
 		hum.WalkSpeed, hum.JumpPower = savedSpeed, savedJump
 	end
 	tween(fade, 0.25, { BackgroundTransparency = 1 }).Completed:Wait()
+	stopBtn.Instance.Visible = false
+	stopFn = nil
 	screen.Enabled = false
 	player:SetAttribute("HatchShow", nil)
 	running = false
