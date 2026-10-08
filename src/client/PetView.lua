@@ -42,7 +42,9 @@ PetView.prep = prep
 -- cycles through the rainbow (all rainbow meshes are updated together, in the world and in
 -- viewports). Golden Rainbow = the rainbow cycle, brighter.
 local RunService = game:GetService("RunService")
-local rainbowMeshes = setmetatable({}, { __mode = "k" }) -- [SpecialMesh or BasePart] = brightness
+-- (a normal table, not a weak one: Roblox can drop Instance keys from weak tables while they still
+-- exist; entries are removed by the loop below once the mesh is gone)
+local rainbowMeshes = {} -- [SpecialMesh or BasePart] = brightness
 local function tinted(m, golden, rainbow)
 	for _, mp in ipairs(m:GetDescendants()) do
 		if mp:IsA("MeshPart") then
