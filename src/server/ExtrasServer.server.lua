@@ -163,6 +163,7 @@ local function isOwner(player)
 	return RunService:IsStudio() or player.UserId == game.CreatorId
 end
 
+local refreshBoards -- (the leaderboard, below)
 local function onChat(player, msg)
 	if not isOwner(player) then
 		return
@@ -192,6 +193,8 @@ local function onChat(player, msg)
 				player:SetAttribute(k, v)
 			end
 		end
+		PlayerData.save(player)
+		task.spawn(refreshBoards) -- the leaderboard drops your old numbers right away
 		Notify:FireClient(player, "Progress reset", Color3.fromRGB(255, 200, 120))
 	end
 end
@@ -209,9 +212,10 @@ end
 
 -- Leaderboard -------------------------------------------------------------------------
 -- One board in the lobby (Hub.TopBoard) flips between four pages every few seconds.
--- keepMax: the stored record only goes up (BestDistance itself resets on rebirth).
+-- Live: each board shows players' current values (a /reset or a rebirth lowers them too;
+-- a value of 0 takes the player off the board).
 local boards = {
-	{ title = "🚀 FARTHEST FLIGHTS", attr = "BestDistance", store = "BestDistance_v1", keepMax = true, format = Config.meters },
+	{ title = "🚀 FARTHEST FLIGHTS", attr = "BestDistance", store = "BestDistance_v1", format = Config.meters },
 	{ title = "💰 MOST EARNED", attr = "TotalEarned", store = "TotalEarned_v1", format = function(v)
 		return "$" .. Config.abbreviate(v)
 	end },
@@ -245,43 +249,11 @@ end
 
 -- last value sent to each store, so unchanged values aren't written again: [store][userId]
 local lastWritten = {}
--- keepMax boards: the best value seen this session, so a rebirth doesn't lower the
--- "This server" list either (or a record set just before it): [store][userId]
-local sessionBest = {}
 Players.PlayerRemoving:Connect(function(player)
 	for _, written in pairs(lastWritten) do
 		written[player.UserId] = nil
 	end
-	for _, best in pairs(sessionBest) do
-		best[player.UserId] = nil
-	end
 end)
-local function watchBest(player)
-	for _, b in ipairs(boards) do
-		if b.keepMax then
-			sessionBest[b.store] = sessionBest[b.store] or {}
-			local best = sessionBest[b.store]
-			local function seen()
-				best[player.UserId] = math.max(best[player.UserId] or 0, player:GetAttribute(b.attr) or 0)
-			end
-			player:GetAttributeChangedSignal(b.attr):Connect(seen)
-			seen()
-		end
-	end
-end
-Players.PlayerAdded:Connect(watchBest)
-for _, player in ipairs(Players:GetPlayers()) do
-	watchBest(player)
-end
-
--- a player's value for a board (keepMax boards: the session best)
-local function valueOf(b, p)
-	local v = p:GetAttribute(b.attr) or 0
-	if b.keepMax then
-		v = math.max(v, sessionBest[b.store] and sessionBest[b.store][p.UserId] or 0)
-	end
-	return v
-end
 
 -- Returns { {name=, value=}, ... } top 10, global if DataStores work, else this server.
 local function topList(b)
@@ -293,26 +265,15 @@ local function topList(b)
 		end
 		for _, p in ipairs(Players:GetPlayers()) do
 			local uid = p.UserId
-			local v = math.floor(valueOf(b, p))
-			local last = written[uid]
-			-- records only need a write when beaten, other boards when the value changed
-			local changed = if b.keepMax then v > (last or 0) else v ~= last
-			if v > 0 and changed and p:GetAttribute("DataLoaded") then
+			local v = math.max(0, math.floor(p:GetAttribute(b.attr) or 0))
+			if p:GetAttribute("DataLoaded") and v ~= written[uid] then
 				pcall(function()
-					if b.keepMax then
-						local best = v
-						b.ordered:UpdateAsync(tostring(uid), function(old)
-							best = math.max(old or 0, v)
-							if old and old >= v then
-								return nil -- stored record is already higher: no write
-							end
-							return v
-						end)
-						written[uid] = best
-					else
+					if v > 0 then
 						b.ordered:SetAsync(tostring(uid), v)
-						written[uid] = v
+					else
+						b.ordered:RemoveAsync(tostring(uid)) -- 0 (e.g. after /reset): off the board
 					end
+					written[uid] = v
 				end)
 			end
 		end
@@ -329,7 +290,7 @@ local function topList(b)
 	end
 	local list = {}
 	for _, p in ipairs(Players:GetPlayers()) do
-		local v = valueOf(b, p)
+		local v = p:GetAttribute(b.attr) or 0
 		if v > 0 then
 			table.insert(list, { name = p.DisplayName, value = v })
 		end
@@ -413,18 +374,27 @@ local function renderBoard(b)
 	end
 end
 
--- refresh the lists once a minute, flip the page every 8 seconds
+-- refresh the lists once a minute (and right away after a /reset), flip the page every 8 seconds
+local refreshing = false
+refreshBoards = function()
+	if refreshing then
+		return
+	end
+	refreshing = true
+	for _, b in ipairs(boards) do
+		local ok, err = pcall(function()
+			b.list, b.global = topList(b)
+		end)
+		if not ok then
+			warn("[Leaderboard] " .. tostring(err))
+		end
+	end
+	refreshing = false
+end
 task.spawn(function()
 	task.wait(5)
 	while true do
-		for _, b in ipairs(boards) do
-			local ok, err = pcall(function()
-				b.list, b.global = topList(b)
-			end)
-			if not ok then
-				warn("[Leaderboard] " .. tostring(err))
-			end
-		end
+		refreshBoards()
 		task.wait(60)
 	end
 end)
