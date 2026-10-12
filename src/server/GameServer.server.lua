@@ -90,6 +90,7 @@ local function moneyMultiplier(player)
 	if (player:GetAttribute("BoostMoneyUntil") or 0) > os.time() then -- Lucky Spin x2 Money
 		m *= 2
 	end
+	m *= Config.adminMoneyMult() -- the owner's /boost
 	return m
 end
 

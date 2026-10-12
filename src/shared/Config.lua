@@ -809,11 +809,26 @@ Config.LUCKY_HOUR = { every = 3 * 3600, length = 1800, mult = 2 }
 -- returns active, seconds left (if active) or seconds until the next one
 function Config.luckyHour(now)
 	now = now or workspace:GetServerTimeNow()
+	-- the owner's /luckyhour starts one right away in that server (workspace attribute)
+	local adminUntil = workspace:GetAttribute("AdminLuckyUntil") or 0
+	if adminUntil > now then
+		return true, adminUntil - now
+	end
 	local t = now % Config.LUCKY_HOUR.every
 	if t < Config.LUCKY_HOUR.length then
 		return true, Config.LUCKY_HOUR.length - t
 	end
 	return false, Config.LUCKY_HOUR.every - t
+end
+
+-- Owner "admin abuse" money boost (/boost 2 10): x money for everyone in that server until
+-- AdminMoneyUntil (workspace attributes, so every script and screen sees it).
+function Config.adminMoneyMult(now)
+	now = now or workspace:GetServerTimeNow()
+	if (workspace:GetAttribute("AdminMoneyUntil") or 0) > now then
+		return workspace:GetAttribute("AdminMoneyMult") or 1
+	end
+	return 1
 end
 
 -- the event running right now (nil if none)

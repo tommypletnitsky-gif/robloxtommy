@@ -158,14 +158,188 @@ end
 --   /money 20000   add money        /stage 5   unlock up to stage 5
 --   /reset         wipe your progress back to the start
 --   /season winter preview a season event in this server (winter | halloween | none | auto)
+-- "Admin abuse" (a big banner on everyone's screen; text goes through Roblox's filter):
+--   /bb HI EVERYONE   banner to this server        /gbb HI EVERYONE   banner to every server
+--   /luckyhour 30     Lucky Hour (x2 luck) now     /boost 2 10        x2 money for 10 minutes
+--   /rain             money rain at the spawn      /giveall 50k       everyone gets $50K
+--   /spin all         everyone gets a free spin
 local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
+local MessagingService = game:GetService("MessagingService")
+local Announce = remote("RemoteEvent", "Announce") -- (title, text, color)
+local RainCoin = remote("RemoteEvent", "RainCoin") -- (amount) you picked up a money-rain coin
+
 local function isOwner(player)
 	return RunService:IsStudio() or player.UserId == game.CreatorId
+end
+
+-- Everything other players read must be filtered (Roblox rule), the owner's text too.
+local function filtered(player, text)
+	local ok, res = pcall(function()
+		return TextService:FilterStringAsync(text, player.UserId, Enum.TextFilterContext.PublicChat):GetNonChatStringForBroadcastAsync()
+	end)
+	return ok and res or nil
+end
+
+local function announce(title, text, color)
+	Announce:FireAllClients(title, text, color)
+end
+
+-- /gbb: every server listens and shows the banner
+task.spawn(function()
+	pcall(function()
+		MessagingService:SubscribeAsync("AdminAnnounce", function(message)
+			local d = message.Data
+			if type(d) == "table" and type(d.title) == "string" and type(d.text) == "string" then
+				announce(d.title, d.text, Color3.fromRGB(255, 120, 60))
+			end
+		end)
+	end)
+end)
+
+-- "50k" / "2.5m" / "1b" -> number
+local function parseAmount(s)
+	local n, suffix = string.match(s or "", "^(%d+%.?%d*)(%a?)")
+	n = tonumber(n)
+	if not n then
+		return nil
+	end
+	local mult = ({ k = 1e3, m = 1e6, b = 1e9, t = 1e12 })[string.lower(suffix or "")] or 1
+	return math.floor(n * mult)
+end
+
+-- Money rain: gold coins fall around the spawn; touch one to grab it (worth more the more
+-- you've earned, so it's exciting at every stage).
+local raining = false
+local function moneyRain(owner, seconds)
+	if raining then
+		return
+	end
+	raining = true
+	local hub = workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Hub")
+	local spawn = hub and hub:FindFirstChild("Spawn", true)
+	local center = spawn and spawn.Position or Vector3.new(0, 5, 0)
+	local folder = Instance.new("Folder")
+	folder.Name = "MoneyRain"
+	folder.Parent = workspace
+	announce("💸 MONEY RAIN!", owner.DisplayName .. " made it rain! Grab the coins at the spawn!", Color3.fromRGB(90, 220, 110))
+	local stopAt = os.clock() + seconds
+	task.spawn(function()
+		while os.clock() < stopAt do
+			for _ = 1, 3 do
+				local c = Instance.new("Part")
+				c.Name = "RainCoin"
+				c.Shape = Enum.PartType.Cylinder
+				c.Size = Vector3.new(0.4, 2.4, 2.4)
+				c.Color = Color3.fromRGB(255, 205, 60)
+				c.Material = Enum.Material.Metal
+				c.Reflectance = 0.2
+				c.CFrame = CFrame.new(center + Vector3.new(math.random(-45, 45), 40 + math.random() * 15, math.random(-45, 45)))
+					* CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6)
+				c.Parent = folder
+				c:SetNetworkOwner(nil)
+				local taken = false
+				c.Touched:Connect(function(hit)
+					if taken then
+						return
+					end
+					local p = Players:GetPlayerFromCharacter(hit.Parent)
+					if p and p:GetAttribute("DataLoaded") then
+						taken = true
+						local value = math.max(250, math.floor((p:GetAttribute("TotalEarned") or 0) * 0.002))
+						addMoney(p, value)
+						RainCoin:FireClient(p, value)
+						c:Destroy()
+					end
+				end)
+				game:GetService("Debris"):AddItem(c, 14)
+			end
+			task.wait(0.3)
+		end
+		task.wait(14)
+		folder:Destroy()
+		raining = false
+	end)
+end
+
+-- the big-banner commands (they keep the text's capital letters)
+local function adminBanner(player, msg)
+	local kind, text = string.match(msg, "^/(%a+)%s+(.+)$")
+	kind = kind and string.lower(kind)
+	if kind ~= "bb" and kind ~= "gbb" then
+		return false
+	end
+	text = string.sub(text, 1, 150)
+	local clean = filtered(player, text)
+	if not clean then
+		Notify:FireClient(player, "Couldn't send that (chat filter is busy) - try again", Color3.fromRGB(255, 120, 120))
+		return true
+	end
+	local title = "📢 " .. player.DisplayName
+	if kind == "gbb" then
+		local ok = pcall(MessagingService.PublishAsync, MessagingService, "AdminAnnounce", { title = title, text = clean })
+		if not ok then -- (Studio / messaging down: at least this server)
+			announce(title, clean, Color3.fromRGB(255, 120, 60))
+		end
+	else
+		announce(title, clean, Color3.fromRGB(255, 190, 40))
+	end
+	return true
+end
+
+-- the other admin-abuse commands; true if `lower` was one of them
+local function adminEvent(player, lower)
+	if string.match(lower, "^/spin%s+all") then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p:GetAttribute("DataLoaded") then
+				p:SetAttribute("Spins", (p:GetAttribute("Spins") or 0) + 1)
+			end
+		end
+		announce("🎡 FREE SPIN!", player.DisplayName .. " gave everyone a free Lucky Spin!", Color3.fromRGB(190, 110, 255))
+		return true
+	end
+	local giveArg = string.match(lower, "^/giveall%s+(%S+)")
+	if giveArg then
+		local amount = parseAmount(giveArg)
+		if amount and amount > 0 then
+			for _, p in ipairs(Players:GetPlayers()) do
+				if p:GetAttribute("DataLoaded") then
+					addMoney(p, amount)
+				end
+			end
+			announce("💰 FREE MONEY!", player.DisplayName .. " gave everyone $" .. Config.abbreviate(amount) .. "!", Color3.fromRGB(90, 220, 110))
+		end
+		return true
+	end
+	local bMult, bMin = string.match(lower, "^/boost%s*(%d*%.?%d*)%s*(%d*)")
+	if bMult then
+		local mult = math.clamp(tonumber(bMult) or 2, 1.5, 10)
+		local minutes = math.clamp(tonumber(bMin) or 10, 1, 60)
+		workspace:SetAttribute("AdminMoneyMult", mult)
+		workspace:SetAttribute("AdminMoneyUntil", workspace:GetServerTimeNow() + minutes * 60)
+		announce("💰 x" .. mult .. " MONEY!", player.DisplayName .. " boosted everyone's money for " .. minutes .. " minutes!", Color3.fromRGB(255, 205, 60))
+		return true
+	end
+	local lhMin = string.match(lower, "^/luckyhour%s*(%d*)")
+	if lhMin then
+		local minutes = math.clamp(tonumber(lhMin) or 30, 1, 120)
+		workspace:SetAttribute("AdminLuckyUntil", workspace:GetServerTimeNow() + minutes * 60)
+		announce("🍀 LUCKY HOUR!", "x" .. Config.LUCKY_HOUR.mult .. " luck on every egg for " .. minutes .. " minutes!", Color3.fromRGB(90, 220, 110))
+		return true
+	end
+	if string.match(lower, "^/rain") then
+		moneyRain(player, 30)
+		return true
+	end
+	return false
 end
 
 local refreshBoards -- (the leaderboard, below)
 local function onChat(player, msg)
 	if not isOwner(player) then
+		return
+	end
+	if adminBanner(player, msg) or adminEvent(player, string.lower(msg)) then
 		return
 	end
 	local cmd, arg = string.match(string.lower(msg), "^/(%a+)%s*(%-?%d*)")
