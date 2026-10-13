@@ -1,4 +1,5 @@
 -- New-player guide: one hint at a time, only until you've done it.
+--   0. starter chest not opened -> path + arrow to the FREE $5K chest next to the spawn
 --   1. never launched           -> bouncing arrow on LAUNCH: "Press LAUNCH to fly!"
 --   2. no upgrades yet + money  -> arrow on the UPGRADE button
 --   3. can unlock the next stage -> arrow on the UNLOCK button
@@ -78,6 +79,13 @@ end
 local function currentStep()
 	local money = player:GetAttribute("Money") or 0
 	local flights = player:GetAttribute("StatFlights") or 0
+	if player:GetAttribute("StarterChest") == false then
+		local chest = hub() and hub():FindFirstChild("StarterChest")
+		local target = chest and chest:FindFirstChild("PromptPart")
+		if target then
+			return "world", target, "Open your FREE $" .. Config.abbreviate(Config.STARTER_CHEST) .. " chest! 🎁"
+		end
+	end
 	if flights == 0 then
 		return "button", findButton("LAUNCH"), "Press LAUNCH to fly! 🚀"
 	end

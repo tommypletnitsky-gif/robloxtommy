@@ -73,15 +73,25 @@ local pill = make("Frame", { Parent = gui, Name = "AdminBoostPill", AnchorPoint 
 })
 UIKit.hudScale(pill)
 local pillText = UIKit.label({ Parent = pill, Position = UDim2.fromOffset(10, 4), Size = UDim2.new(1, -20, 1, -8), Text = "", ZIndex = 41 })
+-- (also shows the new pilot boost: x2 money until Stage 3 in your first life)
+local player = Players.LocalPlayer
 task.spawn(function()
 	while true do
 		local now = workspace:GetServerTimeNow()
 		local untilT = workspace:GetAttribute("AdminMoneyUntil") or 0
-		local on = untilT > now and not UIKit.busy()
-		pill.Visible = on
-		if on then
+		local beginner = player:GetAttribute("DataLoaded") and Config.beginnerBoost(player) or 1
+		local busy = UIKit.busy()
+		if untilT > now and not busy then
 			local left = math.floor(untilT - now)
+			pill.Size = UDim2.fromOffset(250, 38)
 			pillText.Text = string.format("💰 x%s MONEY  %d:%02d", tostring(workspace:GetAttribute("AdminMoneyMult") or 2), left // 60, left % 60)
+			pill.Visible = true
+		elseif beginner > 1 and not busy then
+			pill.Size = UDim2.fromOffset(360, 38)
+			pillText.Text = "🚀 NEW PILOT x" .. beginner .. " MONEY until Stage " .. Config.BEGINNER_BOOST.untilStage
+			pill.Visible = true
+		else
+			pill.Visible = false
 		end
 		task.wait(0.5)
 	end

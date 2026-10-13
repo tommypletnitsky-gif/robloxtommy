@@ -821,6 +821,16 @@ function Config.luckyHour(now)
 	return false, Config.LUCKY_HOUR.every - t
 end
 
+-- New pilot boost: x2 money in your first life until you unlock Stage 3, so the first new
+-- world comes in a few minutes (new players were leaving after ~2.6 min, far from Stage 2).
+Config.BEGINNER_BOOST = { mult = 2, untilStage = 3 }
+function Config.beginnerBoost(player)
+	if (player:GetAttribute("Rebirths") or 0) == 0 and (player:GetAttribute("UnlockedStage") or 1) < Config.BEGINNER_BOOST.untilStage then
+		return Config.BEGINNER_BOOST.mult
+	end
+	return 1
+end
+
 -- Owner "admin abuse" money boost (/boost 2 10): x money for everyone in that server until
 -- AdminMoneyUntil (workspace attributes, so every script and screen sees it).
 function Config.adminMoneyMult(now)

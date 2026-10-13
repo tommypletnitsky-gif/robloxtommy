@@ -249,7 +249,19 @@ function Report.backHome()
 		end)
 		return
 	end
-	-- otherwise the report stays up until you press X (or launch again)
+	-- otherwise the report stays up until you press X (or launch again) - except for new pilots
+	-- (first 15 flights): it closes by itself after a few seconds so the guide hints can show
+	if (player:GetAttribute("StatFlights") or 0) <= 15 then
+		local token = {}
+		Report.autoClose = token
+		task.delay(5, function()
+			if Report.autoClose == token and card.Visible and not queued and not player:GetAttribute("Flying") then
+				card.Visible = false
+				againBtn.setText("🚀 FLY AGAIN")
+				release()
+			end
+		end)
+	end
 end
 
 -- the report only goes away with its X (top-left corner), FLY AGAIN, UPGRADE or a new launch

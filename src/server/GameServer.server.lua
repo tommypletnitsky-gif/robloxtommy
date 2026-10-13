@@ -91,6 +91,7 @@ local function moneyMultiplier(player)
 		m *= 2
 	end
 	m *= Config.adminMoneyMult() -- the owner's /boost
+	m *= Config.beginnerBoost(player) -- new pilots: x2 until Stage 3
 	return m
 end
 
@@ -247,7 +248,7 @@ local function endFlight(player, reason)
 		body.Anchored = true
 		RocketModel.setThrust(f.model, false)
 	end
-	task.delay(reason == "jumped" and 0 or 2.6, function()
+	task.delay(reason == "jumped" and 0 or 1.8, function()
 		local char = player.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		dismountRider(f, hum)
