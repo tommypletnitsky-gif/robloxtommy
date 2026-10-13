@@ -185,6 +185,23 @@ local function announce(title, text, color)
 	Announce:FireAllClients(title, text, color)
 end
 
+-- the owner's "/..." commands aren't delivered as chat (no "/bb HI" in the chat box or over your
+-- head): players only see the result. (Player.Chatted still fires, so the commands still run.)
+task.spawn(function()
+	local channels = game:GetService("TextChatService"):WaitForChild("TextChannels", 60)
+	local general = channels and channels:WaitForChild("RBXGeneral", 60)
+	if general then
+		general.ShouldDeliverCallback = function(message)
+			local source = message.TextSource
+			local sender = source and Players:GetPlayerByUserId(source.UserId)
+			if sender and isOwner(sender) and string.sub(message.Text or "", 1, 1) == "/" then
+				return false
+			end
+			return true
+		end
+	end
+end)
+
 -- /gbb: every server listens and shows the banner
 task.spawn(function()
 	pcall(function()
