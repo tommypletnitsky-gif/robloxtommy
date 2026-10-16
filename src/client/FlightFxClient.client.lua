@@ -100,9 +100,13 @@ local function addJets(model)
 			local coneB = d:FindFirstChild("ConeB")
 			table.insert(jets, {
 				dir = d:GetAttribute("Dir"),
-				core = d:FindFirstChild("Core"),
+				holder = d,
 				gas = d:FindFirstChild("Gas"),
 				cone = d:FindFirstChild("Cone"),
+				glow = d:FindFirstChild("Glow"),
+				glowB = d:FindFirstChild("GlowB"),
+				tail = coneB and coneB:FindFirstChild("Tail"),
+				light = d:FindFirstChild("Light"),
 				coneB = coneB,
 				axis = coneB and coneB:GetAttribute("Axis") or Vector3.new(0, -1, 0),
 				power = 0,
@@ -188,23 +192,41 @@ RunService.Heartbeat:Connect(function(dt)
 			local flutter = 1 + math.sin(now * 37 + j.seed) * 0.06 + math.sin(now * 23.3 + j.seed * 2) * 0.05
 			local p = j.power * flutter
 			local on = p > 0.04
-			if j.core then
-				j.core.Rate = on and (40 + 260 * p) or 0
-				j.core.Speed = NumberRange.new(40 + 50 * p, 60 + 70 * p)
-			end
-			if j.gas then
-				j.gas.Rate = on and (18 + 120 * p) or 0
-				j.gas.Speed = NumberRange.new(16 + 34 * p, 26 + 46 * p)
+			-- column length: lift jets reach down toward the road (and stop at it), side / top /
+			-- rear jets are shorter
+			local len
+			if j.dir == "D" then
+				local reach = j.holder.Position.Y - Config.pathY(j.holder.Position.X) - 0.3
+				len = math.clamp(5 + 9 * p, 0.5, math.max(0.5, reach))
+			elseif j.dir == "B" then
+				len = 2.5 + 7 * p
+			elseif j.dir == "U" then
+				len = 1.5 + 4 * p
+			else
+				len = 2 + 6.5 * p
 			end
 			if j.cone and j.coneB then
 				j.cone.Enabled = on
+				j.glow.Enabled = on
 				if on then
-					local len = 0.6 + 3.4 * p
 					j.coneB.Position = j.axis * len
-					j.cone.Width0 = 0.22 + 0.18 * p
-					j.cone.Width1 = 0.6 + 1.6 * p
-					j.cone.TextureLength = len
+					j.glowB.Position = j.axis * len * (0.25 + 0.15 * p)
+					j.cone.Width0 = 0.55 + 0.3 * p
+					j.cone.Width1 = 0.7 + 0.55 * p
+					j.cone.TextureLength = math.max(1, len * 0.6)
+					j.glow.Width0 = 0.3 + 0.15 * p
+					j.glow.Width1 = 0.38 + 0.2 * p
 				end
+			end
+			if j.gas then
+				j.gas.Rate = on and (30 + 150 * p) or 0
+				j.gas.Lifetime = NumberRange.new(len / 58)
+			end
+			if j.tail then
+				j.tail.Rate = on and (8 + 70 * p) or 0
+			end
+			if j.light then
+				j.light.Brightness = on and 0.4 + 1.6 * p or 0
 			end
 		end
 		-- road blast when low

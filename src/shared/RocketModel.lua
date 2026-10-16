@@ -267,72 +267,108 @@ function RocketModel.addTrail(model, trailDef)
 	trail.Parent = body
 end
 
--- Cold-gas thruster jets (the thruster car). Each jet has three layers that FlightFxClient drives
--- with how hard that jet is pushing (0..1):
---   Core  - a bright, narrow, very fast blast right at the nozzle (the high-pressure part)
---   Gas   - the white cloud that billows out of it and spreads
---   Cone  - a Beam: the expanding cone of gas you see between the nozzle and the cloud
--- All locked to the car (it flies far faster than the gas, so it stays a plume, not a streak).
-local GAS_WHITE = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(222, 230, 242))
-local function emitter(name, scale, dir, props)
+-- Cold-gas thruster jets (the thruster car), built like the real thing: one tight, straight column
+-- of gas that only breaks up into a small puff at its end. FlightFxClient drives each layer with how
+-- hard that jet is pushing (0..1):
+--   Column - a Beam: the solid jet itself, pale blue at the nozzle turning white, barely widening
+--   Glow   - a Beam: the brighter high-pressure core in the first part of the column
+--   Grain  - fast, tight particles running down the column (gives it texture and motion)
+--   Tail   - a small puff where the column ends (emitted from the ConeB attachment at its tip)
+--   Light  - a soft blue glow at the nozzle
+-- All locked to the car (it flies far faster than the gas, so the jet stays a column, not a streak).
+local JET_COLOR = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(175, 215, 255)),
+	ColorSequenceKeypoint.new(0.22, Color3.fromRGB(240, 248, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
+})
+local function emitter(name, dir, props)
 	local e = Instance.new("ParticleEmitter")
 	e.Name = name
 	e.Texture = "rbxasset://textures/particles/smoke_main.dds"
-	e.Color = GAS_WHITE
+	e.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(228, 234, 244))
 	e.EmissionDirection = dir
 	e.LockedToPart = true
 	e.Rate = 0
 	e.Rotation = NumberRange.new(0, 360)
-	e.RotSpeed = NumberRange.new(-90, 90)
+	e.RotSpeed = NumberRange.new(-120, 120)
 	for k, v in pairs(props) do
 		e[k] = v
 	end
 	return e
 end
+local function beam(name, a0, a1, props)
+	local bm = Instance.new("Beam")
+	bm.Name = name
+	bm.Attachment0, bm.Attachment1 = a0, a1
+	bm.FaceCamera = true
+	bm.Segments = 4
+	bm.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	bm.TextureMode = Enum.TextureMode.Stretch
+	bm.Enabled = false
+	for k, v in pairs(props) do
+		bm[k] = v
+	end
+	bm.Parent = a0.Parent
+	return bm
+end
 function RocketModel._gasJet(holder, scale, dir, axis)
-	emitter("Core", scale, dir, {
-		LightEmission = 0.55,
-		LightInfluence = 0.2,
-		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18 * scale), NumberSequenceKeypoint.new(1, 0.75 * scale) }),
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.6, 0.35), NumberSequenceKeypoint.new(1, 1) }),
-		Lifetime = NumberRange.new(0.05, 0.1),
-		Speed = NumberRange.new(55, 75),
-		SpreadAngle = Vector2.new(2, 2),
-	}).Parent = holder
-	emitter("Gas", scale, dir, {
-		LightEmission = 0.15,
-		LightInfluence = 0.55,
-		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35 * scale), NumberSequenceKeypoint.new(0.25, 1.5 * scale), NumberSequenceKeypoint.new(0.6, 3.2 * scale), NumberSequenceKeypoint.new(1, 4.8 * scale) }),
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(0.35, 0.3), NumberSequenceKeypoint.new(0.75, 0.75), NumberSequenceKeypoint.new(1, 1) }),
-		Lifetime = NumberRange.new(0.25, 0.5),
-		Speed = NumberRange.new(30, 45),
-		Drag = 6,
-		SpreadAngle = Vector2.new(10, 10),
-	}).Parent = holder
-	-- the cone: a beam from the nozzle out along the jet (FlightFxClient sets its length / width)
 	local a0 = Instance.new("Attachment")
 	a0.Name = "ConeA"
 	a0.Parent = holder
-	local a1 = Instance.new("Attachment")
-	a1.Name = "ConeB"
-	a1:SetAttribute("Axis", axis) -- unit direction the jet blows (holder space)
-	a1.Position = axis * 0.1
-	a1.Parent = holder
-	local cone = Instance.new("Beam")
-	cone.Name = "Cone"
-	cone.Attachment0, cone.Attachment1 = a0, a1
-	cone.FaceCamera = true
-	cone.LightEmission = 0.45
-	cone.LightInfluence = 0.3
-	cone.Color = GAS_WHITE
-	cone.Texture = "rbxasset://textures/particles/smoke_main.dds"
-	cone.TextureMode = Enum.TextureMode.Stretch
-	cone.TextureSpeed = 2.5
-	cone.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(0.5, 0.45), NumberSequenceKeypoint.new(1, 1) })
-	cone.Width0, cone.Width1 = 0.3 * scale, 1.4 * scale
-	cone.Segments = 6
-	cone.Enabled = false
-	cone.Parent = holder
+	local tip = Instance.new("Attachment")
+	tip.Name = "ConeB" -- the end of the column (FlightFxClient moves it out along `Axis`)
+	tip:SetAttribute("Axis", axis)
+	tip.Position = axis * 0.1
+	tip.Parent = holder
+	local glowTip = Instance.new("Attachment")
+	glowTip.Name = "GlowB"
+	glowTip.Position = axis * 0.05
+	glowTip.Parent = holder
+	beam("Cone", a0, tip, {
+		Color = JET_COLOR,
+		LightEmission = 0.35,
+		LightInfluence = 0.35,
+		TextureSpeed = 4,
+		TextureLength = 1,
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.75, 0.06), NumberSequenceKeypoint.new(0.93, 0.5), NumberSequenceKeypoint.new(1, 1) }),
+		Width0 = 0.4 * scale,
+		Width1 = 0.6 * scale,
+	})
+	beam("Glow", a0, glowTip, {
+		Color = ColorSequence.new(Color3.fromRGB(205, 232, 255), Color3.fromRGB(255, 255, 255)),
+		LightEmission = 1,
+		LightInfluence = 0,
+		TextureSpeed = 6,
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.75, 0.25), NumberSequenceKeypoint.new(1, 1) }),
+		Width0 = 0.22 * scale,
+		Width1 = 0.3 * scale,
+	})
+	emitter("Gas", dir, { -- the grain running down the column
+		LightEmission = 0.3,
+		LightInfluence = 0.4,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55 * scale), NumberSequenceKeypoint.new(0.85, 0.85 * scale), NumberSequenceKeypoint.new(1, 1.2 * scale) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(0.8, 0.4), NumberSequenceKeypoint.new(1, 1) }),
+		Lifetime = NumberRange.new(0.15),
+		Speed = NumberRange.new(55, 60),
+		SpreadAngle = Vector2.new(0.8, 0.8),
+	}).Parent = holder
+	emitter("Tail", dir, { -- the small puff where the column breaks up
+		LightEmission = 0.12,
+		LightInfluence = 0.6,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6 * scale), NumberSequenceKeypoint.new(0.4, 1.4 * scale), NumberSequenceKeypoint.new(1, 2.4 * scale) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(0.5, 0.65), NumberSequenceKeypoint.new(1, 1) }),
+		Lifetime = NumberRange.new(0.2, 0.4),
+		Speed = NumberRange.new(5, 11),
+		Drag = 4,
+		SpreadAngle = Vector2.new(28, 28),
+	}).Parent = tip
+	local light = Instance.new("PointLight")
+	light.Name = "Light"
+	light.Color = Color3.fromRGB(150, 200, 255)
+	light.Range = 5 * scale
+	light.Brightness = 0
+	light.Shadows = false
+	light.Parent = holder
 end
 
 -- Thruster jets around the car. Dir: "D" under the car (lift), "U" on top (push down), "L" left
