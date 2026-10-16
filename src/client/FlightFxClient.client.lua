@@ -3,6 +3,7 @@
 --     players'), stronger the faster it goes - turning draws curves in the air.
 --   * Sonic boom: when you start boosting, a ring bursts out around your rocket with a whoosh.
 --   * Stage beat: entering a new stage bursts a big gold ring around your rocket (silent).
+--   * Thruster cars: white cold-gas jets that grow the longer the car keeps moving one way.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -72,6 +73,94 @@ RunService.Heartbeat:Connect(function()
 				if on then
 					t.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.75 - fade * 0.45), NumberSequenceKeypoint.new(1, 1) })
 				end
+			end
+		end
+	end
+end)
+
+-- Thruster cars (Config rocket `thrusters`): white cold-gas jets that push the car the way it's
+-- moving. A jet starts as a small puff and grows into a long blast the longer the car keeps going
+-- that way (RocketClient also makes the turn itself stronger the longer you hold it). Read from
+-- every car's velocity, so you see other players' jets too.
+local jetCars = {} -- [model] = { body, flame, jets = { {emitter, dir} }, hold = {L=,R=,U=,D=} }
+local function addJets(model)
+	local body = model:WaitForChild("Body", 5)
+	if not body or jetCars[model] then
+		return
+	end
+	task.wait(0.2) -- (let the rest of the model replicate)
+	local jets = {}
+	for _, d in ipairs(model:GetDescendants()) do
+		if d.Name == "Thruster" and d:GetAttribute("Dir") then
+			local e = d:FindFirstChild("Gas")
+			if e then
+				table.insert(jets, { emitter = e, dir = d:GetAttribute("Dir") })
+			end
+		end
+	end
+	if #jets > 0 then
+		jetCars[model] = { body = body, flame = model:FindFirstChild("Flame", true), jets = jets, hold = { L = 0, R = 0, U = 0, D = 0 } }
+	end
+end
+flights.ChildAdded:Connect(function(m)
+	task.spawn(addJets, m)
+end)
+for _, m in ipairs(flights:GetChildren()) do
+	task.spawn(addJets, m)
+end
+flights.ChildRemoved:Connect(function(m)
+	jetCars[m] = nil
+end)
+
+local JET_RAMP = 1.2 -- seconds of holding a direction until its jets are at full blast
+RunService.Heartbeat:Connect(function(dt)
+	for m, c in pairs(jetCars) do
+		if not m.Parent or not c.body.Parent then
+			jetCars[m] = nil
+			continue
+		end
+		local rear = c.flame and c.flame:FindFirstChild("Trail")
+		local flying = rear and rear.Enabled and m:GetAttribute("InCannon") ~= true
+		local v = c.body.AssemblyLinearVelocity
+		-- how hard the car is being pushed each way (sideways speed 0..32+, up / down speed)
+		local push = {
+			L = math.clamp(v.Z / 30, 0, 1), -- moving right (+Z): the LEFT jets fire (they point left)
+			R = math.clamp(-v.Z / 30, 0, 1),
+			D = math.clamp(0.35 + v.Y / 40, 0, 1), -- under the car: always a little (it hovers), more going up
+			U = math.clamp(-v.Y / 40, 0, 1),
+		}
+		for dir, p in pairs(push) do
+			local h = c.hold[dir]
+			c.hold[dir] = (flying and p > 0.12) and math.min(h + dt, JET_RAMP) or math.max(0, h - dt * 3)
+		end
+		for _, j in ipairs(c.jets) do
+			local p = flying and push[j.dir] or 0
+			local grow = c.hold[j.dir] / JET_RAMP -- 0 = just started, 1 = held long
+			local power = p * (0.3 + 0.7 * grow) -- starts as a little puff, builds up the longer you hold
+			if j.dir == "D" then
+				power = flying and math.max(power, 0.25) or 0
+			end
+			j.emitter.Rate = power > 0.03 and (25 + 140 * power) or 0
+			j.emitter.Speed = NumberRange.new(14 + 34 * power, 22 + 46 * power)
+		end
+	end
+end)
+
+-- Drivers of thruster cars sit inside behind the tinted glass: hide their bodies (on every screen)
+-- while their character has the InCar attribute (GameServer sets it at liftoff, clears on landing).
+local hidden = {} -- [character] = true
+RunService.Heartbeat:Connect(function()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		local char = plr.Character
+		if char then
+			local inCar = char:GetAttribute("InCar") == true
+			if inCar or hidden[char] then
+				for _, d in ipairs(char:GetDescendants()) do
+					if d:IsA("BasePart") or d:IsA("Decal") then
+						d.LocalTransparencyModifier = inCar and 1 or 0
+					end
+				end
+				hidden[char] = inCar or nil
 			end
 		end
 	end

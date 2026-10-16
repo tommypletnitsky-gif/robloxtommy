@@ -65,6 +65,9 @@ Config.Rockets = {
 	{ id = "Shuttle", name = "Space Shuttle", speed = 110, fuel = 13, price = 4500000, color = Color3.fromRGB(245, 245, 245), accent = Color3.fromRGB(30, 30, 30) },
 	{ id = "Plasma", name = "Plasma Rocket", speed = 135, fuel = 15, price = 30000000, color = Color3.fromRGB(170, 60, 255), accent = Color3.fromRGB(255, 120, 255) },
 	{ id = "Galaxy", name = "Galaxy Rocket", speed = 165, fuel = 18, price = 240000000, color = Color3.fromRGB(20, 20, 60), accent = Color3.fromRGB(120, 200, 255) },
+	-- a flying electric hypercar on cold-gas thrusters (RocketModel adds them; the side jets grow and
+	-- steering gets stronger the longer you hold a direction - RocketClient / FlightFxClient)
+	{ id = "Roadster", name = "Hyper Roadster", speed = 182, fuel = 19.5, price = 750000000, color = Color3.fromRGB(206, 210, 218), accent = Color3.fromRGB(120, 210, 255), thrusters = true },
 	{ id = "Quantum", name = "Quantum Rocket", speed = 200, fuel = 21, price = 2100000000, color = Color3.fromRGB(0, 255, 170), accent = Color3.fromRGB(255, 255, 255) },
 	{ id = "Nova", name = "Nova Rocket", speed = 250, fuel = 25, price = 18000000000, color = Color3.fromRGB(255, 215, 0), accent = Color3.fromRGB(255, 80, 0) },
 }

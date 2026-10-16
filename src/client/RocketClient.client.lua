@@ -1179,6 +1179,13 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			combo = 0,
 			comboX = Config.LAUNCH_X, -- x of the last pickup that kept the combo going
 			comboMult = 1,
+			-- thruster cars: how long you've held each steering direction (stronger turn the longer)
+			thrusters = Config.getRocket(player:GetAttribute("Rocket")).thrusters == true,
+			holdZ = 0,
+			holdZSign = 0,
+			holdY = 0,
+			holdYSign = 0,
+			gripZ = 1,
 		}
 		local flame = body.Parent:FindFirstChild("Flame", true)
 		flight.flameFx = flame and flame:FindFirstChildOfClass("Fire")
@@ -1611,7 +1618,7 @@ RunService.RenderStepped:Connect(function(dt)
 	if backwards then
 		side = -side
 	end
-	local keyDz, keyDy = side * STEER.keys * dt, up * STEER.keys * dt
+	local keyDz, keyDy = side * STEER.keys * dt * f.gripZ, up * STEER.keys * dt
 	if launching or f.outOfFuel then
 		dz, dy, keyDz, keyDy, up = 0, 0, 0, 0, 0
 	end
@@ -1656,12 +1663,31 @@ RunService.RenderStepped:Connect(function(dt)
 
 	-- The rocket glides after the aim on a smooth spring: quick to answer, no wobble. -------------
 	local targetZ, targetY = aim.z, f.diving and -4 or aim.y
+	-- Thruster cars: keep steering one way and the side jets push harder - the car slides that way
+	-- quicker and quicker (up to x2 after 1.2 s of holding); let go and it eases back to normal.
+	-- (FlightFxClient grows the white jets the same way.)
+	local gripZ, gripY = 1, 1
+	if f.thrusters then
+		local function hold(key, gap)
+			local s = math.abs(gap) > 1.5 and math.sign(gap) or 0
+			if s ~= 0 and s == f[key .. "Sign"] then
+				f[key] = math.min(f[key] + dt, 1.2)
+			else
+				f[key] = s ~= 0 and 0 or math.max(0, f[key] - dt * 3)
+				f[key .. "Sign"] = s
+			end
+			return 1 + f[key] / 1.2
+		end
+		gripZ, gripY = hold("holdZ", targetZ - f.simZ), hold("holdY", targetY - f.simY)
+		f.gripZ = gripZ
+	end
 	local steps = math.max(1, math.ceil(dt * 120))
 	local h = dt / steps
 	local w, zeta = 3.6, 0.9 -- how quickly the rocket glides after your aim (calm, no overshoot)
+	local wz, wy = w * gripZ, w * gripY
 	for _ = 1, steps do
-		f.vz = math.clamp(f.vz + (w * w * (targetZ - f.simZ) - 2 * zeta * w * f.vz) * h, -32, 32)
-		f.vy = math.clamp(f.vy + (w * w * (targetY - f.simY) - 2 * zeta * w * f.vy) * h, -50, 45)
+		f.vz = math.clamp(f.vz + (wz * wz * (targetZ - f.simZ) - 2 * zeta * wz * f.vz) * h, -32 * gripZ, 32 * gripZ)
+		f.vy = math.clamp(f.vy + (wy * wy * (targetY - f.simY) - 2 * zeta * wy * f.vy) * h, -50 * gripY, 45 * gripY)
 		f.simZ += f.vz * h
 		f.simY += f.vy * h
 	end

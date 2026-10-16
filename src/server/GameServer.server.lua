@@ -175,6 +175,11 @@ local function mountRider(f, char, hum, root)
 	local body = f.model.PrimaryPart
 	local seatLocal = body.CFrame:ToObjectSpace(f.seat.CFrame).Position
 	local y = seatLocal.Y + f.seat.Size.Y / 2 + math.clamp(hipDrop(char), 0.5, 3) + RIDE_HIP_LIFT
+	if f.car then
+		-- a car: you sit inside behind the tinted glass (FlightFxClient hides the driver)
+		y = seatLocal.Y
+		char:SetAttribute("InCar", true)
+	end
 	hum.Sit = false
 	hum.PlatformStand = true
 	char:PivotTo(body.CFrame * CFrame.new(seatLocal.X, y, seatLocal.Z) * CFrame.Angles(0, -math.pi / 2, 0))
@@ -196,6 +201,7 @@ local function dismountRider(f, hum)
 		hum.PlatformStand = false
 		if hum.Parent then
 			setRiderGroup(hum.Parent, "Default")
+			hum.Parent:SetAttribute("InCar", nil)
 		end
 	end
 end
@@ -347,6 +353,7 @@ local function startFlight(player)
 		comboX = Config.LAUNCH_X, -- x of the last pickup that counted for the combo
 		power = nil, -- "perfect" | "good" from the countdown power bar
 		extras = {},
+		car = Config.getRocket(player:GetAttribute("Rocket")).thrusters == true, -- a thruster car
 	}
 	flights[player] = f
 	player:SetAttribute("Flying", true)
@@ -511,9 +518,11 @@ local function checkMove(player, f, body, now)
 		local span = math.max(dtm, MOVE_WINDOW)
 		-- top steering speed plus slack: a late burst of physics updates can pack ~0.4 s of
 		-- movement into one window, so only clear jumps get flagged
-		if math.abs(p.Z - f.lastPos.Z) > 32 * span + 15 then
+		-- (thruster cars steer up to twice as fast when you hold a direction)
+		local k = Config.getRocket(player:GetAttribute("Rocket")).thrusters and 2 or 1
+		if math.abs(p.Z - f.lastPos.Z) > 32 * k * span + 15 then
 			why = why or "fast sideways"
-		elseif math.abs(h - f.lastH) > 50 * span + 20 then
+		elseif math.abs(h - f.lastH) > 50 * k * span + 20 then
 			why = why or "fast up/down"
 		end
 		if dtm >= MOVE_WINDOW then
