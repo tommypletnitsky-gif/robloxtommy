@@ -465,6 +465,9 @@ BoostRemote.OnServerEvent:Connect(function(player, on)
 		f.boost = math.max(0, f.boost - grace / Config.Boost.drainTime)
 		f.boostGrace = os.clock() + grace
 	end
+	if f.car and f.model.Parent then
+		f.model:SetAttribute("Boosting", f.boostOn or nil) -- (everyone sees a car's rear jets fire)
+	end
 end)
 
 -- Pickups: the client says "I hit this one", the server checks it's believable.

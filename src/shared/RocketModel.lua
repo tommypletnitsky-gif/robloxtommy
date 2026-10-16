@@ -129,6 +129,7 @@ function RocketModel.build(def, scale, withSeat, origin)
 			w.Parent = p
 		end
 		model:SetAttribute("BackX", backX)
+		model:SetAttribute("Car", def.thrusters == true or nil)
 		return model
 	end
 
@@ -181,6 +182,7 @@ function RocketModel.build(def, scale, withSeat, origin)
 		w.Parent = p
 	end
 	model:SetAttribute("BackX", -5 * scale)
+	model:SetAttribute("Car", def.thrusters == true or nil)
 	return model
 end
 
@@ -188,10 +190,11 @@ end
 -- gas = true (thruster cars): no fire, a white cold-gas jet out of the back instead.
 function RocketModel._addFlameFx(flame, scale, gas)
 	if gas then
-		local jet = RocketModel._gasEmitter(scale, Enum.NormalId.Left)
+		-- (no exhaust streak: the rear thrusters are real jets - see _thrusters. This emitter never
+		-- emits; setThrust turning it on tells FlightFxClient the car is flying.)
+		local jet = Instance.new("ParticleEmitter")
 		jet.Name = "Trail"
-		jet.LockedToPart = false -- (the rear jet streams out behind the car)
-		jet.Rate = 55
+		jet.Rate = 0
 		jet.Enabled = false
 		jet.Parent = flame
 		local glow = Instance.new("PointLight")
@@ -231,7 +234,7 @@ end
 
 -- A colored Trail streaming from the engine end (trailDef from Config.Trails).
 function RocketModel.addTrail(model, trailDef)
-	if not trailDef or trailDef.id == "None" then
+	if not trailDef or trailDef.id == "None" or model:GetAttribute("Car") then -- (cars: no trails)
 		return
 	end
 	local body = model.PrimaryPart
@@ -264,32 +267,77 @@ function RocketModel.addTrail(model, trailDef)
 	trail.Parent = body
 end
 
--- A white cold-gas jet (the thruster car's side / lift / rear jets). Rate 0 = off; FlightFxClient
--- turns the rate and speed up with how hard that jet is pushing.
-function RocketModel._gasEmitter(scale, dir)
+-- Cold-gas thruster jets (the thruster car). Each jet has three layers that FlightFxClient drives
+-- with how hard that jet is pushing (0..1):
+--   Core  - a bright, narrow, very fast blast right at the nozzle (the high-pressure part)
+--   Gas   - the white cloud that billows out of it and spreads
+--   Cone  - a Beam: the expanding cone of gas you see between the nozzle and the cloud
+-- All locked to the car (it flies far faster than the gas, so it stays a plume, not a streak).
+local GAS_WHITE = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(222, 230, 242))
+local function emitter(name, scale, dir, props)
 	local e = Instance.new("ParticleEmitter")
-	e.Name = "Gas"
+	e.Name = name
 	e.Texture = "rbxasset://textures/particles/smoke_main.dds"
-	e.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(215, 225, 240))
-	e.LightEmission = 0.25
-	e.LightInfluence = 0.4
-	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3 * scale), NumberSequenceKeypoint.new(0.3, 1.3 * scale), NumberSequenceKeypoint.new(1, 3.6 * scale) })
-	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.45, 0.35), NumberSequenceKeypoint.new(1, 1) })
-	e.Lifetime = NumberRange.new(0.22, 0.45)
-	e.Speed = NumberRange.new(28, 40)
-	e.Drag = 4
-	e.SpreadAngle = Vector2.new(7, 7)
-	e.RotSpeed = NumberRange.new(-60, 60)
-	e.Rotation = NumberRange.new(0, 360)
+	e.Color = GAS_WHITE
 	e.EmissionDirection = dir
-	e.LockedToPart = true -- (the car flies far faster than the gas: keep the plume on the nozzle)
+	e.LockedToPart = true
 	e.Rate = 0
+	e.Rotation = NumberRange.new(0, 360)
+	e.RotSpeed = NumberRange.new(-90, 90)
+	for k, v in pairs(props) do
+		e[k] = v
+	end
 	return e
 end
+function RocketModel._gasJet(holder, scale, dir, axis)
+	emitter("Core", scale, dir, {
+		LightEmission = 0.55,
+		LightInfluence = 0.2,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18 * scale), NumberSequenceKeypoint.new(1, 0.75 * scale) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.6, 0.35), NumberSequenceKeypoint.new(1, 1) }),
+		Lifetime = NumberRange.new(0.05, 0.1),
+		Speed = NumberRange.new(55, 75),
+		SpreadAngle = Vector2.new(2, 2),
+	}).Parent = holder
+	emitter("Gas", scale, dir, {
+		LightEmission = 0.15,
+		LightInfluence = 0.55,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35 * scale), NumberSequenceKeypoint.new(0.25, 1.5 * scale), NumberSequenceKeypoint.new(0.6, 3.2 * scale), NumberSequenceKeypoint.new(1, 4.8 * scale) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(0.35, 0.3), NumberSequenceKeypoint.new(0.75, 0.75), NumberSequenceKeypoint.new(1, 1) }),
+		Lifetime = NumberRange.new(0.25, 0.5),
+		Speed = NumberRange.new(30, 45),
+		Drag = 6,
+		SpreadAngle = Vector2.new(10, 10),
+	}).Parent = holder
+	-- the cone: a beam from the nozzle out along the jet (FlightFxClient sets its length / width)
+	local a0 = Instance.new("Attachment")
+	a0.Name = "ConeA"
+	a0.Parent = holder
+	local a1 = Instance.new("Attachment")
+	a1.Name = "ConeB"
+	a1:SetAttribute("Axis", axis) -- unit direction the jet blows (holder space)
+	a1.Position = axis * 0.1
+	a1.Parent = holder
+	local cone = Instance.new("Beam")
+	cone.Name = "Cone"
+	cone.Attachment0, cone.Attachment1 = a0, a1
+	cone.FaceCamera = true
+	cone.LightEmission = 0.45
+	cone.LightInfluence = 0.3
+	cone.Color = GAS_WHITE
+	cone.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	cone.TextureMode = Enum.TextureMode.Stretch
+	cone.TextureSpeed = 2.5
+	cone.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(0.5, 0.45), NumberSequenceKeypoint.new(1, 1) })
+	cone.Width0, cone.Width1 = 0.3 * scale, 1.4 * scale
+	cone.Segments = 6
+	cone.Enabled = false
+	cone.Parent = holder
+end
 
--- Thruster jets around the car: Dir "D" (under the car, pushes it up), "U" (on top, pushes it
--- down), "L" (left side, jet points left = pushes the car right) and "R" (right side). Each is an
--- invisible point with a Gas emitter, plus a small dark nozzle you can see.
+-- Thruster jets around the car. Dir: "D" under the car (lift), "U" on top (push down), "L" left
+-- side (blows left = pushes the car right), "R" right side, "B" rear pair (boost). Each is an
+-- invisible holder with the three gas layers, plus a small dark nozzle you can see.
 -- carSize: the car's length / height / width (default 10 x 2.6 x 4.6, pivot at its middle).
 function RocketModel._thrusters(origin, scale, carSize)
 	local L, H, W = 10, 2.6, 4.6
@@ -297,24 +345,25 @@ function RocketModel._thrusters(origin, scale, carSize)
 		L, H, W = carSize.X, carSize.Y, carSize.Z
 	end
 	local list = {}
-	local nozzleColor = Color3.fromRGB(40, 42, 48)
-	local function jet(dir, normal, x, y, z, nozzleAxis)
+	local nozzleColor = Color3.fromRGB(38, 40, 46)
+	local function jet(dir, normal, axis, x, y, z, nozzleAxis)
 		local cf = origin * CFrame.new(x * scale, y * scale, z * scale)
 		local p = part({ Name = "Thruster", Size = Vector3.one * 0.3 * scale, Transparency = 1, CFrame = cf })
 		p:SetAttribute("Dir", dir)
-		RocketModel._gasEmitter(scale, normal).Parent = p
+		RocketModel._gasJet(p, scale, normal, axis)
 		table.insert(list, p)
-		table.insert(list, part({ Name = "Nozzle", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.18, 0.55, 0.55) * scale, Color = nozzleColor, Material = Enum.Material.Metal, CFrame = cf * nozzleAxis }))
+		table.insert(list, part({ Name = "Nozzle", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.22, 0.5, 0.5) * scale, Color = nozzleColor, Material = Enum.Material.Metal, Reflectance = 0.15, CFrame = cf * nozzleAxis }))
 	end
 	local vertical = CFrame.Angles(0, 0, math.pi / 2) -- cylinder axis (X) turned to point up/down
 	local sideways = CFrame.Angles(0, math.pi / 2, 0) -- axis turned to point left/right
 	for _, sx in ipairs({ -1, 1 }) do
 		for _, sz in ipairs({ -1, 1 }) do
-			jet("D", Enum.NormalId.Bottom, sx * L * 0.3, -H * 0.42, sz * W * 0.32, vertical)
+			jet("D", Enum.NormalId.Bottom, Vector3.new(0, -1, 0), sx * L * 0.3, -H * 0.4, sz * W * 0.3, vertical)
 		end
-		jet("L", Enum.NormalId.Front, sx * L * 0.27, -H * 0.12, -W * 0.5, sideways) -- Front = -Z
-		jet("R", Enum.NormalId.Back, sx * L * 0.27, -H * 0.12, W * 0.5, sideways) -- Back = +Z
-		jet("U", Enum.NormalId.Top, sx * L * 0.3, H * 0.15, 0, vertical)
+		jet("L", Enum.NormalId.Front, Vector3.new(0, 0, -1), sx * L * 0.28, -H * 0.1, -W * 0.5, sideways) -- Front = -Z
+		jet("R", Enum.NormalId.Back, Vector3.new(0, 0, 1), sx * L * 0.28, -H * 0.1, W * 0.5, sideways) -- Back = +Z
+		jet("U", Enum.NormalId.Top, Vector3.new(0, 1, 0), sx * L * 0.25, H * 0.2, 0, vertical)
+		jet("B", Enum.NormalId.Left, Vector3.new(-1, 0, 0), -L * 0.5, -H * 0.15, sx * W * 0.28, CFrame.new()) -- Left = -X (out the back)
 	end
 	return list
 end

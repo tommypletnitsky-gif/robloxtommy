@@ -10,6 +10,7 @@ local SoundService = game:GetService("SoundService")
 local Lighting = game:GetService("Lighting")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local carAttitude -- (thruster cars: set below, used in the flight loop)
 local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
 local Rider = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("RiderAnimator"))
 local Report = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("FlightReport"))
@@ -1477,6 +1478,53 @@ local function collect(p)
 end
 
 local lineTimer = 0
+-- Thruster car attitude: a car hovering on gas jets, not a rocket. It stays level with the road
+-- and slides sideways on its side jets (crabbing, the nose only turns a touch), rolls a little
+-- into the slide, lifts its nose climbing and dips it diving, squats back when the rear jets fire,
+-- jolts when a jet kicks in, and floats with a slow hover bob and a fine jet shiver. It also
+-- reports how hard each jet group is pushing (0..1) to FlightFxClient through the model's local
+-- Jet* attributes.
+carAttitude = function(f, now, dt, vel, slope, fwd, accZ)
+	f.carKick = (f.carKick or 0) * math.exp(-dt * 6)
+	f.carPitchKick = (f.carPitchKick or 0) * math.exp(-dt * 5)
+	local sideSign = f.holdZSign or 0
+	if sideSign ~= (f.lastSideSign or 0) then
+		if sideSign ~= 0 then
+			f.carKick += sideSign * 0.07 -- a side jet just opened: a sharp little jolt
+		end
+		f.lastSideSign = sideSign
+	end
+	local boosting = f.boostOn == true
+	if boosting ~= (f.lastBoostJets or false) then
+		if boosting then
+			f.carPitchKick += 0.06 -- rear jets fire: the nose lifts as it surges
+		end
+		f.lastBoostJets = boosting
+	end
+	local roll = math.clamp(f.vz * 0.0065 + accZ * 0.0016, -0.32, 0.32) + f.carKick
+	local pitch = f.outOfFuel and -0.05 or math.clamp(f.vy * 0.0055, -0.2, 0.18) + f.carPitchKick
+	local yaw = math.clamp(vel.Z / math.max(fwd, 1) * 0.35, -0.12, 0.12)
+	-- hover: a slow float and a fine shiver from the jets
+	local bob = math.sin(now * 1.9) * 0.012
+	local shiver = (math.sin(now * 31) + math.sin(now * 47.7)) * 0.0035
+	local level = math.atan(slope) -- follow the road's climb
+	local cf = CFrame.Angles(0, -yaw, 0) * CFrame.Angles(0, 0, level + pitch + bob + shiver) * CFrame.Angles(roll + shiver * 0.7, 0, 0)
+	-- jet power for the effects
+	local model = f.body.Parent
+	if model then
+		local holdZ = (f.holdZ or 0) / 1.2
+		local holdY = (f.holdY or 0) / 1.2
+		local side = math.clamp(math.abs(f.vz) / 32, 0, 1) * (0.3 + 0.7 * holdZ)
+		local vert = math.clamp(math.abs(f.vy) / 40, 0, 1) * (0.3 + 0.7 * holdY)
+		model:SetAttribute("JetL", f.vz > 1 and side or 0) -- moving right: the left jets blow
+		model:SetAttribute("JetR", f.vz < -1 and side or 0)
+		model:SetAttribute("JetD", f.outOfFuel and 0 or math.clamp(0.28 + (f.vy > 1 and vert or 0), 0, 1))
+		model:SetAttribute("JetU", f.vy < -1 and vert or 0)
+		model:SetAttribute("JetB", f.outOfFuel and 0 or (boosting and 1 or 0.18))
+	end
+	return cf
+end
+
 RunService.RenderStepped:Connect(function(dt)
 	local now = os.clock()
 	-- spin coins / gems / rings near the camera (cheap: only a window around the camera)
@@ -1752,7 +1800,10 @@ RunService.RenderStepped:Connect(function(dt)
 	local heading = Vector3.new(fwd, climb * 0.8, vel.Z * 0.6)
 	local wobble = f.outOfFuel and 0 or math.sin(now * 3.1) * 0.04
 	local targetAim = CFrame.lookAt(Vector3.zero, heading.Unit) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(f.bank + wobble + spinAngle, 0, math.sin(now * 2.3) * 0.025)
-	f.aimCF = spinAngle > 0 and targetAim or f.aimCF:Lerp(targetAim, 1 - math.exp(-dt * 12))
+	if f.thrusters then
+		targetAim = carAttitude(f, now, dt, vel, slope, fwd, accZ)
+	end
+	f.aimCF = (spinAngle > 0 and not f.thrusters) and targetAim or f.aimCF:Lerp(targetAim, 1 - math.exp(-dt * (f.thrusters and 7 or 12)))
 	f.align.CFrame = f.aimCF
 
 	-- Flame grows while boosting

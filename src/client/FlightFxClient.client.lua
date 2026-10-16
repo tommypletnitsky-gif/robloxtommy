@@ -3,12 +3,14 @@
 --     players'), stronger the faster it goes - turning draws curves in the air.
 --   * Sonic boom: when you start boosting, a ring bursts out around your rocket with a whoosh.
 --   * Stage beat: entering a new stage bursts a big gold ring around your rocket (silent).
---   * Thruster cars: white cold-gas jets that grow the longer the car keeps moving one way.
+--   * Thruster cars: layered cold-gas jets (core blast, billowing cloud, cone) that build up the
+--     longer the car keeps pushing one way, and a vapour blast off the road when flying low.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
+local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 
 local player = Players.LocalPlayer
 local flights = workspace:WaitForChild("Flights")
@@ -17,7 +19,8 @@ local streaks = {} -- [rocket model] = { body, trails = { Trail, Trail } }
 
 local function addStreaks(model)
 	local body = model:WaitForChild("Body", 5)
-	if not body or streaks[model] then
+	task.wait(0.1) -- (the Car attribute arrives with the model)
+	if not body or streaks[model] or model:GetAttribute("Car") then -- (cars: no streaks)
 		return
 	end
 	local half = body.Size.Y * 0.5 + 0.9 -- just outside the hull
@@ -78,11 +81,13 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
--- Thruster cars (Config rocket `thrusters`): white cold-gas jets that push the car the way it's
--- moving. A jet starts as a small puff and grows into a long blast the longer the car keeps going
--- that way (RocketClient also makes the turn itself stronger the longer you hold it). Read from
--- every car's velocity, so you see other players' jets too.
-local jetCars = {} -- [model] = { body, flame, jets = { {emitter, dir} }, hold = {L=,R=,U=,D=} }
+-- Thruster cars (Config rocket `thrusters`): realistic cold-gas jets. Each jet's power (0..1)
+-- drives three layers (RocketModel._gasJet): the bright Core blast, the billowing Gas cloud and
+-- the Cone beam. A jet starts as a short hiss and builds into a full blast the longer the car keeps
+-- pushing that way. Your own car reads your steering directly (RocketClient puts it in the model's
+-- local Jet* attributes); other players' cars are read from how they move.
+-- Flying low, the lift jets blast a cloud of dust / vapour off the road under the car.
+local jetCars = {} -- [model] = { body, flame, jets, hold, ground }
 local function addJets(model)
 	local body = model:WaitForChild("Body", 5)
 	if not body or jetCars[model] then
@@ -92,15 +97,46 @@ local function addJets(model)
 	local jets = {}
 	for _, d in ipairs(model:GetDescendants()) do
 		if d.Name == "Thruster" and d:GetAttribute("Dir") then
-			local e = d:FindFirstChild("Gas")
-			if e then
-				table.insert(jets, { emitter = e, dir = d:GetAttribute("Dir") })
-			end
+			local coneB = d:FindFirstChild("ConeB")
+			table.insert(jets, {
+				dir = d:GetAttribute("Dir"),
+				core = d:FindFirstChild("Core"),
+				gas = d:FindFirstChild("Gas"),
+				cone = d:FindFirstChild("Cone"),
+				coneB = coneB,
+				axis = coneB and coneB:GetAttribute("Axis") or Vector3.new(0, -1, 0),
+				power = 0,
+				seed = math.random() * 10,
+			})
 		end
 	end
-	if #jets > 0 then
-		jetCars[model] = { body = body, flame = model:FindFirstChild("Flame", true), jets = jets, hold = { L = 0, R = 0, U = 0, D = 0 } }
+	if #jets == 0 then
+		return
 	end
+	-- road blast: an invisible point under the car that puffs vapour out sideways along the road
+	local ground = Instance.new("Part")
+	ground.Name = "JetGroundFx"
+	ground.Anchored, ground.CanCollide, ground.CanQuery, ground.CanTouch = true, false, false, false
+	ground.Transparency = 1
+	ground.Size = Vector3.new(6, 0.2, 4)
+	ground.Parent = workspace
+	local billow = Instance.new("ParticleEmitter")
+	billow.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	billow.Color = ColorSequence.new(Color3.fromRGB(250, 250, 252), Color3.fromRGB(205, 210, 220))
+	billow.LightInfluence = 0.7
+	billow.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.5), NumberSequenceKeypoint.new(0.4, 5), NumberSequenceKeypoint.new(1, 9) })
+	billow.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(0.5, 0.6), NumberSequenceKeypoint.new(1, 1) })
+	billow.Lifetime = NumberRange.new(0.8, 1.6)
+	billow.Speed = NumberRange.new(10, 22)
+	billow.Drag = 2.5
+	billow.SpreadAngle = Vector2.new(80, 80) -- (Top + wide spread = rolls out along the ground)
+	billow.Acceleration = Vector3.new(0, 1.5, 0)
+	billow.EmissionDirection = Enum.NormalId.Top
+	billow.Rotation = NumberRange.new(0, 360)
+	billow.RotSpeed = NumberRange.new(-30, 30)
+	billow.Rate = 0
+	billow.Parent = ground
+	jetCars[model] = { body = body, model = model, flame = model:FindFirstChild("Flame", true), jets = jets, hold = { L = 0, R = 0, U = 0, D = 0, B = 0 }, ground = ground, billow = billow }
 end
 flights.ChildAdded:Connect(function(m)
 	task.spawn(addJets, m)
@@ -108,41 +144,77 @@ end)
 for _, m in ipairs(flights:GetChildren()) do
 	task.spawn(addJets, m)
 end
-flights.ChildRemoved:Connect(function(m)
-	jetCars[m] = nil
-end)
+local function dropCar(m)
+	local c = jetCars[m]
+	if c then
+		c.ground:Destroy()
+		jetCars[m] = nil
+	end
+end
+flights.ChildRemoved:Connect(dropCar)
 
-local JET_RAMP = 1.2 -- seconds of holding a direction until its jets are at full blast
+local JET_RAMP = 1.2 -- seconds of pushing one way until those jets are at full blast
 RunService.Heartbeat:Connect(function(dt)
+	local now = os.clock()
 	for m, c in pairs(jetCars) do
 		if not m.Parent or not c.body.Parent then
-			jetCars[m] = nil
+			dropCar(m)
 			continue
 		end
 		local rear = c.flame and c.flame:FindFirstChild("Trail")
 		local flying = rear and rear.Enabled and m:GetAttribute("InCannon") ~= true
-		local v = c.body.AssemblyLinearVelocity
-		-- how hard the car is being pushed each way (sideways speed 0..32+, up / down speed)
-		local push = {
-			L = math.clamp(v.Z / 30, 0, 1), -- moving right (+Z): the LEFT jets fire (they point left)
-			R = math.clamp(-v.Z / 30, 0, 1),
-			D = math.clamp(0.35 + v.Y / 40, 0, 1), -- under the car: always a little (it hovers), more going up
-			U = math.clamp(-v.Y / 40, 0, 1),
-		}
-		for dir, p in pairs(push) do
-			local h = c.hold[dir]
-			c.hold[dir] = (flying and p > 0.12) and math.min(h + dt, JET_RAMP) or math.max(0, h - dt * 3)
-		end
-		for _, j in ipairs(c.jets) do
-			local p = flying and push[j.dir] or 0
-			local grow = c.hold[j.dir] / JET_RAMP -- 0 = just started, 1 = held long
-			local power = p * (0.3 + 0.7 * grow) -- starts as a little puff, builds up the longer you hold
-			if j.dir == "D" then
-				power = flying and math.max(power, 0.25) or 0
+		-- how hard each jet group is pushing: yours from RocketClient, others' from their motion
+		local want = {}
+		if m:GetAttribute("JetD") ~= nil then
+			for _, k in ipairs({ "L", "R", "U", "D", "B" }) do
+				want[k] = m:GetAttribute("Jet" .. k) or 0
 			end
-			j.emitter.Rate = power > 0.03 and (25 + 140 * power) or 0
-			j.emitter.Speed = NumberRange.new(14 + 34 * power, 22 + 46 * power)
+		else
+			local v = c.body.AssemblyLinearVelocity
+			local push = { L = math.clamp(v.Z / 30, 0, 1), R = math.clamp(-v.Z / 30, 0, 1), U = math.clamp(-v.Y / 40, 0, 1) }
+			for dir, p in pairs(push) do
+				c.hold[dir] = p > 0.12 and math.min(c.hold[dir] + dt, JET_RAMP) or math.max(0, c.hold[dir] - dt * 3)
+				want[dir] = p * (0.3 + 0.7 * c.hold[dir] / JET_RAMP)
+			end
+			want.D = math.clamp(0.3 + v.Y / 40, 0.25, 1)
+			want.B = m:GetAttribute("Boosting") and 1 or 0.15
 		end
+		local lowest = math.huge
+		for _, j in ipairs(c.jets) do
+			local target = flying and (want[j.dir] or 0) or 0
+			-- a jet opens with a sharp kick and closes a little slower (valves)
+			j.power += (target - j.power) * (1 - math.exp(-dt * (target > j.power and 14 or 7)))
+			-- turbulence: real jets flutter a little
+			local flutter = 1 + math.sin(now * 37 + j.seed) * 0.06 + math.sin(now * 23.3 + j.seed * 2) * 0.05
+			local p = j.power * flutter
+			local on = p > 0.04
+			if j.core then
+				j.core.Rate = on and (40 + 260 * p) or 0
+				j.core.Speed = NumberRange.new(40 + 50 * p, 60 + 70 * p)
+			end
+			if j.gas then
+				j.gas.Rate = on and (18 + 120 * p) or 0
+				j.gas.Speed = NumberRange.new(16 + 34 * p, 26 + 46 * p)
+			end
+			if j.cone and j.coneB then
+				j.cone.Enabled = on
+				if on then
+					local len = 0.6 + 3.4 * p
+					j.coneB.Position = j.axis * len
+					j.cone.Width0 = 0.22 + 0.18 * p
+					j.cone.Width1 = 0.6 + 1.6 * p
+					j.cone.TextureLength = len
+				end
+			end
+		end
+		-- road blast when low
+		local pos = c.body.Position
+		local road = Config.pathY(pos.X)
+		local height = pos.Y - road
+		local lift = flying and (want.D or 0) or 0
+		local k = math.clamp(1 - (height - 4) / 14, 0, 1) * lift
+		c.ground.CFrame = CFrame.new(pos.X, road + 0.3, pos.Z)
+		c.billow.Rate = k > 0.05 and 30 + 90 * k or 0
 	end
 end)
 
