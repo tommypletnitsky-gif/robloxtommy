@@ -1478,49 +1478,103 @@ local function collect(p)
 end
 
 local lineTimer = 0
--- Thruster car attitude: a car hovering on gas jets, not a rocket. It stays level with the road
--- and slides sideways on its side jets (crabbing, the nose only turns a touch), rolls a little
--- into the slide, lifts its nose climbing and dips it diving, squats back when the rear jets fire,
--- jolts when a jet kicks in, and floats with a slow hover bob and a fine jet shiver. It also
--- reports how hard each jet group is pushing (0..1) to FlightFxClient through the model's local
--- Jet* attributes.
-carAttitude = function(f, now, dt, vel, slope, fwd, accZ)
-	f.carKick = (f.carKick or 0) * math.exp(-dt * 6)
-	f.carPitchKick = (f.carPitchKick or 0) * math.exp(-dt * 5)
-	local sideSign = f.holdZSign or 0
-	if sideSign ~= (f.lastSideSign or 0) then
-		if sideSign ~= 0 then
-			f.carKick += sideSign * 0.07 -- a side jet just opened: a sharp little jolt
-		end
-		f.lastSideSign = sideSign
+-- Thruster car: moves like the real thruster roadster. Its cold-gas thrusters fire in short PUFFS
+-- (not one long flame): each puff nudges the car - a side puff jinks it sideways, a lift puff gives
+-- a little hop it settles back from. Hold a direction and the puffs come faster and stronger until
+-- they merge into one steady jet. The car stays level, rolls / pitches a touch with each puff, does
+-- the barrel roll on rings (the real one rolled in the air), and puffs its lift jets to ease
+-- itself down when the air runs out. Jet power per group goes to FlightFxClient through the model's
+-- local Jet* attributes.
+local PUFF = { gapSlow = 0.42, gapFast = 0.07, len = 0.11 } -- seconds between puffs (light -> hard), puff length
+local function puffJet(f, key, demand, now)
+	-- demand 0..1 -> returns this jet's power right now (0 between puffs) and whether a puff just began
+	f.puffs = f.puffs or {}
+	local st = f.puffs[key]
+	if not st then
+		st = { nextAt = 0, untilT = 0 }
+		f.puffs[key] = st
 	end
+	if demand < 0.05 then
+		return 0, false
+	end
+	if demand > 0.85 then
+		return demand, false -- held hard: one steady jet
+	end
+	local began = false
+	if now >= st.nextAt then
+		st.untilT = now + PUFF.len + 0.08 * demand
+		st.nextAt = now + PUFF.gapSlow + (PUFF.gapFast - PUFF.gapSlow) * demand
+		began = true
+	end
+	return now < st.untilT and math.max(0.35, demand) or 0, began
+end
+
+carAttitude = function(f, now, dt, vel, slope, fwd, accZ)
+	f.carKick = (f.carKick or 0) * math.exp(-dt * 7)
+	f.carPitchKick = (f.carPitchKick or 0) * math.exp(-dt * 6)
+	local holdZ = (f.holdZ or 0) / 1.2
+	local holdY = (f.holdY or 0) / 1.2
 	local boosting = f.boostOn == true
+	local flying = not f.outOfFuel
+	-- how hard each jet group wants to push
+	local side = math.clamp(math.abs(f.vz) / 32, 0, 1) * (0.35 + 0.65 * holdZ)
+	local vert = math.clamp(math.abs(f.vy) / 40, 0, 1) * (0.35 + 0.65 * holdY)
+	local wantL = (flying and f.vz > 1) and side or 0 -- moving right: the left jets blow
+	local wantR = (flying and f.vz < -1) and side or 0
+	local wantU = (flying and f.vy < -1) and vert or 0
+	-- lift: a light steady hover puffing, harder climbing; out of air it puffs to land softly
+	local wantD
+	if flying then
+		wantD = math.clamp(0.3 + (f.vy > 1 and vert or 0), 0, 1)
+	else
+		local h = f.body.Position.Y - Config.pathY(f.body.Position.X)
+		wantD = h < 12 and 0.55 or 0
+	end
+	local wantB = flying and (boosting and 1 or 0.2) or 0
+	local pL, kL = puffJet(f, "L", wantL, now)
+	local pR, kR = puffJet(f, "R", wantR, now)
+	local pU, kU = puffJet(f, "U", wantU, now)
+	local pD, kD = puffJet(f, "D", wantD, now)
+	local pB, kB = puffJet(f, "B", wantB, now)
+	-- each puff nudges the car (the spring pulls it back onto your aim, so it moves in little bursts)
+	if kL then
+		f.vz += 2.5 + 4 * wantL
+		f.carKick += 0.045
+	end
+	if kR then
+		f.vz -= 2.5 + 4 * wantR
+		f.carKick -= 0.045
+	end
+	if kD then
+		f.vy += flying and (1.2 + 3 * wantD) or 5 -- a little hop (bigger to cushion a landing)
+		f.carPitchKick += 0.012
+	end
+	if kU then
+		f.vy -= 1.5 + 3 * wantU
+		f.carPitchKick -= 0.02
+	end
+	if kB then
+		f.carPitchKick += 0.02
+	end
 	if boosting ~= (f.lastBoostJets or false) then
 		if boosting then
-			f.carPitchKick += 0.06 -- rear jets fire: the nose lifts as it surges
+			f.carPitchKick += 0.06 -- rear jets open: the nose lifts as it surges
 		end
 		f.lastBoostJets = boosting
 	end
-	local roll = math.clamp(f.vz * 0.0065 + accZ * 0.0016, -0.32, 0.32) + f.carKick
-	local pitch = f.outOfFuel and -0.05 or math.clamp(f.vy * 0.0055, -0.2, 0.18) + f.carPitchKick
-	local yaw = math.clamp(vel.Z / math.max(fwd, 1) * 0.35, -0.12, 0.12)
-	-- hover: a slow float and a fine shiver from the jets
-	local bob = math.sin(now * 1.9) * 0.012
-	local shiver = (math.sin(now * 31) + math.sin(now * 47.7)) * 0.0035
+	local roll = math.clamp(f.vz * 0.006 + accZ * 0.0014, -0.3, 0.3) + f.carKick
+	local pitch = f.outOfFuel and -0.04 or math.clamp(f.vy * 0.005, -0.18, 0.16) + f.carPitchKick
+	local yaw = math.clamp(vel.Z / math.max(fwd, 1) * 0.3, -0.1, 0.1)
+	local shiver = (math.sin(now * 31) + math.sin(now * 47.7)) * 0.003 * (pD + pL + pR > 0 and 1 or 0.3)
 	local level = math.atan(slope) -- follow the road's climb
-	local cf = CFrame.Angles(0, -yaw, 0) * CFrame.Angles(0, 0, level + pitch + bob + shiver) * CFrame.Angles(roll + shiver * 0.7, 0, 0)
-	-- jet power for the effects
+	local cf = CFrame.Angles(0, -yaw, 0) * CFrame.Angles(0, 0, level + pitch + shiver) * CFrame.Angles(roll + shiver * 0.7, 0, 0)
 	local model = f.body.Parent
 	if model then
-		local holdZ = (f.holdZ or 0) / 1.2
-		local holdY = (f.holdY or 0) / 1.2
-		local side = math.clamp(math.abs(f.vz) / 32, 0, 1) * (0.3 + 0.7 * holdZ)
-		local vert = math.clamp(math.abs(f.vy) / 40, 0, 1) * (0.3 + 0.7 * holdY)
-		model:SetAttribute("JetL", f.vz > 1 and side or 0) -- moving right: the left jets blow
-		model:SetAttribute("JetR", f.vz < -1 and side or 0)
-		model:SetAttribute("JetD", f.outOfFuel and 0 or math.clamp(0.28 + (f.vy > 1 and vert or 0), 0, 1))
-		model:SetAttribute("JetU", f.vy < -1 and vert or 0)
-		model:SetAttribute("JetB", f.outOfFuel and 0 or (boosting and 1 or 0.18))
+		model:SetAttribute("JetL", pL)
+		model:SetAttribute("JetR", pR)
+		model:SetAttribute("JetD", pD)
+		model:SetAttribute("JetU", pU)
+		model:SetAttribute("JetB", pB)
 	end
 	return cf
 end
@@ -1801,9 +1855,9 @@ RunService.RenderStepped:Connect(function(dt)
 	local wobble = f.outOfFuel and 0 or math.sin(now * 3.1) * 0.04
 	local targetAim = CFrame.lookAt(Vector3.zero, heading.Unit) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(f.bank + wobble + spinAngle, 0, math.sin(now * 2.3) * 0.025)
 	if f.thrusters then
-		targetAim = carAttitude(f, now, dt, vel, slope, fwd, accZ)
+		targetAim = carAttitude(f, now, dt, vel, slope, fwd, accZ) * CFrame.Angles(spinAngle, 0, 0)
 	end
-	f.aimCF = (spinAngle > 0 and not f.thrusters) and targetAim or f.aimCF:Lerp(targetAim, 1 - math.exp(-dt * (f.thrusters and 7 or 12)))
+	f.aimCF = spinAngle > 0 and targetAim or f.aimCF:Lerp(targetAim, 1 - math.exp(-dt * (f.thrusters and 9 or 12)))
 	f.align.CFrame = f.aimCF
 
 	-- Flame grows while boosting

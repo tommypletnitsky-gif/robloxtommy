@@ -181,13 +181,26 @@ RunService.Heartbeat:Connect(function(dt)
 				want[dir] = p * (0.3 + 0.7 * c.hold[dir] / JET_RAMP)
 			end
 			want.D = math.clamp(0.3 + v.Y / 40, 0.25, 1)
-			want.B = m:GetAttribute("Boosting") and 1 or 0.15
+			want.B = m:GetAttribute("Boosting") and 1 or 0.2
+			-- puffs like the owner sees them (short bursts, faster and merging the harder it pushes)
+			c.puff = c.puff or {}
+			for dir, d in pairs(want) do
+				local st = c.puff[dir] or { nextAt = 0, untilT = 0 }
+				c.puff[dir] = st
+				if d > 0.05 and d <= 0.85 then
+					if now >= st.nextAt then
+						st.untilT = now + 0.11 + 0.08 * d
+						st.nextAt = now + 0.42 - 0.35 * d
+					end
+					want[dir] = now < st.untilT and math.max(0.35, d) or 0
+				end
+			end
 		end
 		local lowest = math.huge
 		for _, j in ipairs(c.jets) do
 			local target = flying and (want[j.dir] or 0) or 0
 			-- a jet opens with a sharp kick and closes a little slower (valves)
-			j.power += (target - j.power) * (1 - math.exp(-dt * (target > j.power and 14 or 7)))
+			j.power += (target - j.power) * (1 - math.exp(-dt * (target > j.power and 30 or 16))) -- (valves: snap open, close fast)
 			-- turbulence: real jets flutter a little
 			local flutter = 1 + math.sin(now * 37 + j.seed) * 0.06 + math.sin(now * 23.3 + j.seed * 2) * 0.05
 			local p = j.power * flutter
@@ -197,13 +210,13 @@ RunService.Heartbeat:Connect(function(dt)
 			local len
 			if j.dir == "D" then
 				local reach = j.holder.Position.Y - Config.pathY(j.holder.Position.X) - 0.3
-				len = math.clamp(5 + 9 * p, 0.5, math.max(0.5, reach))
+				len = math.clamp(1.8 + 3.4 * p, 0.5, math.max(0.5, reach))
 			elseif j.dir == "B" then
-				len = 2.5 + 7 * p
+				len = 2 + 4.5 * p
 			elseif j.dir == "U" then
-				len = 1.5 + 4 * p
+				len = 1.2 + 2.8 * p
 			else
-				len = 2 + 6.5 * p
+				len = 1.6 + 4.4 * p
 			end
 			if j.cone and j.coneB then
 				j.cone.Enabled = on
@@ -234,7 +247,7 @@ RunService.Heartbeat:Connect(function(dt)
 		local road = Config.pathY(pos.X)
 		local height = pos.Y - road
 		local lift = flying and (want.D or 0) or 0
-		local k = math.clamp(1 - (height - 4) / 14, 0, 1) * lift
+		local k = math.clamp(1 - (height - 3) / 6, 0, 1) * lift
 		c.ground.CFrame = CFrame.new(pos.X, road + 0.3, pos.Z)
 		c.billow.Rate = k > 0.05 and 30 + 90 * k or 0
 	end
