@@ -336,11 +336,11 @@ function RocketModel._gasJet(holder, scale, dir, axis)
 	glowTip.Parent = holder
 	beam("Cone", a0, tip, {
 		Color = JET_COLOR,
-		LightEmission = 0.2,
-		LightInfluence = 0.5,
+		LightEmission = 0.4,
+		LightInfluence = 0.3,
 		TextureSpeed = 4,
 		TextureLength = 1,
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(0.6, 0.45), NumberSequenceKeypoint.new(0.9, 0.75), NumberSequenceKeypoint.new(1, 1) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.05), NumberSequenceKeypoint.new(0.6, 0.15), NumberSequenceKeypoint.new(0.9, 0.5), NumberSequenceKeypoint.new(1, 1) }),
 		Width0 = 0.4 * scale,
 		Width1 = 0.6 * scale,
 	})
@@ -349,7 +349,7 @@ function RocketModel._gasJet(holder, scale, dir, axis)
 		LightEmission = 1,
 		LightInfluence = 0,
 		TextureSpeed = 6,
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(0.75, 0.6), NumberSequenceKeypoint.new(1, 1) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.75, 0.3), NumberSequenceKeypoint.new(1, 1) }),
 		Width0 = 0.22 * scale,
 		Width1 = 0.3 * scale,
 	})
@@ -357,7 +357,7 @@ function RocketModel._gasJet(holder, scale, dir, axis)
 		LightEmission = 0.3,
 		LightInfluence = 0.4,
 		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55 * scale), NumberSequenceKeypoint.new(0.85, 0.85 * scale), NumberSequenceKeypoint.new(1, 1.2 * scale) }),
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(0.8, 0.65), NumberSequenceKeypoint.new(1, 1) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(0.8, 0.35), NumberSequenceKeypoint.new(1, 1) }),
 		Lifetime = NumberRange.new(0.15),
 		Speed = NumberRange.new(55, 60),
 		SpreadAngle = Vector2.new(0.8, 0.8),
