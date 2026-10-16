@@ -1017,6 +1017,8 @@ Config.Sounds = {
 	Hit = "rbxasset://sounds/impact_explosion_03.mp3",
 	LobbyMusic = "rbxassetid://9047876673",
 	FlightMusic = "rbxassetid://82132213006755",
+	AirHiss = "rbxassetid://9116496074", -- thruster car: compressed air hissing (Pro Sound Effects)
+	AirPuff = "rbxassetid://9113046025", -- thruster car: a short puff of air (Pro Sound Effects)
 }
 
 function Config.getRocket(id)

@@ -116,7 +116,7 @@ for i, look in ipairs({ { "FuelCan", Color3.fromRGB(255, 160, 30) }, { "Bolt", C
 end
 local fuelBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(66, 101), Size = UDim2.new(1, -84, 0, 28), BackgroundColor3 = Color3.fromRGB(50, 52, 78), ZIndex = 2 }, { UIKit.corner(14), UIKit.stroke(3.5) })
 local fuelFill = make("Frame", { Parent = fuelBack, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, { UIKit.corner(14), UIKit.gloss(Color3.fromRGB(255, 160, 30)) })
-label({ Parent = fuelBack, Size = UDim2.fromScale(1, 1), Text = "FUEL", ZIndex = 2 })
+local fuelText = label({ Parent = fuelBack, Size = UDim2.fromScale(1, 1), Text = "FUEL", ZIndex = 2 })
 -- boost bar under the fuel: filled by coins / gems / rings, used by holding SPACE / the BOOST button
 local BOOST_BLUE = Color3.fromRGB(60, 200, 255)
 local boostBack = make("Frame", { Parent = flightHud, Position = UDim2.fromOffset(66, 140), Size = UDim2.new(1, -84, 0, 24), BackgroundColor3 = Color3.fromRGB(50, 52, 78), ZIndex = 2 }, { UIKit.corner(12), UIKit.stroke(3) })
@@ -1129,9 +1129,10 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 			launchFx = nil
 		end
 		local engine = Instance.new("Sound")
-		engine.SoundId = Config.Sounds.Engine
+		local isCar = Config.getRocket(player:GetAttribute("Rocket")).thrusters == true
+		engine.SoundId = isCar and Config.Sounds.AirHiss or Config.Sounds.Engine -- (thruster car: an air hiss)
 		engine.Looped = true
-		engine.Volume = player:GetAttribute("SoundOn") == false and 0 or 0.35 -- Settings: sound effects off
+		engine.Volume = player:GetAttribute("SoundOn") == false and 0 or (isCar and 0.22 or 0.35) -- Settings: sound effects off
 		engine.Parent = body
 		engine:Play()
 		flight = {
@@ -1191,6 +1192,7 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 		local flame = body.Parent:FindFirstChild("Flame", true)
 		flight.flameFx = flame and flame:FindFirstChildOfClass("Fire")
 		flightHud.Visible = true
+		fuelText.Text = flight.thrusters and "AIR" or "FUEL" -- (the car runs on compressed air)
 		linesFrame.Visible = true
 		boostHolder.Visible = true
 		boostKeyHint.Visible = UserInputService.KeyboardEnabled
@@ -1282,12 +1284,13 @@ FlightEvent.OnClientEvent:Connect(function(kind, info)
 				TweenService:Create(flight.engine, TweenInfo.new(0.5), { Volume = 0 }):Play()
 			end
 			UIKit.sound("PowerDown", 0.45)
-			bigLabel.Text = "OUT OF FUEL!"
+			local outText = flight.thrusters and "OUT OF AIR!" or "OUT OF FUEL!"
+			bigLabel.Text = outText
 			bigLabel.TextColor3 = Color3.fromRGB(255, 140, 80)
 			bigLabel.Visible = true
 			UIKit.bounce(bigLabel)
 			task.delay(1.2, function()
-				if bigLabel.Text == "OUT OF FUEL!" then
+				if bigLabel.Text == outText then
 					bigLabel.Visible = false
 				end
 			end)
@@ -1460,11 +1463,14 @@ local function collect(p)
 		f.boostUntil = os.clock() + Config.Pickups.Ring.boostTime
 		f.pull = math.max(f.pull, 7)
 		f.pullHold = os.clock() + 0.2
+		if f.spin <= 0 then
+			f.flatSpin = f.thrusters and not f.flatSpin -- (thruster car: every other ring spins flat)
+		end
 		f.spin = math.max(f.spin, math.pi * 2)
 		UIKit.sound("Boost", 0.45)
 		UIKit.sound("Whoosh", 0.55, 1.1)
 		ringWave(p.pos)
-		popText("BOOST! +FUEL", Color3.fromRGB(255, 180, 40))
+		popText(f.thrusters and "BOOST! +AIR" or "BOOST! +FUEL", Color3.fromRGB(255, 180, 40))
 		addShake(0.4)
 	elseif p.kind == "Obstacle" then
 		f.slowUntil = os.clock() + Config.Pickups.Obstacle.slowTime
@@ -1533,9 +1539,12 @@ carAttitude = function(f, now, dt, vel, slope, fwd, accZ)
 	local wantB = flying and (boosting and 1 or 0.2) or 0
 	local pL, kL = puffJet(f, "L", wantL, now)
 	local pR, kR = puffJet(f, "R", wantR, now)
-	local pU, kU = puffJet(f, "U", wantU, now)
+	local pU, kU = 0, false -- (10 thrusters like the real car: no top jets - a dive just drops)
 	local pD, kD = puffJet(f, "D", wantD, now)
 	local pB, kB = puffJet(f, "B", wantB, now)
+	if kL or kR or kU then
+		UIKit.sound("AirPuff", 0.35, 0.9 + math.random() * 0.25)
+	end
 	-- each puff nudges the car (the spring pulls it back onto your aim, so it moves in little bursts)
 	if kL then
 		f.vz += 2.5 + 4 * wantL
@@ -1855,7 +1864,7 @@ RunService.RenderStepped:Connect(function(dt)
 	local wobble = f.outOfFuel and 0 or math.sin(now * 3.1) * 0.04
 	local targetAim = CFrame.lookAt(Vector3.zero, heading.Unit) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(f.bank + wobble + spinAngle, 0, math.sin(now * 2.3) * 0.025)
 	if f.thrusters then
-		targetAim = carAttitude(f, now, dt, vel, slope, fwd, accZ) * CFrame.Angles(spinAngle, 0, 0)
+		targetAim = carAttitude(f, now, dt, vel, slope, fwd, accZ) * (f.flatSpin and CFrame.Angles(0, spinAngle, 0) or CFrame.Angles(spinAngle, 0, 0))
 	end
 	f.aimCF = spinAngle > 0 and targetAim or f.aimCF:Lerp(targetAim, 1 - math.exp(-dt * (f.thrusters and 9 or 12)))
 	f.align.CFrame = f.aimCF
@@ -1960,7 +1969,9 @@ RunService.RenderStepped:Connect(function(dt)
 			spawnSpeedLine(fast and 1 or 0.6)
 		end
 	end
-	if f.engine then
+	if f.engine and f.thrusters then
+		f.engine.PlaybackSpeed = 0.95 + (speedMul - 1) * 0.15 -- (air hiss: a bit higher when boosting)
+	elseif f.engine then
 		f.engine.PlaybackSpeed = 0.9 + speedMul * 0.2
 	end
 

@@ -86,10 +86,20 @@ function RocketModel.build(def, scale, withSeat, origin)
 				d.CanQuery = false
 				d.CanTouch = false
 				d.Massless = true
-				local w = Instance.new("WeldConstraint")
-				w.Part0 = body
-				w.Part1 = d
-				w.Parent = d
+				if d.Name == "Wheel" then
+					local w = Instance.new("Weld") -- (FlightFxClient spins it: C0 = Rest * roll)
+					w.Name = "WheelWeld"
+					w.Part0 = body
+					w.Part1 = d
+					w.C0 = body.CFrame:ToObjectSpace(d.CFrame)
+					w:SetAttribute("Rest", w.C0)
+					w.Parent = d
+				else
+					local w = Instance.new("WeldConstraint")
+					w.Part0 = body
+					w.Part1 = d
+					w.Parent = d
+				end
 			end
 		end
 		visual.Parent = model
@@ -326,11 +336,11 @@ function RocketModel._gasJet(holder, scale, dir, axis)
 	glowTip.Parent = holder
 	beam("Cone", a0, tip, {
 		Color = JET_COLOR,
-		LightEmission = 0.35,
-		LightInfluence = 0.35,
+		LightEmission = 0.2,
+		LightInfluence = 0.5,
 		TextureSpeed = 4,
 		TextureLength = 1,
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.75, 0.06), NumberSequenceKeypoint.new(0.93, 0.5), NumberSequenceKeypoint.new(1, 1) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(0.6, 0.45), NumberSequenceKeypoint.new(0.9, 0.75), NumberSequenceKeypoint.new(1, 1) }),
 		Width0 = 0.4 * scale,
 		Width1 = 0.6 * scale,
 	})
@@ -339,7 +349,7 @@ function RocketModel._gasJet(holder, scale, dir, axis)
 		LightEmission = 1,
 		LightInfluence = 0,
 		TextureSpeed = 6,
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.75, 0.25), NumberSequenceKeypoint.new(1, 1) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(0.75, 0.6), NumberSequenceKeypoint.new(1, 1) }),
 		Width0 = 0.22 * scale,
 		Width1 = 0.3 * scale,
 	})
@@ -347,7 +357,7 @@ function RocketModel._gasJet(holder, scale, dir, axis)
 		LightEmission = 0.3,
 		LightInfluence = 0.4,
 		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55 * scale), NumberSequenceKeypoint.new(0.85, 0.85 * scale), NumberSequenceKeypoint.new(1, 1.2 * scale) }),
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(0.8, 0.4), NumberSequenceKeypoint.new(1, 1) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(0.8, 0.65), NumberSequenceKeypoint.new(1, 1) }),
 		Lifetime = NumberRange.new(0.15),
 		Speed = NumberRange.new(55, 60),
 		SpreadAngle = Vector2.new(0.8, 0.8),
@@ -388,7 +398,7 @@ function RocketModel._thrusters(origin, scale, carSize)
 		p:SetAttribute("Dir", dir)
 		RocketModel._gasJet(p, scale, normal, axis)
 		table.insert(list, p)
-		table.insert(list, part({ Name = "Nozzle", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.22, 0.5, 0.5) * scale, Color = nozzleColor, Material = Enum.Material.Metal, Reflectance = 0.15, CFrame = cf * nozzleAxis }))
+		-- (no visible nozzle: on the real car the thrusters sit inside the body)
 	end
 	local vertical = CFrame.Angles(0, 0, math.pi / 2) -- cylinder axis (X) turned to point up/down
 	local sideways = CFrame.Angles(0, math.pi / 2, 0) -- axis turned to point left/right
@@ -398,7 +408,6 @@ function RocketModel._thrusters(origin, scale, carSize)
 		end
 		jet("L", Enum.NormalId.Front, Vector3.new(0, 0, -1), sx * L * 0.28, -H * 0.1, -W * 0.5, sideways) -- Front = -Z
 		jet("R", Enum.NormalId.Back, Vector3.new(0, 0, 1), sx * L * 0.28, -H * 0.1, W * 0.5, sideways) -- Back = +Z
-		jet("U", Enum.NormalId.Top, Vector3.new(0, 1, 0), sx * L * 0.25, H * 0.2, 0, vertical)
 		jet("B", Enum.NormalId.Left, Vector3.new(-1, 0, 0), -L * 0.5, -H * 0.15, sx * W * 0.28, CFrame.new()) -- Left = -X (out the back)
 	end
 	return list

@@ -140,7 +140,30 @@ local function addJets(model)
 	billow.RotSpeed = NumberRange.new(-30, 30)
 	billow.Rate = 0
 	billow.Parent = ground
-	jetCars[model] = { body = body, model = model, flame = model:FindFirstChild("Flame", true), jets = jets, hold = { L = 0, R = 0, U = 0, D = 0, B = 0 }, ground = ground, billow = billow }
+	-- wheels (spin with the car's speed) and the fans' downwash: a faint swirl of air under the car
+	local wheels = {}
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("Weld") and d.Name == "WheelWeld" and d:GetAttribute("Rest") then
+			table.insert(wheels, { weld = d, rest = d:GetAttribute("Rest"), radius = math.max(0.4, (d.Part1 and d.Part1.Size.Y or 1.8) / 2) })
+		end
+	end
+	local downwash = Instance.new("ParticleEmitter")
+	downwash.Name = "FanDownwash"
+	downwash.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	downwash.Color = ColorSequence.new(Color3.fromRGB(235, 242, 250))
+	downwash.LightInfluence = 0.8
+	downwash.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.5), NumberSequenceKeypoint.new(1, 4) })
+	downwash.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.85), NumberSequenceKeypoint.new(0.5, 0.9), NumberSequenceKeypoint.new(1, 1) })
+	downwash.Lifetime = NumberRange.new(0.3, 0.5)
+	downwash.Speed = NumberRange.new(10, 16)
+	downwash.SpreadAngle = Vector2.new(25, 25)
+	downwash.RotSpeed = NumberRange.new(-200, 200)
+	downwash.Rotation = NumberRange.new(0, 360)
+	downwash.EmissionDirection = Enum.NormalId.Bottom
+	downwash.LockedToPart = true
+	downwash.Rate = 0
+	downwash.Parent = body
+	jetCars[model] = { body = body, model = model, flame = model:FindFirstChild("Flame", true), jets = jets, hold = { L = 0, R = 0, U = 0, D = 0, B = 0 }, ground = ground, billow = billow, wheels = wheels, wheelAngle = 0, downwash = downwash }
 end
 flights.ChildAdded:Connect(function(m)
 	task.spawn(addJets, m)
@@ -242,6 +265,15 @@ RunService.Heartbeat:Connect(function(dt)
 				j.light.Brightness = on and 0.4 + 1.6 * p or 0
 			end
 		end
+		-- wheels roll with the car's speed; the fans blow a faint downwash while flying
+		local fwdSpeed = c.body.AssemblyLinearVelocity:Dot(c.body.CFrame.RightVector) -- (+X = the car's front)
+		for _, w in ipairs(c.wheels) do
+			if w.weld.Parent then
+				w.angle = ((w.angle or 0) - fwdSpeed * dt / w.radius) % (math.pi * 2)
+				w.weld.C0 = w.rest * CFrame.Angles(0, 0, w.angle) -- (the axle is the wheel's Z)
+			end
+		end
+		c.downwash.Rate = flying and 14 or 0
 		-- road blast when low
 		local pos = c.body.Position
 		local road = Config.pathY(pos.X)
