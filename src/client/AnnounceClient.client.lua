@@ -7,6 +7,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local UIKit = require(script.Parent:WaitForChild("ClientModules"):WaitForChild("UIKit"))
@@ -20,7 +21,8 @@ local gui = UIKit.gui()
 -- Banner -------------------------------------------------------------------------------------
 local holder = make("Frame", { Parent = gui, Name = "AdminBanner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 96), Size = UDim2.fromOffset(760, 132), BackgroundTransparency = 1, ZIndex = 80 })
 UIKit.hudScale(holder)
-local card = make("Frame", { Parent = holder, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, -260), Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 80 }, {
+local HIDDEN = UDim2.new(0.5, 0, 0, -500) -- (well above the screen at every size; phones shrink the HUD)
+local card = make("Frame", { Parent = holder, AnchorPoint = Vector2.new(0.5, 0), Position = HIDDEN, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, ZIndex = 80 }, {
 	UIKit.corner(26),
 	UIKit.stroke(5),
 })
@@ -44,14 +46,16 @@ local function showNext()
 	grad.Color = UIKit.gloss(color).Color
 	title.Text = item.title
 	body.Text = item.text
-	card.Position = UDim2.new(0.5, 0, 0, -260)
+	card.Position = HIDDEN
+	card.Visible = true
 	TweenService:Create(card, TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.new(0.5, 0, 0, 0) }):Play()
 	UIKit.bounce(titlePill)
 	UIKit.sound("Fanfare", 0.7, 1)
 	local hold = math.clamp(3.5 + #item.text / 18, 4, 9)
 	task.delay(0.55 + hold, function()
-		TweenService:Create(card, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.new(0.5, 0, 0, -260) }):Play()
+		TweenService:Create(card, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = HIDDEN }):Play()
 		task.wait(0.45)
+		card.Visible = false
 		showing = false
 		showNext()
 	end)
@@ -105,3 +109,19 @@ RainCoin.OnClientEvent:Connect(function(amount)
 	UIKit.sound("Coin", 0.6, 1 + math.random() * 0.2)
 	UIKit.popSum("rain", amount, Color3.fromRGB(130, 255, 130))
 end)
+
+-- Phones: Roblox's chat window is huge by default and covers the game - make it smaller there.
+if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+	local TextChatService = game:GetService("TextChatService")
+	local window = TextChatService:FindFirstChildOfClass("ChatWindowConfiguration")
+	if window then
+		window.HeightScale = 0.6
+		window.WidthScale = 0.75
+		window.TextSize = 12
+		window.BackgroundTransparency = 0.45
+	end
+	local bar = TextChatService:FindFirstChildOfClass("ChatInputBarConfiguration")
+	if bar then
+		bar.TextSize = 12
+	end
+end
