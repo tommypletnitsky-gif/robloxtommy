@@ -53,5 +53,6 @@
   {"file": "src/server/HalloweenServer.server.lua", "path": "ServerScriptService.HalloweenServer", "class": "Script"},
   {"file": "src/client/HalloweenClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.HalloweenClient", "class": "LocalScript"},
   {"file": "src/client/GateFxClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.GateFxClient", "class": "LocalScript"},
-  {"file": "src/client/AnnounceClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.AnnounceClient", "class": "LocalScript"}
+  {"file": "src/client/AnnounceClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.AnnounceClient", "class": "LocalScript"},
+  {"file": "src/client/SteerTutorialClient.client.lua", "path": "StarterPlayer.StarterPlayerScripts.SteerTutorialClient", "class": "LocalScript"}
 ]
